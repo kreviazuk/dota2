@@ -9,6 +9,7 @@ import type { AreaEffect } from './entities/effect';
 import { tickModifiers } from './modifiers';
 import { recomputeStats } from './stats';
 import { applyCommand, type Command } from './commands';
+import { updateMovement } from './systems/movement';
 
 export interface WorldConfig {
   seed: number;
@@ -56,7 +57,7 @@ export class World {
     this.config = { seed: cfg.seed, recordEvents: cfg.recordEvents ?? false, spawnCreeps: cfg.spawnCreeps ?? true };
     // 系统执行顺序（后续任务在对应位置插入）：
     // spawner → heroes → buildings → creepAI → abilities → attacks → movement → projectiles → effects → regen
-    this.systems.push(updateRegen);
+    this.systems.push(updateMovement, updateRegen);
   }
 
   allocId(): number {
