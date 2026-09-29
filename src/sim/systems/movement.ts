@@ -1,3 +1,4 @@
+import { castGoal } from './abilities';
 import type { World } from '../world';
 import type { Unit } from '../entities/unit';
 import type { Vec2 } from '../core/vec2';
@@ -29,6 +30,8 @@ export function movementGoal(world: World, u: Unit): Vec2 | null {
       if (!t || !t.alive) return null;
       return edgeDist(u, t) > s.attackRange ? t.pos : null;
     }
+    case 'cast':
+      return castGoal(world, u);
     default:
       return null;
   }

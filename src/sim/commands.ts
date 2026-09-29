@@ -4,6 +4,7 @@ import type { AbilitySlot } from './core/types';
 import type { CastTarget } from './heroes/types';
 import type { Unit } from './entities/unit';
 import type { World } from './world';
+import { cancelCast, canCast, issueCast, toggleAbility } from './systems/abilities';
 import { canAttack, smartAttackTarget, lastHitTarget, buildingTarget } from './query';
 
 export type Command =
@@ -33,17 +34,20 @@ export function applyCommand(world: World, u: Unit, cmd: Command): void {
       }
       const dir = normalize(cmd.dir);
       if (dir.x === 0 && dir.y === 0) return;
+      if (u.cast && !(u.cast.phase === 'channel' && u.cast.ability.def.channelAllowsMove)) cancelCast(world, u, true);
       u.order = { kind: 'moveDir', dir };
       u.attack.windup = -1;
       return;
     }
     case 'moveTo':
       if (!u.alive || isCommandLocked(u)) return;
+      if (u.cast) cancelCast(world, u, true);
       u.order = { kind: 'moveTo', point: { x: cmd.point.x, y: cmd.point.y } };
       u.attack.windup = -1;
       return;
     case 'stop':
       if (!u.alive) return;
+      if (u.cast) cancelCast(world, u, true);
       u.order = { kind: 'idle' };
       u.attack.windup = -1;
       return;
@@ -55,6 +59,17 @@ export function applyCommand(world: World, u: Unit, cmd: Command): void {
         t = cmd.mode === 'lastHit' ? lastHitTarget(world, u) : cmd.mode === 'building' ? buildingTarget(world, u) : smartAttackTarget(world, u);
       if (!t) return;
       u.order = { kind: 'attack', targetId: t.id, persistent: true };
+      return;
+    }
+    case 'cast': {
+      if (!u.alive || isCommandLocked(u)) return;
+      const ab = u.ability(cmd.slot);
+      if (ab) issueCast(world, u, ab, cmd.target);
+      return;
+    }
+    case 'toggle': {
+      const ab = u.ability(cmd.slot);
+      if (ab && ab.def.targetType === 'toggle' && canCast(world, u, ab)) toggleAbility(world, u, ab);
       return;
     }
     default:
