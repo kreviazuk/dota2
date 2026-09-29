@@ -58,6 +58,9 @@ export function drawAggro(world: World, attacker: Unit, target: Unit): void {
 }
 
 export function updateAttacks(world: World, dt: number): void {
+  // 同一 tick 内完成前摇的攻击视为同时出手：先收集再统一结算。
+  // 否则在双方互相致死时，先加入 world.units 的一方（总是先刷出的天辉兵）总能先打死对方，造成系统性的阵营偏差。
+  const launches: { attacker: Unit; target: Unit }[] = [];
   for (const u of world.units) {
     if (!u.alive || !canUnitAttack(u)) continue;
     const a = u.attack;
@@ -90,9 +93,10 @@ export function updateAttacks(world: World, dt: number): void {
     a.windup -= dt;
     if (a.windup <= 1e-6) {
       a.windup = -1;
-      launchAttack(world, u, target);
+      launches.push({ attacker: u, target });
     }
   }
+  for (const { attacker, target } of launches) launchAttack(world, attacker, target);
 }
 
 const attackVisual = (u: Unit): string =>
