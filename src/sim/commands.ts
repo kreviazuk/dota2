@@ -5,6 +5,7 @@ import type { CastTarget } from './heroes/types';
 import type { Unit } from './entities/unit';
 import type { World } from './world';
 import { cancelCast, canCast, issueCast, toggleAbility } from './systems/abilities';
+import { learnAbility } from './systems/progress';
 import { canAttack, smartAttackTarget, lastHitTarget, buildingTarget } from './query';
 
 export type Command =
@@ -76,6 +77,15 @@ export function applyCommand(world: World, u: Unit, cmd: Command): void {
       if (ab && ab.def.targetType === 'toggle' && canCast(world, u, ab)) toggleAbility(world, u, ab);
       return;
     }
+    case 'learn':
+      learnAbility(world, u, cmd.slot);
+      return;
+    case 'recall':
+      if (!u.alive || !u.hero || isCommandLocked(u)) return;
+      if (u.cast) cancelCast(world, u, true);
+      u.order = { kind: 'recall', remaining: world.balance.hero.recallTime, startedAt: world.time };
+      u.attack.windup = -1;
+      return;
     default:
       // 其余指令在后续任务中实现
       return;

@@ -15,6 +15,8 @@ import { updateBuildings, onBuildingKilled } from './systems/buildings';
 import { updateProjectiles, updateEffects } from './systems/projectiles';
 import { updateAbilities } from './systems/abilities';
 import { updateSpawner, updateCreepAI } from './systems/creeps';
+import { updateHeroes, onHeroKilled } from './systems/heroes';
+import { onUnitKilledEconomy } from './systems/economy';
 
 export interface WorldConfig {
   seed: number;
@@ -64,8 +66,8 @@ export class World {
     this.config = { seed: cfg.seed, recordEvents: cfg.recordEvents ?? false, spawnCreeps: cfg.spawnCreeps ?? true };
     // 系统执行顺序（后续任务在对应位置插入）：
     // spawner → heroes → buildings → creepAI → abilities → attacks → movement → projectiles → effects → regen
-    this.systems.push(updateSpawner, updateBuildings, updateCreepAI, updateAbilities, updateAttacks, updateMovement, updateProjectiles, updateEffects, updateRegen);
-    this.killListeners.push(onBuildingKilled);
+    this.systems.push(updateSpawner, updateHeroes, updateBuildings, updateCreepAI, updateAbilities, updateAttacks, updateMovement, updateProjectiles, updateEffects, updateRegen);
+    this.killListeners.push(onBuildingKilled, onUnitKilledEconomy, onHeroKilled);
   }
 
   allocId(): number {
