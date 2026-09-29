@@ -13,6 +13,7 @@ import { updateMovement } from './systems/movement';
 import { updateAttacks } from './systems/attack';
 import { updateBuildings, onBuildingKilled } from './systems/buildings';
 import { updateProjectiles, updateEffects } from './systems/projectiles';
+import { updateSpawner, updateCreepAI } from './systems/creeps';
 
 export interface WorldConfig {
   seed: number;
@@ -46,6 +47,7 @@ export class World {
   projectiles: Projectile[] = [];
   effects: AreaEffect[] = [];
   winner: Team | null = null;
+  spawner: { nextWaveTime: number; waveIndex: number };
   readonly teams: Record<Team, TeamState> = { [Team.Radiant]: newTeamState(), [Team.Dire]: newTeamState() };
   readonly systems: SystemFn[] = [];
   readonly killListeners: KillListener[] = [];
@@ -57,10 +59,11 @@ export class World {
     this.rng = new Rng(cfg.seed);
     this.balance = cfg.balance ?? cloneBalance();
     this.events = new EventBus(cfg.recordEvents ?? false);
+    this.spawner = { nextWaveTime: this.balance.waves.firstWaveTime, waveIndex: 0 };
     this.config = { seed: cfg.seed, recordEvents: cfg.recordEvents ?? false, spawnCreeps: cfg.spawnCreeps ?? true };
     // 系统执行顺序（后续任务在对应位置插入）：
     // spawner → heroes → buildings → creepAI → abilities → attacks → movement → projectiles → effects → regen
-    this.systems.push(updateBuildings, updateAttacks, updateMovement, updateProjectiles, updateEffects, updateRegen);
+    this.systems.push(updateSpawner, updateBuildings, updateCreepAI, updateAttacks, updateMovement, updateProjectiles, updateEffects, updateRegen);
     this.killListeners.push(onBuildingKilled);
   }
 
