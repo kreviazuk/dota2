@@ -71,6 +71,14 @@ describe('buildings', () => {
     runFor(w, 1);
     expect(hero.hp).toBeGreaterThan(145);
   });
+  it('fountain does not heal allied buildings', () => {
+    const w = makeWorld(); const b = createBuildings(w);
+    const r = b[Team.Radiant];
+    killUnit(w, r.t4a, null); killUnit(w, r.t4b, null);
+    r.ancient.hp = 1000;
+    runFor(w, 1);
+    expect(r.ancient.hp).toBeLessThanOrEqual(1000 + 5 + 1);
+  });
   it('towers kill creeps over time', () => {
     const w = makeWorld(); const b = createBuildings(w);
     const t1 = b[Team.Radiant].t1;
