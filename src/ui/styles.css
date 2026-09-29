@@ -1,0 +1,133 @@
+/*
+ * 1rem = 界面基准单位：约 1% 屏高。手机横屏（约 360–430 像素高）时 1vh 太小，按下限 4.5px 放大；
+ * 大屏最多 9px。文字另外用 max(…, Npx) 保证手机上的最小字号。
+ */
+* { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+html { font-size: clamp(4.5px, 1vh, 9px); -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
+html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f0a; color: #f2f2f2;
+  font-family: -apple-system, "PingFang SC", "Microsoft YaHei", "Noto Sans SC", "Noto Sans CJK SC", sans-serif;
+  user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; touch-action: none; overscroll-behavior: none; }
+#game { position: fixed; inset: 0; display: block; }
+#ui { position: fixed; inset: 0; pointer-events: none; }
+
+/* ---------- 对局 HUD：只有按钮和摇杆区域接收触摸，其余部分让给画面 ---------- */
+.hud { position: absolute; inset: 0; pointer-events: none; }
+
+.hud-tl { position: absolute; left: calc(env(safe-area-inset-left) + 1.5rem); top: 1.5rem; display: flex; gap: 1rem; align-items: center;
+  background: rgba(0,0,0,0.45); padding: 0.8rem 1.2rem; border-radius: 1.2rem; }
+.portrait { width: 8rem; height: 8rem; flex: none; border-radius: 50%; display: flex; align-items: center; justify-content: center; position: relative;
+  font-size: 4rem; font-weight: bold; border: 0.4rem solid #e2b04a; }
+.portrait-level { position: absolute; right: -0.8rem; bottom: -0.8rem; min-width: max(2.6rem, 14px); text-align: center; background: #111; color: #ffe28a;
+  font-size: max(2rem, 11px); line-height: 1.3; border-radius: 1rem; padding: 0 0.5rem; border: 1px solid #e2b04a; }
+.vitals { display: flex; flex-direction: column; gap: 0.5rem; width: 26rem; }
+.bar { height: max(2.4rem, 12px); background: #222; border-radius: 0.5rem; position: relative; overflow: hidden; }
+.bar .fill { position: absolute; left: 0; top: 0; bottom: 0; }
+.bar.hp .fill { background: linear-gradient(#5fe05a, #2f9a2a); }
+.bar.mp .fill { background: linear-gradient(#5b8cff, #2a4fc0); }
+.bar.xp { height: max(0.9rem, 4px); }
+.bar.xp .fill { background: #d9b84a; }
+.bar .txt { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font-size: max(1.7rem, 9.5px);
+  text-shadow: 0 0 3px #000, 0 0 2px #000; }
+.gold { font-size: max(2.6rem, 13px); color: #ffcc33; font-weight: bold; min-width: 9rem; white-space: nowrap; }
+.gold .coin { margin-right: 0.5rem; }
+
+.hud-top { position: absolute; left: 50%; top: 1rem; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 0.6rem; }
+.score { display: flex; gap: 2rem; align-items: center; background: rgba(0,0,0,0.55); padding: 0.4rem 2rem; border-radius: 1rem;
+  font-size: max(3rem, 14px); font-weight: bold; }
+.k-rad { color: #7be07a; } .k-dire { color: #ff7a6a; }
+.clock { font-size: max(2.4rem, 12px); color: #ddd; min-width: 8rem; text-align: center; font-variant-numeric: tabular-nums; }
+.roster { display: flex; gap: 3rem; }
+.roster .side { display: flex; gap: 0.6rem; }
+.mini { width: 4.8rem; height: 4.8rem; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: max(2.2rem, 11px);
+  position: relative; border: 0.3rem solid #555; }
+.mini.rad { border-color: #4caf50; } .mini.dire { border-color: #d9483b; } .mini.me { box-shadow: 0 0 0.8rem 0.2rem #fff; }
+.mini .dead { position: absolute; inset: -0.3rem; border-radius: 50%; background: rgba(0,0,0,0.72); display: none; align-items: center; justify-content: center;
+  font-size: max(1.9rem, 10px); font-weight: bold; color: #ff8a7a; }
+.mini.is-dead .dead { display: flex; }
+
+.hud-tr { position: absolute; right: calc(env(safe-area-inset-right) + 1.5rem); top: 1.5rem; display: flex; gap: 1rem; align-items: flex-start; }
+.minimap { width: 11rem; height: 32rem; background: rgba(0,0,0,0.6); border: 0.3rem solid #444; border-radius: 0.8rem; }
+.btn-pause { width: 7rem; height: 7rem; border-radius: 1rem; background: rgba(0,0,0,0.55); border: 1px solid #666; display: flex; align-items: center;
+  justify-content: center; font-size: max(2.4rem, 12px); pointer-events: auto; cursor: pointer; }
+
+/* 浮动摇杆：左侧区域任意位置按下，摇杆底座移到按下的位置 */
+.joy-zone { position: absolute; left: 0; bottom: 0; width: 42vw; height: 72vh; pointer-events: auto; }
+.joy-base { position: absolute; width: 20rem; height: 20rem; margin: -10rem 0 0 -10rem; border-radius: 50%; background: rgba(255,255,255,0.08);
+  border: 0.4rem solid rgba(255,255,255,0.25); left: calc(env(safe-area-inset-left) + 16rem); top: calc(100% - 16rem); pointer-events: none; }
+.joy-base.active { background: rgba(255,255,255,0.12); border-color: rgba(255,255,255,0.4); }
+.joy-knob { position: absolute; left: 50%; top: 50%; width: 9rem; height: 9rem; margin: -4.5rem 0 0 -4.5rem; border-radius: 50%;
+  background: rgba(255,255,255,0.35); border: 0.3rem solid rgba(255,255,255,0.6); }
+
+/* 右下操作区：普攻键在右下角，QWER 沿半径 20rem 的圆弧排在普攻键周围 */
+.actions { position: absolute; right: env(safe-area-inset-right); bottom: 0; width: 60rem; height: 50rem; pointer-events: none; }
+.actions > div { position: absolute; border-radius: 50%; display: flex; align-items: center; justify-content: center; pointer-events: auto; cursor: pointer; }
+.btn-attack { right: 3rem; bottom: 3rem; width: 18rem; height: 18rem; background: radial-gradient(#8a2a20, #4a100b); border: 0.5rem solid #d6a24a;
+  font-size: max(3.2rem, 15px); font-weight: bold; }
+.btn-attack.held { filter: brightness(1.35); }
+.btn-small { width: 9rem; height: 9rem; background: rgba(30,30,30,0.8); border: 0.3rem solid #888; font-size: max(2rem, 11px); }
+.btn-lasthit { right: 39.5rem; bottom: 3rem; }
+.btn-push { right: 39.5rem; bottom: 13.5rem; }
+.btn-recall { right: 50rem; bottom: 3rem; width: 9rem; height: 9rem; background: rgba(20,40,80,0.85); border: 0.3rem solid #6fa0ff; font-size: max(2rem, 11px); }
+.btn-small:active, .btn-recall:active { filter: brightness(1.4); }
+.skill { width: 11rem; height: 11rem; background: radial-gradient(#3a3a48, #1a1a22); border: 0.4rem solid #9aa0b8; overflow: visible; }
+.skill[data-slot="Q"] { right: 26.45rem; bottom: 5.1rem; }
+.skill[data-slot="W"] { right: 23.46rem; bottom: 17.1rem; }
+.skill[data-slot="E"] { right: 13.99rem; bottom: 25.04rem; }
+.skill[data-slot="R"] { right: 1.66rem; bottom: 25.91rem; border-color: #e2b04a; }
+.skill .skill-name { font-size: max(2.4rem, 12px); font-weight: bold; }
+.skill .skill-key { position: absolute; right: 1.2rem; top: 0.6rem; font-size: max(1.5rem, 9px); color: #aaa; }
+@media (pointer: coarse) { .skill .skill-key { display: none; } }
+.skill .cd { position: absolute; inset: 0; border-radius: 50%; background: conic-gradient(rgba(0,0,0,0.72) calc(var(--cd, 0) * 1turn), transparent 0); }
+.skill .cd-text { position: absolute; font-size: max(3rem, 16px); font-weight: bold; text-shadow: 0 0 4px #000, 0 0 2px #000; }
+.skill.on-cd .skill-name { visibility: hidden; }
+/* 魔法不足 / 未学会只让按钮本身变暗，"+" 保持醒目 */
+.skill.no-mana { border-color: #3a5bd0; background: radial-gradient(#252c44, #12151f); }
+.skill.no-mana > :not(.learn) { filter: saturate(0.4) brightness(0.8); }
+.skill.unlearned { border-color: #5a5e6a; background: radial-gradient(#2a2a32, #15151a); }
+.skill.unlearned > :not(.learn) { opacity: 0.45; }
+.skill.unlearned.can-learn > :not(.learn) { opacity: 0.8; }
+.skill.passive { border-style: dashed; }
+.skill.toggled { border-color: #ffd24a; box-shadow: 0 0 1.5rem #ffd24a; }
+.skill.aiming { border-color: #7cc8ff; box-shadow: 0 0 1.5rem #7cc8ff; }
+.skill .pips { position: absolute; bottom: -1.6rem; display: flex; gap: 0.4rem; }
+.skill .pips i { width: 1.3rem; height: 0.9rem; background: #444; border-radius: 0.3rem; }
+.skill .pips i.on { background: #ffd24a; }
+/* "+" 放在左上角（圆弧外侧），不会压住相邻的技能键 */
+.skill .learn { position: absolute; top: -2.2rem; left: -1.2rem; width: 5.5rem; height: 5.5rem; border-radius: 50%; background: #e2b04a; color: #1a1200;
+  font-size: 3.8rem; font-weight: bold; display: none; align-items: center; justify-content: center; box-shadow: 0 0 1rem #ffd24a; }
+.skill.can-learn .learn { display: flex; animation: learn-pulse 1s ease-in-out infinite alternate; }
+@keyframes learn-pulse { from { transform: scale(1); } to { transform: scale(1.12); } }
+.cancel-zone { right: 12rem; bottom: 41rem; width: 10rem; height: 10rem; background: rgba(160,30,30,0.6); border: 0.3rem solid #ff7a6a;
+  font-size: max(2rem, 11px); display: none !important; }
+.cancel-zone.show { display: flex !important; }
+
+.death-overlay { position: absolute; inset: 0; background: rgba(20,20,20,0.45); display: none; flex-direction: column; align-items: center;
+  justify-content: center; pointer-events: none; }
+.death-overlay.show { display: flex; }
+.death-text { font-size: max(4rem, 18px); color: #ff8a7a; text-shadow: 0 0 6px #000; }
+.death-timer { font-size: 8rem; font-weight: bold; text-shadow: 0 0 8px #000; }
+
+/* ---------- 全屏界面：开始、暂停、结算 ---------- */
+.screen { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2.5rem;
+  background: radial-gradient(ellipse at center, rgba(10,14,10,0.55), rgba(0,0,0,0.85)); pointer-events: auto; }
+.title { font-size: 11rem; font-weight: 900; letter-spacing: 1rem; color: #f3d38a; text-shadow: 0 0 3rem rgba(255,120,40,0.6), 0 0.6rem 0 #5a1a0a; }
+.subtitle { font-size: max(2.6rem, 12px); color: #ccc; text-align: center; padding: 0 2rem; }
+.kb-hint { display: none; font-size: max(2rem, 11px); color: #999; }
+@media (hover: hover) and (pointer: fine) { .kb-hint { display: block; } }
+.btn { padding: 1.6rem 5rem; font-size: max(3rem, 15px); border-radius: 1.2rem; background: linear-gradient(#b3261e, #6d140f); border: 0.3rem solid #e2b04a;
+  color: #fff; cursor: pointer; white-space: nowrap; }
+.btn:active { filter: brightness(1.3); }
+.btn.secondary { background: linear-gradient(#3a3f4a, #20242c); border-color: #888; }
+.btn-row { display: flex; gap: 2rem; }
+.diff .btn { padding: 1.2rem 4rem; }
+.diff .btn.selected { outline: 0.5rem solid #fff; }
+.result-title { font-size: 10rem; font-weight: 900; line-height: 1.1; }
+.result-title.win { color: #7be07a; } .result-title.lose { color: #ff6a5a; }
+.result-table { border-collapse: collapse; font-size: max(2.2rem, 11px); background: rgba(0,0,0,0.5); }
+.result-table td, .result-table th { padding: 0.5rem 2rem; border-bottom: 1px solid #333; text-align: center; white-space: nowrap; }
+.result-table th { color: #aaa; font-weight: normal; }
+.result-table tr.rad td:first-child { color: #7be07a; } .result-table tr.dire td:first-child { color: #ff7a6a; }
+.result-table tr.me { background: rgba(255,255,255,0.1); }
+
+.rotate-hint { position: fixed; inset: 0; background: #000; display: none; align-items: center; justify-content: center; font-size: 5vw; z-index: 99; }
+@media (orientation: portrait) { .rotate-hint { display: flex; } }
