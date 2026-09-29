@@ -24,6 +24,10 @@ export type Command =
 /** 被嘲讽或恐惧时，移动/攻击/施法类指令无效 */
 export const isCommandLocked = (u: Unit): boolean => u.stats.tauntedBy !== null || u.stats.fearedBy !== null;
 
+/** move/moveTo 打断施法，除非处于允许移动的引导中 */
+const interruptsCast = (u: Unit): boolean =>
+  !!u.cast && !(u.cast.phase === 'channel' && u.cast.ability.def.channelAllowsMove);
+
 export function applyCommand(world: World, u: Unit, cmd: Command): void {
   switch (cmd.type) {
     case 'move': {
@@ -34,14 +38,14 @@ export function applyCommand(world: World, u: Unit, cmd: Command): void {
       }
       const dir = normalize(cmd.dir);
       if (dir.x === 0 && dir.y === 0) return;
-      if (u.cast && !(u.cast.phase === 'channel' && u.cast.ability.def.channelAllowsMove)) cancelCast(world, u, true);
+      if (interruptsCast(u)) cancelCast(world, u, true);
       u.order = { kind: 'moveDir', dir };
       u.attack.windup = -1;
       return;
     }
     case 'moveTo':
       if (!u.alive || isCommandLocked(u)) return;
-      if (u.cast) cancelCast(world, u, true);
+      if (interruptsCast(u)) cancelCast(world, u, true);
       u.order = { kind: 'moveTo', point: { x: cmd.point.x, y: cmd.point.y } };
       u.attack.windup = -1;
       return;

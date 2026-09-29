@@ -3,6 +3,7 @@ import type { Unit } from '../entities/unit';
 import type { World } from '../world';
 import { armorMultiplier } from '../formulas';
 import { removeModifiersOnDeath } from '../modifiers';
+import { cancelCast } from './abilities';
 
 export interface DamageInfo {
   source: Unit | null;
@@ -67,6 +68,7 @@ export function killUnit(world: World, victim: Unit, killer: Unit | null): void 
   victim.hp = 0;
   victim.deathTime = world.time;
   victim.order = { kind: 'idle' };
+  if (victim.cast) cancelCast(world, victim, true);
   victim.cast = null;
   victim.attack.targetId = null;
   victim.attack.windup = -1;

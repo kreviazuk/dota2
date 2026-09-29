@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { makeWorld, spawnDummy, runFor } from './helpers';
-import { newAbilityInstance, syncPassives, abilityValue, resolveTarget } from '../src/sim/systems/abilities';
-import { applyDamage } from '../src/sim/systems/damage';
+import { abilityCooldown, abilityManaCost, newAbilityInstance, syncPassives, abilityValue, resolveTarget } from '../src/sim/systems/abilities';
+import { applyDamage, killUnit } from '../src/sim/systems/damage';
 import { addModifier, findModifier } from '../src/sim/modifiers';
 import { Team } from '../src/sim/core/types';
 import type { AbilityDef } from '../src/sim/heroes/types';
@@ -150,5 +150,116 @@ describe('ability casting', () => {
     expect(resolveTarget(w, me, normal, { unitId: e.id })).toBeNull();
     const pierce = newAbilityInstance({ ...nuke, ignoresDebuffImmune: true }); pierce.level = 1;
     expect(resolveTarget(w, me, pierce, { unitId: e.id })?.unit).toBe(e);
+  });
+});
+
+const chan = (over: Partial<AbilityDef> = {}, log: { ends: boolean[] } = { ends: [] }): AbilityDef => ({
+  id: 'ch2', name: '引导', description: '', slot: 'R', maxLevel: 3, targetType: 'none', castPoint: 0, cooldown: [30],
+  manaCost: [0], channelTime: [3], values: {}, onChannelEnd: (_c, i) => { log.ends.push(i); }, ...over,
+});
+
+describe('ability contracts', () => {
+  it('death mid-channel calls onChannelEnd(true) exactly once', () => {
+    const w = makeWorld();
+    const me = spawnDummy(w, { kind: 'hero' });
+    const log = { ends: [] as boolean[] };
+    give(w, me, chan({}, log));
+    w.issue(me.id, { type: 'cast', slot: 'R' }); runFor(w, 0.5);
+    expect(me.cast?.phase).toBe('channel');
+    killUnit(w, me, null);
+    runFor(w, 0.2);
+    expect(log.ends).toEqual([true]); expect(me.cast).toBeNull();
+  });
+  it('stun during a channel calls onChannelEnd(true)', () => {
+    const w = makeWorld();
+    const me = spawnDummy(w, { kind: 'hero' });
+    const log = { ends: [] as boolean[] };
+    give(w, me, chan({}, log));
+    w.issue(me.id, { type: 'cast', slot: 'R' }); runFor(w, 0.5);
+    addModifier(w, me, { id: 'stun', debuff: true, states: ['stunned'] }, { duration: 0.5 });
+    runFor(w, 0.1);
+    expect(log.ends).toEqual([true]); expect(me.cast).toBeNull();
+  });
+  it('a completed channel calls onChannelEnd(false) once and clears cast', () => {
+    const w = makeWorld();
+    const me = spawnDummy(w, { kind: 'hero' });
+    const log = { ends: [] as boolean[] };
+    give(w, me, chan({}, log));
+    w.issue(me.id, { type: 'cast', slot: 'R' }); runFor(w, 3.5);
+    expect(log.ends).toEqual([false]); expect(me.cast).toBeNull();
+  });
+  it('channelAllowsMove: move and moveTo keep the channel, stop cancels it', () => {
+    const w = makeWorld();
+    const me = spawnDummy(w, { kind: 'hero', pos: { x: 1500, y: 5000 } });
+    const log = { ends: [] as boolean[] };
+    give(w, me, chan({ channelAllowsMove: true }, log));
+    w.issue(me.id, { type: 'cast', slot: 'R' }); runFor(w, 0.3);
+    w.issue(me.id, { type: 'moveTo', point: { x: 1500, y: 4000 } }); runFor(w, 0.5);
+    expect(me.cast?.phase).toBe('channel'); expect(me.pos.y).toBeLessThan(5000);
+    w.issue(me.id, { type: 'move', dir: { x: 0, y: -1 } }); w.step();
+    expect(me.cast?.phase).toBe('channel');
+    w.issue(me.id, { type: 'stop' }); w.step();
+    expect(me.cast).toBeNull(); expect(log.ends).toEqual([true]);
+  });
+  it('talent cooldown/mana bonuses are additive and clamped at 0', () => {
+    const w = makeWorld();
+    const me = spawnDummy(w, { kind: 'hero' });
+    me.hero = { talentValueBonus: { 'nuke.cooldown': -4, 'nuke.manaCost': -500 } } as never;
+    const ab = newAbilityInstance(nuke); ab.level = 1;
+    expect(abilityCooldown(ab)).toBe(10);
+    expect(abilityCooldown(ab, me)).toBe(6);
+    expect(abilityManaCost(ab, me)).toBe(0);
+  });
+  it('smartTarget override is used when no explicit target is given', () => {
+    const w = makeWorld();
+    const me = spawnDummy(w, { kind: 'hero', pos: { x: 1500, y: 5000 } });
+    const near = spawnDummy(w, { kind: 'hero', team: Team.Dire, pos: { x: 1500, y: 4700 } });
+    const far = spawnDummy(w, { kind: 'hero', team: Team.Dire, pos: { x: 1500, y: 4500 } });
+    give(w, me, { ...nuke, smartTarget: () => ({ unit: far }) });
+    w.issue(me.id, { type: 'cast', slot: 'Q' }); runFor(w, 0.5);
+    expect(far.hp).toBe(900); expect(near.hp).toBe(1000);
+  });
+  it('charges restore one at a time (9s, 18s, 27s)', () => {
+    const w = makeWorld();
+    const me = spawnDummy(w, { kind: 'hero', pos: { x: 1500, y: 5000 } });
+    spawnDummy(w, { kind: 'hero', team: Team.Dire, pos: { x: 1500, y: 4700 } });
+    const ab = give(w, me, { ...nuke, id: 'raze', castPoint: 0, manaCost: [0], cooldown: [9], charges: 3 });
+    ab.charges = 3;
+    for (let i = 0; i < 3; i++) { w.issue(me.id, { type: 'cast', slot: 'Q' }); runFor(w, 0.1); }
+    expect(ab.charges).toBe(0);
+    runFor(w, 9); expect(ab.charges).toBe(1);
+    runFor(w, 9); expect(ab.charges).toBe(2);
+    runFor(w, 9); expect(ab.charges).toBe(3);
+  });
+  it('prefers the nearest enemy hero over a nearer enemy creep', () => {
+    const w = makeWorld();
+    const me = spawnDummy(w, { kind: 'hero', pos: { x: 1500, y: 5000 } });
+    const creep = spawnDummy(w, { team: Team.Dire, pos: { x: 1500, y: 4900 } });
+    const hero = spawnDummy(w, { kind: 'hero', team: Team.Dire, pos: { x: 1500, y: 4500 } });
+    const ab = newAbilityInstance(nuke); ab.level = 1;
+    expect(resolveTarget(w, me, ab)!.unit).toBe(hero);
+    expect(creep.hp).toBe(1000);
+  });
+  it('cooldown-blocked and mana-blocked casts are separate', () => {
+    const w = makeWorld();
+    const me = spawnDummy(w, { kind: 'hero', pos: { x: 1500, y: 5000 } });
+    const hero = spawnDummy(w, { kind: 'hero', team: Team.Dire, pos: { x: 1500, y: 4700 } });
+    const ab = give(w, me, nuke);
+    w.issue(me.id, { type: 'cast', slot: 'Q' }); runFor(w, 0.5);
+    expect(hero.hp).toBe(900);
+    // on cooldown with plenty of mana: blocked
+    expect(me.mana).toBeCloseTo(400);
+    w.issue(me.id, { type: 'cast', slot: 'Q' }); runFor(w, 0.5);
+    expect(hero.hp).toBe(900); expect(me.mana).toBeCloseTo(400);
+    // cooldown expired, mana short: blocked
+    runFor(w, 10);
+    expect(ab.cooldown).toBe(0);
+    me.mana = 50;
+    w.issue(me.id, { type: 'cast', slot: 'Q' }); runFor(w, 0.5);
+    expect(hero.hp).toBe(900); expect(me.mana).toBe(50);
+    // cooldown expired, mana sufficient: casts
+    me.mana = 100;
+    w.issue(me.id, { type: 'cast', slot: 'Q' }); runFor(w, 0.5);
+    expect(hero.hp).toBe(800);
   });
 });

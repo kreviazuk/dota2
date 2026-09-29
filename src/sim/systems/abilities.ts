@@ -21,8 +21,10 @@ export function abilityValue(caster: Unit, ab: AbilityInstance, key: string): nu
   return base + (caster.hero?.talentValueBonus[`${ab.def.id}.${key}`] ?? 0);
 }
 
-export const abilityCooldown = (ab: AbilityInstance): number => levelValue(ab.def.cooldown, Math.max(1, ab.level));
-export const abilityManaCost = (ab: AbilityInstance): number => levelValue(ab.def.manaCost, Math.max(1, ab.level));
+export const abilityCooldown = (ab: AbilityInstance, caster?: Unit): number =>
+  Math.max(0, levelValue(ab.def.cooldown, Math.max(1, ab.level)) + (caster?.hero?.talentValueBonus[`${ab.def.id}.cooldown`] ?? 0));
+export const abilityManaCost = (ab: AbilityInstance, caster?: Unit): number =>
+  Math.max(0, levelValue(ab.def.manaCost, Math.max(1, ab.level)) + (caster?.hero?.talentValueBonus[`${ab.def.id}.manaCost`] ?? 0));
 export const abilityCastRange = (caster: Unit, ab: AbilityInstance): number =>
   levelValue(ab.def.castRange, Math.max(1, ab.level)) + caster.stats.castRangeBonus;
 
@@ -39,7 +41,7 @@ export function canCast(world: World, caster: Unit, ab: AbilityInstance): boolea
   if (tt === 'passive') return false;
   if (caster.hasState('stunned') || caster.hasState('silenced')) return false;
   if (tt === 'toggle') return true;
-  return isReady(ab) && caster.mana + 1e-6 >= abilityManaCost(ab);
+  return isReady(ab) && caster.mana + 1e-6 >= abilityManaCost(ab, caster);
 }
 
 export const isValidUnitTarget = (caster: Unit, ab: AbilityInstance, t: Unit): boolean =>
@@ -139,14 +141,14 @@ export function issueCast(world: World, caster: Unit, ab: AbilityInstance, given
   return true;
 }
 
-function tickCooldown(ab: AbilityInstance, dt: number): void {
+function tickCooldown(u: Unit, ab: AbilityInstance, dt: number): void {
   if (ab.cooldown > 0) ab.cooldown = Math.max(0, ab.cooldown - dt);
   const max = ab.def.charges;
   if (max && ab.charges < max) {
     ab.chargeTimer -= dt;
     if (ab.chargeTimer <= 1e-6) {
       ab.charges++;
-      ab.chargeTimer = ab.charges < max ? abilityCooldown(ab) : 0;
+      ab.chargeTimer = ab.charges < max ? abilityCooldown(ab, u) : 0;
     }
   }
 }
@@ -157,13 +159,13 @@ function executeCast(world: World, u: Unit, c: CastState): void {
     cancelCast(world, u, true);
     return;
   }
-  const cost = abilityManaCost(ab);
+  const cost = abilityManaCost(ab, u);
   if (u.mana + 1e-6 < cost || !isReady(ab)) {
     cancelCast(world, u, true);
     return;
   }
   u.mana -= cost;
-  const cd = abilityCooldown(ab);
+  const cd = abilityCooldown(ab, u);
   if (ab.def.charges) {
     ab.charges--;
     if (ab.chargeTimer <= 1e-6) ab.chargeTimer = cd;
@@ -187,7 +189,7 @@ function executeCast(world: World, u: Unit, c: CastState): void {
 export function updateAbilities(world: World, dt: number): void {
   for (const u of world.units) {
     if (u.abilities.length === 0) continue;
-    for (const ab of u.abilities) tickCooldown(ab, dt);
+    for (const ab of u.abilities) tickCooldown(u, ab, dt);
     if (!u.alive) continue;
     const c = u.cast;
     if (c) {
