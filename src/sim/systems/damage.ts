@@ -17,7 +17,7 @@ export interface DamageInfo {
   nonLethal?: boolean;
   /** 纯粹伤害无视减益免疫 */
   ignoreImmunity?: boolean;
-  /** 反弹伤害，不会再次触发反弹 */
+  /** 反弹伤害：不会再次触发反弹，也不触发技能吸血 */
   reflected?: boolean;
 }
 
@@ -48,7 +48,7 @@ export function applyDamage(world: World, info: DamageInfo): number {
     crit: !!info.crit, isAttack: info.isAttack,
   });
   if (src) for (const m of src.modifiers.slice()) m.def.onDealtDamage?.(m, src, t, world, info);
-  if (src && !info.isAttack && info.abilityId && src.stats.spellLifesteal > 0 && src.alive) heal(world, src, amt * src.stats.spellLifesteal);
+  if (src && !info.isAttack && info.abilityId && !info.reflected && src.stats.spellLifesteal > 0 && src.alive) heal(world, src, amt * src.stats.spellLifesteal);
   if (t.hp <= 0.0001 && t.alive) killUnit(world, t, src);
   return amt;
 }
