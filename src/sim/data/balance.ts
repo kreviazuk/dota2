@@ -70,7 +70,9 @@ export const BALANCE = {
     backdoorRadius: 900,
     backdoorMult: 0.4,
     towerAggroHold: 3,
-    fountain: { damage: 250, bat: 0.25, attackRange: 1100, healPctPerSec: 0.05, healRadius: 450, radius: 60 },
+    // 射程从设计文档的 1100 改为 500：泉水离遗迹只有 400、离 T4 约 760，1100 会覆盖整个高地，遗迹几乎打不下来。
+    // 500 仍覆盖复活点和回复区（防止守尸），但从正面进攻遗迹时不会被泉水打到。
+    fountain: { damage: 250, bat: 0.25, attackRange: 500, healPctPerSec: 0.05, healRadius: 450, radius: 60 },
   },
   damageMatrix: {
     hero: { hero: 1, basic: 1, reinforced: 0.5 },
