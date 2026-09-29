@@ -67,7 +67,7 @@ export function updateHeroes(world: World, dt: number): void {
     }
     if (u.order.kind === 'recall') {
       const o = u.order;
-      if (h.lastDamagedTime > o.startedAt || u.hasState('stunned')) {
+      if (h.lastDamagedTime >= o.startedAt || u.hasState('stunned')) {
         u.order = { kind: 'idle' };
         continue;
       }

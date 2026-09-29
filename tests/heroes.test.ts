@@ -6,6 +6,7 @@ import { giveXp, learnAbility } from '../src/sim/systems/progress';
 import { applyDamage, killUnit } from '../src/sim/systems/damage';
 import { layoutFor } from '../src/sim/data/map';
 import { dist } from '../src/sim/core/vec2';
+import { addModifier } from '../src/sim/modifiers';
 import { Team } from '../src/sim/core/types';
 
 describe('heroes', () => {
@@ -67,6 +68,33 @@ describe('heroes', () => {
     w.issue(h.id, { type: 'recall' });
     runFor(w, 5.1);
     expect(dist(h.pos, layoutFor(Team.Radiant).fountain)).toBeLessThan(300);
+  });
+  it('recall is interrupted by damage stamped at the issue tick', () => {
+    const w = makeWorld(); const h = createHero(w, 'testhero', Team.Radiant, false);
+    h.pos = { x: 1500, y: 5000 };
+    w.issue(h.id, { type: 'recall' });
+    w.step();
+    h.hero!.lastDamagedTime = (h.order as { startedAt: number }).startedAt;
+    w.step();
+    expect(h.order.kind).toBe('idle');
+  });
+  it('recall is cancelled by a stun', () => {
+    const w = makeWorld(); const h = createHero(w, 'testhero', Team.Radiant, false);
+    h.pos = { x: 1500, y: 5000 };
+    w.issue(h.id, { type: 'recall' });
+    w.step();
+    addModifier(w, h, { id: 'stun', debuff: true, states: ['stunned'] }, { duration: 0.5 });
+    runFor(w, 0.1);
+    expect(h.order.kind).toBe('idle');
+  });
+  it('recall is cancelled by a move command', () => {
+    const w = makeWorld(); const h = createHero(w, 'testhero', Team.Radiant, false);
+    h.pos = { x: 1500, y: 5000 };
+    w.issue(h.id, { type: 'recall' });
+    w.step();
+    w.issue(h.id, { type: 'moveTo', point: { x: 1500, y: 4000 } });
+    runFor(w, 6);
+    expect(dist(h.pos, layoutFor(Team.Radiant).fountain)).toBeGreaterThan(300);
   });
   it('dummy helper still works alongside heroes', () => {
     const w = makeWorld(); expect(spawnDummy(w).alive).toBe(true);
