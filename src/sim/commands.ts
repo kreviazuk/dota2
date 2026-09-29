@@ -4,6 +4,7 @@ import type { AbilitySlot } from './core/types';
 import type { CastTarget } from './heroes/types';
 import type { Unit } from './entities/unit';
 import type { World } from './world';
+import { canAttack, smartAttackTarget, lastHitTarget, buildingTarget } from './query';
 
 export type Command =
   | { type: 'move'; dir: Vec2 | null }
@@ -23,7 +24,6 @@ export type Command =
 export const isCommandLocked = (u: Unit): boolean => u.stats.tauntedBy !== null || u.stats.fearedBy !== null;
 
 export function applyCommand(world: World, u: Unit, cmd: Command): void {
-  void world;
   switch (cmd.type) {
     case 'move': {
       if (!u.alive || isCommandLocked(u)) return;
@@ -47,6 +47,16 @@ export function applyCommand(world: World, u: Unit, cmd: Command): void {
       u.order = { kind: 'idle' };
       u.attack.windup = -1;
       return;
+    case 'attack': {
+      if (!u.alive || isCommandLocked(u)) return;
+      let t = cmd.targetId !== undefined ? world.getUnit(cmd.targetId) ?? null : null;
+      if (t && !canAttack(u, t)) t = null;
+      if (!t && cmd.targetId === undefined)
+        t = cmd.mode === 'lastHit' ? lastHitTarget(world, u) : cmd.mode === 'building' ? buildingTarget(world, u) : smartAttackTarget(world, u);
+      if (!t) return;
+      u.order = { kind: 'attack', targetId: t.id, persistent: true };
+      return;
+    }
     default:
       // 其余指令在后续任务中实现
       return;

@@ -4,6 +4,7 @@ import type { Team } from './core/types';
 import type { Unit } from './entities/unit';
 import type { World } from './world';
 import type { TargetTeam } from './heroes/types';
+import { armorMultiplier } from './formulas';
 
 export const edgeDist = (a: Unit, b: Unit): number => dist(a.pos, b.pos) - a.radius - b.radius;
 
@@ -66,3 +67,38 @@ export function nearestOf(center: Vec2, list: readonly Unit[]): Unit | null {
 
 export const nearestEnemy = (world: World, from: Unit, radius: number, opts: RadiusOpts = {}): Unit | null =>
   nearestOf(from.pos, enemiesInRadius(world, from.team, from.pos, radius, opts).filter((u) => !u.hasState('untargetable')));
+
+/** 一次普攻（最低伤害）对目标的预期伤害，用于补刀判断 */
+export function expectedAttackDamage(world: World, attacker: Unit, target: Unit): number {
+  const s = attacker.stats;
+  return (s.damageMin + s.bonusDamage) * world.balance.damageMatrix[attacker.attackClass][target.armorClass] * armorMultiplier(target.stats.armor);
+}
+
+const searchRadius = (u: Unit): number => u.stats.attackRange + 200 + u.radius;
+
+/** 普攻键：英雄 > 非建筑单位 > 建筑 */
+export function smartAttackTarget(world: World, u: Unit): Unit | null {
+  const all = enemiesInRadius(world, u.team, u.pos, searchRadius(u), { includeBuildings: true }).filter((t) => canAttack(u, t));
+  const heroes = all.filter((t) => t.kind === 'hero');
+  if (heroes.length) return nearestOf(u.pos, heroes);
+  const units = all.filter((t) => t.kind !== 'building');
+  if (units.length) return nearestOf(u.pos, units);
+  return nearestOf(u.pos, all);
+}
+
+/** 补刀键：一下能打死的血量最低小兵；没有则血量最低的小兵 */
+export function lastHitTarget(world: World, u: Unit): Unit | null {
+  const creeps = enemiesInRadius(world, u.team, u.pos, searchRadius(u)).filter((t) => t.kind !== 'hero' && canAttack(u, t));
+  if (!creeps.length) return null;
+  const killable = creeps.filter((t) => t.hp <= expectedAttackDamage(world, u, t));
+  const pool = killable.length ? killable : creeps;
+  return pool.reduce((a, b) => (b.hp < a.hp ? b : a));
+}
+
+/** 推塔键 */
+export function buildingTarget(world: World, u: Unit): Unit | null {
+  const b = enemiesInRadius(world, u.team, u.pos, searchRadius(u), { includeBuildings: true }).filter(
+    (t) => t.kind === 'building' && canAttack(u, t),
+  );
+  return nearestOf(u.pos, b);
+}
