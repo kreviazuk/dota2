@@ -28,7 +28,7 @@ export function applyDamage(world: World, info: DamageInfo): number {
   let amt = info.amount;
   if (src && info.isAttack) amt *= world.balance.damageMatrix[src.attackClass][t.armorClass];
   if (src && !info.isAttack && info.abilityId) amt *= 1 + src.stats.spellAmp;
-  if (!info.isAttack && info.type === 'pure' && t.hasState('debuffImmune') && !info.ignoreImmunity) return 0;
+  if (!info.isAttack && info.type === 'pure' && t.hasState('debuffImmune') && !info.ignoreImmunity && (!src || src.team !== t.team)) return 0;
   if (info.type === 'physical') amt *= armorMultiplier(t.stats.armor);
   else if (info.type === 'magical') amt *= 1 - t.stats.magicResist;
   info.amount = Math.max(0, amt);

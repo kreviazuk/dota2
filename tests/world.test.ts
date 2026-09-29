@@ -46,6 +46,12 @@ describe('damage', () => {
     expect(applyDamage(w, { source: null, target: t, amount: 100, type: 'pure', isAttack: false })).toBe(0);
     expect(applyDamage(w, { source: null, target: t, amount: 100, type: 'pure', isAttack: true })).toBe(100);
   });
+  it('debuff immunity does not block same-team or self pure spell damage', () => {
+    const w = makeWorld(); const t = spawnDummy(w); const ally = spawnDummy(w);
+    addModifier(w, t, { id: 'bkb', states: ['debuffImmune'] }, { duration: 5 });
+    expect(applyDamage(w, { source: ally, target: t, amount: 100, type: 'pure', isAttack: false })).toBe(100);
+    expect(applyDamage(w, { source: t, target: t, amount: 100, type: 'pure', isAttack: false })).toBe(100);
+  });
   it('incoming damage hooks can absorb', () => {
     const w = makeWorld(); const t = spawnDummy(w);
     addModifier(w, t, { id: 'shield', onIncomingDamage: (_m, _o, _w, info) => { info.amount = Math.max(0, info.amount - 30); } });
