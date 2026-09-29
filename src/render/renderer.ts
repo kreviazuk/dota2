@@ -77,7 +77,7 @@ export class Renderer {
     if (focus) cam.follow(this.ipos(focus, alpha), focus.team, dt);
     const viewerTeam = focus?.team ?? Team.Radiant;
     cam.apply(ctx);
-    this.map.draw(ctx, cam, this.time);
+    this.map.draw(ctx, this.time);
 
     for (const e of world.effects) if (cam.visible(e.pos, e.radius)) drawAreaEffect(ctx, e, this.time);
     if (aim) this.drawAim(ctx, world, aim);

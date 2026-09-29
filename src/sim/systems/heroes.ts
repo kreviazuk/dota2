@@ -8,6 +8,7 @@ import { getHeroDef } from '../heroes/index';
 import { recomputeStats } from '../stats';
 import { newAbilityInstance, syncPassives } from './abilities';
 import { giveGold } from './progress';
+import { disjointProjectiles } from './projectiles';
 
 export function heroSpawnPoint(world: World, team: Team, index: number): Vec2 {
   void world;
@@ -76,6 +77,8 @@ export function updateHeroes(world: World, dt: number): void {
         u.pos = heroSpawnPoint(world, u.team, world.heroes(u.team).indexOf(u));
         u.prevPos = { ...u.pos };
         u.order = { kind: 'idle' };
+        // 回城传送会躲掉飞行中的弹道（Dota 规则），否则弹道会跟着飞到泉水
+        disjointProjectiles(world, u);
         world.events.emit({ type: 'fx', kind: 'recall', pos: { ...u.pos }, unitId: u.id });
       }
     }

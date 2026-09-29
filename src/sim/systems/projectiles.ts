@@ -2,6 +2,7 @@ import type { World } from '../world';
 import { Projectile, type ProjectileInit } from '../entities/projectile';
 import { AreaEffect, type AreaEffectInit } from '../entities/effect';
 import { add, dist, distToSegment, scale } from '../core/vec2';
+import type { Unit } from '../entities/unit';
 
 export function spawnProjectile(world: World, init: Omit<ProjectileInit, 'id'>): Projectile {
   const p = new Projectile({ ...init, id: world.allocId() });
@@ -13,6 +14,18 @@ export function spawnEffect(world: World, init: Omit<AreaEffectInit, 'id'>): Are
   const e = new AreaEffect({ ...init, id: world.allocId() });
   world.effects.push(e);
   return e;
+}
+
+/**
+ * 躲弹道（Dota 的 disjoint）：传送、回城等瞬间位移后，正在飞向该单位的追踪弹道全部失效，
+ * 按"目标消失"处理（触发 onEnd，不触发 onHit）。直线弹道不受影响。
+ */
+export function disjointProjectiles(world: World, u: Unit): void {
+  for (const p of world.projectiles) {
+    if (p.done || p.kind !== 'homing' || p.targetId !== u.id) continue;
+    p.done = true;
+    p.onEnd?.(world, p);
+  }
 }
 
 export function updateProjectiles(world: World, dt: number): void {
