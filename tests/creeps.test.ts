@@ -40,10 +40,53 @@ describe('creep waves', () => {
     runFor(w, 12);
     const r = creeps(w, Team.Radiant);
     expect(Math.max(...r.map((c) => c.pos.y))).toBeLessThan(8900);
-    runFor(w, 30);
-    const total = creeps(w).length;
-    const damaged = creeps(w).some((c) => c.hp < c.stats.maxHp);
-    expect(total < 20 || damaged).toBe(true);
+    runFor(w, 28);
+    const all = creeps(w);
+    const engaged = (team: Team) =>
+      creeps(w, team).some((c) => {
+        if (c.order.kind !== 'attack') return false;
+        const t = w.getUnit(c.order.targetId);
+        return !!t && t.kind === 'creep' && t.team !== c.team;
+      });
+    expect(engaged(Team.Radiant)).toBe(true);
+    expect(engaged(Team.Dire)).toBe(true);
+    const anyDamaged = all.some((c) => c.hp < c.stats.maxHp);
+    const anyDead = all.length < 10;
+    expect(anyDamaged || anyDead).toBe(true);
+  });
+  it('super creeps get doubled upgrades; ranged upgrade values', () => {
+    const w = creepWorld();
+    w.time = 361;
+    const sm = spawnCreep(w, Team.Radiant, 'superMelee', { x: 1500, y: 8000 }, 0);
+    expect(sm.stats.maxHp).toBe(700 + 30 * 2 * 2);
+    expect((sm.base.damageMin + sm.base.damageMax) / 2).toBe(45 + 2 * 2 * 2);
+    const r = spawnCreep(w, Team.Radiant, 'ranged', { x: 1500, y: 8000 }, 0);
+    expect(r.stats.maxHp).toBe(300 + 25 * 2);
+    expect((r.base.damageMin + r.base.damageMax) / 2).toBe(24 + 3 * 2);
+  });
+  it('first-wave creeps ignore hero aggro until an enemy non-hero is in range', () => {
+    const w = new World({ seed: 1, spawnCreeps: false });
+    const c = spawnCreep(w, Team.Radiant, 'melee', { x: 1500, y: 5000 }, 0, true);
+    const ally = spawnDummy(w, { kind: 'hero', team: Team.Radiant, pos: { x: 1500, y: 5050 } });
+    const enemy = spawnDummy(w, { kind: 'hero', team: Team.Dire, pos: { x: 1500, y: 4900 } });
+    enemy.order = { kind: 'attack', targetId: ally.id, persistent: true };
+    runFor(w, 1);
+    expect(c.creep!.aggroTargetId).toBeNull();
+    expect(c.creep!.protectedUntilContact).toBe(true);
+    spawnCreep(w, Team.Dire, 'melee', { x: 1500, y: 4700 }, 0);
+    runFor(w, 0.1);
+    expect(c.creep!.protectedUntilContact).toBe(false);
+  });
+  it('creeps switch off a hero target when an enemy creep appears', () => {
+    const w = new World({ seed: 1, spawnCreeps: false });
+    const c = spawnCreep(w, Team.Radiant, 'melee', { x: 1500, y: 5000 }, 0);
+    const hero = spawnDummy(w, { kind: 'hero', team: Team.Dire, pos: { x: 1500, y: 4900 } });
+    c.order = { kind: 'attack', targetId: hero.id, persistent: false };
+    runFor(w, 0.1);
+    expect(c.order).toMatchObject({ kind: 'attack', targetId: hero.id });
+    const other = spawnCreep(w, Team.Dire, 'melee', { x: 1500, y: 4700 }, 0);
+    runFor(w, 0.1);
+    expect(c.order).toMatchObject({ kind: 'attack', targetId: other.id });
   });
   it('creeps prefer creeps over heroes', () => {
     const w = new World({ seed: 1, spawnCreeps: false });
