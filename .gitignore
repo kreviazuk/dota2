@@ -7,3 +7,4 @@ coverage/
 android/app/build/
 android/build/
 android/.gradle/
+.superpowers/
