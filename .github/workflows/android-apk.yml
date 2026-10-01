@@ -1,0 +1,67 @@
+name: Android APK
+
+on:
+  push:
+    branches: [main, 'claude/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-apk-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Test
+        run: npm test
+
+      - name: Build web
+        run: npm run build
+
+      - name: Sync Capacitor
+        run: npx cap sync android
+
+      - name: Build debug APK
+        working-directory: android
+        env:
+          VERSION_CODE: ${{ github.run_number }}
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+          cp app/build/outputs/apk/debug/app-debug.apk ../dota-lane.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dota-lane-apk
+          path: dota-lane.apk
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          branch="${GITHUB_REF_NAME}"
+          tag="apk-${branch//\//-}"
+          gh release delete "$tag" --yes --cleanup-tag || true
+          gh release create "$tag" dota-lane.apk \
+            --target "$GITHUB_SHA" --prerelease \
+            --title "中路风云 安卓测试包（${branch}）" \
+            --notes "分支 ${branch} 最新提交 ${GITHUB_SHA::7} 自动构建的调试版 APK（第 ${{ github.run_number }} 次构建）。下载 dota-lane.apk 到安卓手机安装即可（需允许安装未知来源应用）。"
