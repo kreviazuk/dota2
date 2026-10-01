@@ -126,3 +126,10 @@ P2 其余 9 名英雄和天赋 → P3 物品与商店 → P4 完整 AI、精英�
 性能：只在 headless Chromium（无 GPU）里测过，还需要在真机（中端安卓，目标 60fps）上确认。镜头一次移动很远时（开局、复活、回城、镜头跟随切换）会在一帧里生成一行或多行新图块，4 倍 CPU 降速下这一帧最多约 28 毫秒；如果真机上能感觉到卡顿，可以在复活/回城前按目标位置预热图块。剩下最大的逐帧开销是飘字的 `strokeText`（每帧约 0.2 毫秒）和血条。
 
 AI：1 级时双方血量相当，`pickHeroTarget` 总是出手换血，三个斧王常常同时开吼，第一波兵交汇（约 0:25）时会打成 3v3 团战，几个英雄几秒内掉到 30% 以下、0:40 左右回城到泉水，损失前几波兵的经验和金钱（双方对称，不是 bug）。P4 的对线 AI 应该在前几级以补刀为主，换血按决策掷骰，并避免多人同时交同一个控制技能。`moveTo` 到达目的地后指令仍然是 `moveTo`，英雄会站着不自动攻击（只影响 AI，玩家操作不用 `moveTo`；AI 会显式下攻击指令，影响不大）。计划里 `pickHeroTarget` 的 `focus` 在每次思考时都掷骰（每秒约 4 次），实际效果是"经常在劣势时也上去打"；P4 重写 AI 时应该改成按决策掷骰。
+
+## 安卓 APK
+- Capacitor 8 工程在 `android/`：横屏、沉浸式全屏、对局中屏幕常亮；包名 `com.kreviazuk.dotalane`。
+- 每次推送到 `main` 或 `claude/**` 分支，GitHub Actions（`.github/workflows/android-apk.yml`）都会跑测试、打调试版 APK，并发布到 Release `apk-<分支名>`（同一分支覆盖更新）。
+  - 当前分支下载：https://github.com/kreviazuk/dota2/releases/download/apk-claude-kind-ritchie-jz5131/dota-lane.apk
+- 签名用仓库里的 `android/app/debug.keystore`（公开的调试密钥，密码 `android`），所以新版本可以直接覆盖安装；正式上架前要换成私有的发布签名。
+- 本地打包（需要 Android SDK）：`npm run apk`，产物在 `android/app/build/outputs/apk/debug/app-debug.apk`。
