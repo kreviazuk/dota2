@@ -1,7 +1,8 @@
 /// <reference types="vite/client" />
 import './ui/styles.css';
 import { Match } from './game/match';
-import { Renderer } from './render/renderer';
+import { createRenderer } from './render/createRenderer';
+import type { GameRenderer } from './render/view';
 import { Hud } from './ui/hud';
 import { Controls } from './input/controls';
 import { showPauseMenu, showResultScreen, showStartScreen } from './ui/screens';
@@ -15,7 +16,8 @@ hint.className = 'rotate-hint';
 hint.textContent = '请将手机横屏游玩';
 document.body.appendChild(hint);
 
-const renderer = new Renderer(canvas);
+/** 渲染器在启动时异步选择（3D 优先，WebGL 不可用时退回 2D），见 boot() */
+let renderer!: GameRenderer;
 
 /** P1：3v3 全部是斧王 */
 const TEAM_HEROES = ['axe', 'axe', 'axe'];
@@ -42,6 +44,8 @@ let resultTimer: number | null = null;
 let lastDifficulty: Difficulty = 'normal';
 let acc = 0;
 let last = performance.now();
+/** 时间倍率（只有开发钩子会改它，用于自动化测试慢放截图；正式游戏恒为 1） */
+let timeScale = 1;
 
 const newSeed = (): number => Date.now() & 0x7fffffff;
 
@@ -113,7 +117,7 @@ function showResult(s: Session): void {
 }
 
 function frame(now: number): void {
-  const dt = Math.min(MAX_FRAME_DT, (now - last) / 1000);
+  const dt = Math.min(MAX_FRAME_DT, (now - last) / 1000) * timeScale;
   last = now;
   const s = session;
   if (s && !paused && !s.frozen) {
@@ -122,7 +126,7 @@ function frame(now: number): void {
       s.match.step(s.controls?.drain() ?? []);
       acc -= DT;
     }
-    renderer.fx.consume(s.match.world.events.drain(), s.match.world, s.followId, renderer.camera);
+    renderer.consume(s.match.world.events.drain(), s.match.world, s.followId);
     s.hud?.update(dt);
     if (s.match.over) {
       if (s.demo) startDemoMatch();
@@ -140,7 +144,7 @@ window.addEventListener('keydown', (e) => {
   if (paused) resume();
   else pause();
 });
-window.addEventListener('resize', () => renderer.resize());
+window.addEventListener('resize', () => renderer?.resize());
 // 长按不弹出系统菜单
 window.addEventListener('contextmenu', (e) => e.preventDefault());
 document.addEventListener('visibilitychange', () => {
@@ -152,10 +156,22 @@ window.matchMedia('(orientation: portrait)').addEventListener('change', (e) => {
   if (e.matches) pause();
 });
 
-if (import.meta.env.DEV) {
-  // 仅开发服务器：供浏览器自动化测试读取和驱动对局（生产构建会整段删除）
-  Object.assign(window, { __game: { get session() { return session; }, renderer } });
+async function boot(): Promise<void> {
+  renderer = await createRenderer(canvas);
+  if (import.meta.env.DEV) {
+    // 仅开发服务器：供浏览器自动化测试读取和驱动对局（生产构建会整段删除）
+    Object.assign(window, {
+      __game: {
+        get session() { return session; },
+        renderer,
+        get timeScale() { return timeScale; },
+        set timeScale(v: number) { timeScale = v; },
+      },
+    });
+  }
+  showMenu();
+  last = performance.now();
+  requestAnimationFrame(frame);
 }
 
-showMenu();
-requestAnimationFrame(frame);
+void boot();
