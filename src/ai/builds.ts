@@ -6,6 +6,7 @@ export const SKILL_BUILDS: Record<string, AbilitySlot[]> = {
   axe: ['Q', 'E', 'E', 'W', 'E', 'R', 'E', 'Q', 'Q', 'Q', 'R', 'W', 'W', 'W', 'R'],
   sven: ['Q', 'W', 'E', 'W', 'W', 'R', 'W', 'Q', 'Q', 'Q', 'R', 'E', 'E', 'E', 'R'],
   lina: ['Q', 'W', 'Q', 'E', 'Q', 'R', 'Q', 'W', 'W', 'W', 'R', 'E', 'E', 'E', 'R'],
+  crystal_maiden: ['W', 'Q', 'E', 'Q', 'Q', 'R', 'Q', 'W', 'W', 'W', 'R', 'E', 'E', 'E', 'R'],
 };
 
 /** 天赋预设：下标 = 天赋层（10/15/20/25 级），0 = 左 / 1 = 右 */
@@ -16,6 +17,8 @@ export const TALENT_BUILDS: Record<string, (0 | 1)[]> = {
   sven: [0, 1, 0, 0],
   // −3 秒龙破斩冷却、+110 光击阵伤害、−20 秒神灭斩冷却、慢热 80% / 5 秒
   lina: [1, 1, 0, 0],
+  // +200 生命、−4.5 秒冰霜新星冷却、+50 极寒领域伤害、+300 冰霜新星伤害
+  crystal_maiden: [0, 1, 1, 1],
 };
 
 const DEFAULT_BUILD: AbilitySlot[] = ['Q', 'W', 'E', 'Q', 'W', 'R', 'E', 'Q', 'W', 'E', 'R', 'Q', 'W', 'E', 'R'];

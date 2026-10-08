@@ -8,3 +8,5 @@ import '../models/sven';
 import './sven';
 import '../models/lina';
 import './lina';
+import '../models/crystal_maiden';
+import './crystal_maiden';

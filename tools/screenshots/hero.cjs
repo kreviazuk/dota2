@@ -24,9 +24,12 @@ const PLAN = {
   lina_dragon_slave: { proj: 'lina_dragon_slave', fx: [['lina_dragon_slave', 14, 'wave']] },
   lina_light_strike_array: { area: 'lina_lsa', fx: [['lina_lsa', 3, 'hit'], ['lina_lsa', 10, 'hit2']] },
   lina_laguna_blade: { fx: [['lina_laguna', 3, 'beam'], ['lina_laguna_hit', 3, 'hit']], afterMs: 2500 },
+  cm_crystal_nova: { fx: [['cm_nova', 3, 'hit'], ['cm_nova', 12, 'hit2']] },
+  cm_frostbite: { fx: [['cm_frostbite', 3, 'hit'], ['cm_frostbite', 24, 'ice']] },
+  cm_freezing_field: { fx: [['cm_freezing_field', 3, 'start'], ['cm_ff_blast', 40, 'field'], ['cm_ff_blast', 140, 'field2']], afterMs: 2500 },
 };
 /** 普攻（被动）要截的时刻：分裂斩痕（fx）或普攻弹道（proj） */
-const ATTACK = { sven: { fx: 'cleave' }, lina: { proj: 'hero:lina' } };
+const ATTACK = { sven: { fx: 'cleave' }, lina: { proj: 'hero:lina' }, crystal_maiden: { proj: 'hero:crystal_maiden' } };
 
 (async () => {
   const browser = await chromium.launch({

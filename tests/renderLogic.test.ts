@@ -174,6 +174,13 @@ describe('2D looks, shield bar and status markers', () => {
     expect(HERO_LOOKS.lina).toMatchObject({ body: '#e2401e', trim: '#ffb347', skin: '#f0c8a8', initial: '莉', weapon: 'flame' });
   });
 
+  it('Crystal Maiden has 2D effects for every fx event, her projectile and her ice', () => {
+    for (const k of ['cm_nova', 'cm_frostbite', 'cm_freezing_field', 'cm_ff_blast']) expect(lookupFx2D(k)).toBeTypeOf('function');
+    expect(lookupProjectile2D('hero:crystal_maiden')?.color).toBe('#9fe8ff');
+    for (const k of ['cm_frostbite', 'cm_freezing_field']) expect(lookupModifier2D(k)).toBeTypeOf('function');
+    expect(HERO_LOOKS.crystal_maiden).toMatchObject({ body: '#9ad4f5', trim: '#ffffff', skin: '#f0dcd0', initial: '冰', weapon: 'staff' });
+  });
+
   it('status markers follow control states, fear and slows', () => {
     const w = makeWorld();
     const src = spawnDummy(w, { kind: 'hero', team: Team.Radiant });

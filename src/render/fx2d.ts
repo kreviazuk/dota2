@@ -176,3 +176,72 @@ registerModifier2D('lina_slow_burn_dot', (ctx, u, _m, x, y, t) => {
   ctx.ellipse(x, y + r * 0.2, r, r * 0.66, 0, 0, Math.PI * 2);
   ctx.stroke();
 });
+
+// ---------- 水晶室女 ----------
+registerProjectile2D('hero:crystal_maiden', { color: '#9fe8ff', size: 7, shape: 'orb' });
+
+/** 冰霜新星：冰蓝色的圈扩到 425 + 向外飞散的冰屑 */
+registerFx2D('cm_nova', (fx, e) => {
+  const r = e.radius ?? 425;
+  fx.ring(e.pos.x, e.pos.y, 30, r, 'rgba(120,210,255,', 0.5, 18);
+  fx.ring(e.pos.x, e.pos.y, r * 0.7, r, 'rgba(230,248,255,', 0.4, 6);
+  fx.burst(e.pos.x, e.pos.y, 34, 'rgba(200,240,255,0.95)', 480, 6, 0.55);
+});
+
+/** 冰封禁制：目标身上一团冰屑 */
+registerFx2D('cm_frostbite', (fx, e) => {
+  fx.burst(e.pos.x, e.pos.y, 18, 'rgba(170,235,255,0.95)', 200, 6, 0.4);
+  fx.ring(e.pos.x, e.pos.y, 10, 70, 'rgba(140,220,255,', 0.35, 6);
+});
+
+/** 极寒领域开始：一圈淡蓝色的冲击 */
+registerFx2D('cm_freezing_field', (fx, e) => {
+  fx.ring(e.pos.x, e.pos.y, 40, e.radius ?? 810, 'rgba(160,220,255,', 0.6, 10);
+});
+
+/** 极寒领域的冰爆：快速淡出的 320 圈 + 冰屑 */
+registerFx2D('cm_ff_blast', (fx, e) => {
+  const r = e.radius ?? 320;
+  fx.ring(e.pos.x, e.pos.y, r * 0.2, r, 'rgba(170,225,255,', 0.3, 8);
+  fx.burst(e.pos.x, e.pos.y, 10, 'rgba(225,246,255,0.95)', 240, 5, 0.35);
+});
+
+/** 冰封禁制：裹住单位的半透明青色冰块 */
+registerModifier2D('cm_frostbite', (ctx, u, _m, x, y) => {
+  const r = u.radius * 1.5;
+  ctx.fillStyle = 'rgba(150,225,255,0.42)';
+  ctx.strokeStyle = 'rgba(225,248,255,0.95)';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  const pts = 7;
+  for (let i = 0; i < pts; i++) {
+    const a = (i / pts) * Math.PI * 2 - Math.PI / 2;
+    const k = i % 2 ? 0.86 : 1.08;
+    const px = x + Math.cos(a) * r * k, py = y - r * 0.5 + Math.sin(a) * r * 1.25 * k;
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+});
+
+/** 极寒领域：水晶室女脚下 810 的淡蓝色大圈 + 转动的虚线 */
+registerModifier2D('cm_freezing_field', (ctx, _u, _m, x, y, t) => {
+  const r = 810;
+  ctx.fillStyle = 'rgba(170,225,255,0.10)';
+  ctx.strokeStyle = 'rgba(170,225,255,0.75)';
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.arc(x, y, r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.strokeStyle = 'rgba(240,250,255,0.9)';
+  ctx.lineWidth = 4;
+  ctx.setLineDash([26, 22]);
+  ctx.lineDashOffset = -t * 60;
+  ctx.beginPath();
+  ctx.arc(x, y, r * 0.95, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+});

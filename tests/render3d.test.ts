@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { Vector3 } from 'three';
+import { Quaternion, Vector3 } from 'three';
 import { facingToRotY, groundHeight, simToThree, threeToSim, RIVER_DEPTH, FOREST_RISE } from '../src/render3d/coords';
 import { Camera3D, CAM3D, cameraDistance, rayPlaneY } from '../src/render3d/camera3d';
 import { AnimTracker, BACKSWING, blendPose, selectState, turnToward, windupProgress, type AnimInput } from '../src/render3d/anim';
@@ -8,6 +8,7 @@ import { Bone, MeshBasicMaterial } from 'three';
 import { AXE_SPEC, attackPose, axePose, deathPose, idlePose, releasePose, runPose } from '../src/render3d/models/axe';
 import { SVEN_SPEC, attackPose as svenAttack } from '../src/render3d/models/sven';
 import { LINA_SPEC, attackPose as linaAttack, runPose as linaRun, idlePose as linaIdle } from '../src/render3d/models/lina';
+import { CM_SPEC } from '../src/render3d/models/crystal_maiden';
 import { lookupAreaVisual as areaVisual, lookupFx as fxFor, lookupModifierVisual as modVisual, projectileStyle as projStyle } from '../src/render3d/fx/registry';
 import { getHeroDef } from '../src/sim/heroes';
 import '../src/render3d/fx/index';
@@ -452,5 +453,72 @@ describe('Lina model', () => {
     for (const k of ['lina_dragon_slave', 'lina_lsa', 'lina_laguna', 'lina_laguna_hit']) expect(fxFor(k)).toBeTypeOf('function');
     expect(areaVisual('lina_lsa')).toBeTypeOf('function');
     for (const k of ['lina_fiery_soul_stack', 'lina_slow_burn_dot']) expect(modVisual(k)).toBeDefined();
+  });
+});
+
+describe('Crystal Maiden model', () => {
+  const finite = (p: Record<string, number>) => Object.values(p).every(Number.isFinite);
+  it('crystal_maiden poses are finite for every state and ability', () => {
+    const actives = getHeroDef('crystal_maiden').abilities.filter((a) => a.targetType !== 'passive').map((a) => a.id);
+    expect(Object.keys(CM_SPEC.releaseDur).sort()).toEqual([...actives].sort());
+    const states: Partial<AnimInput>[] = [{}, { speed: 300 }, { windup: 0.4 }, { channel: true }, { stunned: true }, { stunned: true, motion: 'knockback' }, { alive: false }, { taunted: true }];
+    for (const inp of states) {
+      const tr = new AnimTracker();
+      tr.update(input(inp), 0.05, 0.5);
+      tr.update(input(inp), 0.3, 0.5);
+      expect(finite(CM_SPEC.pose(tr, 1.7, null))).toBe(true);
+    }
+    for (const id of Object.keys(CM_SPEC.releaseDur)) {
+      for (const cp of [0, 0.5, 1]) {
+        const tr = new AnimTracker();
+        tr.update(input({ castAbility: id, castProgress: cp }), 0.05, 0);
+        expect(tr.state).toBe('cast');
+        expect(finite(CM_SPEC.pose(tr, 0.4, null))).toBe(true);
+      }
+      for (const k of [0, 0.5, 1]) {
+        const tr = new AnimTracker();
+        const dur = CM_SPEC.releaseDur[id];
+        tr.trigger(id, dur);
+        tr.update(input(), Math.max(1e-3, k * dur * 0.999), 0);
+        expect(tr.state).toBe('release');
+        expect(finite(CM_SPEC.pose(tr, 0.4, null))).toBe(true);
+      }
+    }
+  });
+
+  /** 摆好姿势后，法杖（本地 +Y）在模型空间里的方向 */
+  const staffDir = (inp: Partial<AnimInput>, t = 1): Vector3 => {
+    const m = new SkinnedHeroModel(CM_SPEC, 0, new MeshBasicMaterial());
+    const tr = new AnimTracker();
+    for (let i = 0; i < 4; i++) tr.update(input(inp), 0.2, 0);
+    m.pose(tr, t, 0, null);
+    m.root.updateMatrixWorld(true);
+    const q = new Quaternion();
+    m.bones.staff.getWorldQuaternion(q);
+    const rootQ = new Quaternion();
+    m.root.getWorldQuaternion(rootQ);
+    return new Vector3(0, 1, 0).applyQuaternion(rootQ.invert().multiply(q));
+  };
+
+  it('holds the staff upright, thrusts it forward to attack, and raises it across her head while channelling', () => {
+    expect(staffDir({}).y).toBeGreaterThan(0.95);
+    expect(staffDir({ speed: 300 }).y).toBeGreaterThan(0.8);
+    // 普攻出手的瞬间：杖头向前倒
+    const tr = new AnimTracker();
+    expect(CM_SPEC.pose(tr, 0, null).staffX).toBeDefined();
+    const thrust = staffDir({ windup: 0.001, attackPoint: 0.4 });
+    expect(thrust.z).toBeGreaterThan(0.6);
+    // 引导：杖身横在头顶（沿身体左右方向）
+    const ch = staffDir({ channel: true });
+    expect(Math.abs(ch.x)).toBeGreaterThan(0.85);
+    expect(CM_SPEC.bones.map((b) => b[0])).toEqual(expect.arrayContaining(['staff', 'cape', 'handR']));
+    expect(CM_SPEC.headHeight).toBeCloseTo(168, -1);
+  });
+
+  it('registers its projectile, fx events and modifier visuals', () => {
+    expect(projStyle('hero:crystal_maiden')?.mesh).toBe('shard');
+    for (const k of ['cm_nova', 'cm_frostbite', 'cm_freezing_field', 'cm_ff_blast']) expect(fxFor(k)).toBeTypeOf('function');
+    expect(modVisual('cm_frostbite')?.replaces).toContain('root');
+    expect(modVisual('cm_freezing_field')).toBeDefined();
   });
 });
