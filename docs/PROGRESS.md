@@ -11,7 +11,7 @@
 npm install
 npm test            # Vitest 单元测试
 npm run typecheck   # tsc --noEmit
-npm run dev         # 浏览器开发服务器：主菜单 → 选难度 → 对局（手机横屏触屏或键鼠）
+npm run dev         # 浏览器开发服务器：主菜单 → 选难度 → 选英雄 → 对局（手机横屏触屏或键鼠）
 npm run sim -- --games 20 --seed 1 --difficulty normal   # 无画面 AI 对 AI 批量对战 + 平衡报告（每局约 10 秒）
 npm run build       # 类型检查 + 生产构建到 dist/
 ```
@@ -20,9 +20,9 @@ npm run build       # 类型检查 + 生产构建到 dist/
 ## 如何运行 / 试玩
 - **电脑浏览器**：`npm install` 后 `npm run dev`，打开终端里显示的 `Local` 地址（默认 http://localhost:5173 ，端口被占用时 Vite 会换一个）。
 - **手机**：`npm run dev` 已经带了 `--host`，终端里还会显示一个 `Network` 地址（电脑的局域网 IP）。手机连同一个 Wi-Fi，用浏览器打开这个地址，横屏游玩（竖屏会提示"请将手机横屏游玩"并自动暂停）。电脑防火墙需要放行这个端口。也可以 `npm run build && npm run preview` 用生产构建试玩（端口 4173，同样带 `--host`）。
-- **流程**：主菜单（背景是 AI 演示对局）→ 选难度（简单 / 普通 / 困难）→"开始游戏（斧王）"→ 对局 → 胜负结算（再来一局 / 返回主菜单）。你控制天辉（下方）的 1 号斧王，两名队友和三名敌人由 AI 控制；先推倒对方遗迹获胜。
-- **触屏操作**：左下摇杆移动；右下大按钮"攻击"（优先攻击附近的敌方英雄，其次小兵、建筑；按住持续攻击）；"补刀"打一下能打死的血量最低的小兵，"推塔"打最近的敌方建筑；"回城"5 秒后回到泉水（受到伤害会打断）；技能键轻点 = 智能施法（自动选目标），按住拖动 = 手动瞄准（显示范围和落点，拖到技能键上方出现的"取消"区可以取消）；技能键左上角的"+"= 加点（未学会的技能直接点按钮也能学）；右上角暂停。
-- **键盘（网页调试用）**：方向键或 A / S / D 移动（W 留给技能），Q W E R 朝鼠标方向施法，Shift+Q/W/E/R 加点，空格 攻击，T 回城，Esc 暂停 / 继续。
+- **流程**：主菜单（背景是 AI 演示对局）→ 选难度（简单 / 普通 / 困难）→"选择英雄"→ 选英雄界面（左边 10 张英雄卡片，还没做好的显示"开发中"、不能选，目前只有斧王可选；右边是选中英雄的 3D 预览（按住拖动可以转动）、1 级面板、技能和天赋说明；"随机英雄"/"开始对局"，右上"返回"）→ 对局 → 胜负结算（"再来一局"用同一个英雄和难度、重新补位 / 返回主菜单）。你控制天辉（下方）的 1 号英雄，两名队友和三名敌人由电脑补位、AI 控制；先推倒对方遗迹获胜。选英雄界面记住上次选的英雄。
+- **触屏操作**：左下摇杆移动；右下大按钮"攻击"（优先攻击附近的敌方英雄，其次小兵、建筑；按住持续攻击）；"补刀"打一下能打死的血量最低的小兵，"推塔"打最近的敌方建筑；"回城"5 秒后回到泉水（受到伤害会打断）；技能键轻点 = 智能施法（自动选目标），按住拖动 = 手动瞄准（显示范围和落点，拖到技能键上方出现的"取消"区可以取消）；技能键左上角的"+"= 加点（未学会的技能直接点按钮也能学）；有额外技能（X1 / X2，例如幻刺的魅影无形）的英雄在大招键上方多出小一号的圆键；充能技能右下角显示剩余次数，层数 / 计数技能右上角显示数字；升到 10 / 15 / 20 / 25 级时技能区左上方弹出天赋二选一（"稍后"收成闪烁的"天赋"小按钮，点它重新展开）；右上角暂停，暂停菜单里有"自动加点（技能和天赋）""站立自动攻击"两个开关（记在本机）和只读的天赋树。
+- **键盘（网页调试用）**：方向键或 A / S / D 移动（W 留给技能），Q W E R 朝鼠标方向施法，F / G = 额外技能 X1 / X2，Shift+技能键 加点，空格 攻击，T 回城，Esc 暂停 / 继续（选英雄界面里 Esc = 返回）。天赋只能用鼠标 / 触屏点选。
 
 ## P1 核心引擎：已完成 16 / 16 ✅
 每个任务都经过实现 → 审查 → 修复的流程，目前共 167 个测试，全部通过；`npm test`、`npm run typecheck`、`npm run build` 都通过。
@@ -103,7 +103,7 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
 | 4 | 光环、召唤物、全局死亡钩子 | ✅ |
 | 5 | 渲染框架（模型注册表、共用人形骨骼、特效 / 弹道 / 状态外观注册表、2D 后备注册表） | ✅ |
 | 6 | AI 框架（技能使用表）、选人补位、调试工具 | ✅ |
-| 7 | 选英雄界面、天赋弹窗、X1/X2 技能键、角标、自动加点 | |
+| 7 | 选英雄界面、天赋弹窗、X1/X2 技能键、角标、自动加点 | ✅ |
 | 8 | 斯温 | |
 | 9 | 莉娜 | |
 | 10 | 水晶室女 | |
@@ -124,6 +124,7 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
 - Task 4（2026-10-08）：`src/sim/auras.ts`（`AuraDef` / `updateAuras`：每 tick 给范围内的单位挂子 Modifier，离开后残留 `BALANCE.auras.linger` = 0.5 秒；同名光环不叠加；`active` 为 false 或主人被破坏 / 死亡时不施加；`includeSelf` / `includeBuildings` / `filter` / `childData`）；`src/sim/systems/summons.ts`（`spawnSummon` / `updateSummons`：`kind 'summon'`、没有赏金、到期死亡并移除、跟随主人身后、主人死亡后原地不动；`hitsToKill` 的召唤物每次普攻固定掉 1 点，其他伤害无效）；`ModifierDef.onUnitDeath`（任意单位死亡时对每个存活英雄调用）；防御塔把召唤物和小兵放在同一优先级。新的系统顺序：spawner → heroes → auras → buildings → creepAI → abilities → attacks → motion → movement → projectiles → effects → timers → summons → regen。新增 `tests/auras.test.ts`（9 个）、`tests/summons.test.ts`（7 个），共 262 个测试；`npm run sim -- --games 4 --seed 1` 结果与 Task 1–3 完全相同（18:21–34:11）。
 
 - Task 6（2026-10-08）：AI 技能使用表 `src/ai/usage/`（`types.ts` 的 `AiCtx` / `AiDecision` / `AiRule` / `HeroAiRules`，`index.ts` 的 `AI_RULES` / `aiRuleFor`，`axe.ts` 斧王三条规则原样迁移），`AbilityDef.aiCast` 删除；`SimpleAI` 按优先级试规则（`canCast` 为真才调用 `decide`），撤退时先试 `escape` 规则，施法中只试 `whileCasting` 规则，开关决定下 `toggle` 指令；`src/ai/aiHelpers.ts`（`unitVelocity` / `predictPos` / `bestCirclePoint` / `unitsInLine` / `firstInLine` / `magicDamageTo` / `physicalDamageTo` / `towardHome` / `nearestEnemyHero` / `lowestHpEnemyHero` / `enemyCreepsNear` / `underAttack` / `keepsUltMana`）；`BALANCE.ai`（`easyAimError` 150、`heroWeight` 3、`conserveUltMana`）；`src/game/roster.ts`（`HERO_ROSTER` 10 名、`availableHeroes`）、`src/game/draft.ts`（`draftTeams` 电脑补位）、`src/game/debug.ts`（`setHeroLevel` / `refreshHero`，开发钩子 `__game.debug`）；`hasHero`；演示局和开局都用 `draftTeams`（现在只有斧王，仍是 3 斧王对 3 斧王）。新增 `tests/draft.test.ts`（6 个）、`tests/aiHelpers.test.ts`（6 个），`tests/ai.test.ts` 追加 7 个，共 290 个测试；`npm run sim -- --games 10 --seed 1` 迁移前后输出逐行相同（天辉 4 胜、夜魇 4 胜、2 局超时，结束的局 18:21–34:11），另用记录事件的脚本统计 10 局里三个主动技能的施放次数（吼 2279、饥渴 2756、淘汰 767，斩杀 753）、螺旋触发 9075 次、英雄阵亡 920 次，前后完全一致。
+- Task 7（2026-10-08）：选英雄界面 `src/ui/heroSelect.ts`（横屏两栏：5 × 2 卡片 + 详情；未实现的英雄"开发中"不能选；3D 预览 `src/render3d/heroPreview.ts` 用独立的小 WebGL 画布循环播放站立 / 跑 / 普攻 ×2 / 各技能动作，离开界面时 `dispose()` + `forceContextLoss()`；`?renderer=2d` 时显示大头像）；`src/ui/abilityText.ts`（`PRIMARY_NAMES` / `SLOT_LABELS` / `abilityTags` / `abilityNumbers` / `heroBaseLine` / `orderedAbilities`）；`src/ui/settings.ts`（`loadPrefs` / `savePrefs`，`dota-lane.prefs`；`loadLastHero` / `saveLastHero`，`dota-lane.lastHero`）；HUD：按 `skillSlotsFor` 生成技能键（X1 / X2 小圆键在 R 上方）、充能角标和"下一层恢复"的冷却遮罩、`counter` 角标、`inactive` 变灰、`drawPortrait` 头像（自己和双方 6 个小头像）、先天计数标签、天赋弹窗（`talentChoices`）和"稍后"小按钮；暂停菜单加"自动加点""站立自动攻击"开关和天赋树；操作：F / G = X1 / X2，`castCommandFor`（无目标技能带上按住的移动方向），自动加点（`Controls.drain()` 按 `nextSkillToLearn` / `TALENT_BUILDS` 发指令）；主流程：开始界面"选择英雄"→ 选英雄 → `draftTeams(…, heroId)` 开局，"再来一局"沿用英雄和难度；`Match.aiPaused`；开发钩子 `__game.start({ hero, radiant?, dire?, difficulty? })`、`__game.debug = { level, refresh, lineup, freezeAI, place, cast, setHeroLevel, refreshHero }`。新增 `tests/abilityText.test.ts`（4 个），`tests/hud.test.ts` 追加 4 个、`tests/controls.test.ts` 追加 1 个，共 299 个测试；`npm run build` 的产物里没有 `__game`。
 
 ## 后续阶段（尚未写实施计划）
 （P2 进行中，见上面）P3 物品与商店 → P4 完整 AI、精英怪、选人、难度 → P5 平衡调参 → P6 特效音效和 Capacitor 打包 APK。详见设计文档 §14。
@@ -263,9 +264,27 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
   - 开局（`startGame`）也改用 `draftTeams(…, 'axe')`，Task 7 接入选英雄界面后换成玩家选的英雄。浏览器检查（Playwright，1280×720）：主菜单演示局 3 斧王对 3 斧王，开局后用 `__game.debug.setHeroLevel` 升到 16 级（加点和两层天赋正确）、`refreshHero` 回满，控制台 0 报错；生产构建里没有 `__game`。
   - 计划要求 PROGRESS 和代码一起提交；实际按任务分派的要求单独提交 `docs: progress (P2 task 6)`。
 
+- P2 Task 7（选英雄界面、天赋弹窗、X1/X2、角标、自动加点）：
+  - `HERO_ROSTER` 每项多了 `primary`（主属性）：卡片色条要给还没实现的英雄也画出来，而它们没有 `HeroDef`。
+  - `showHeroSelect` 返回 `HeroSelectScreen`（= `HTMLDivElement` + `close()`），`close()` 移除界面并释放预览的 WebGL 上下文；"开始对局""返回"会自动调用，主流程（Esc、开发钩子 `start`）也通过它关闭。
+  - 选英雄界面打开时，背景的演示局**停住、不再渲染**（界面背景 92–97% 不透明，几乎看不见），手机上只有 3D 预览一个 WebGL 画布在画；关掉界面后演示局从停下的地方继续。
+  - 详情区比计划多了：攻击类型标签（近战 / 远程，`attackRange ≥ 400` 算远程，与 D28 一致；放进标签行是因为 667 宽时面板一行放不下"150 近战"）和技能列表末尾的天赋表（25 级在上）。技能列表、天赋表一起纵向滚动（`touch-action: pan-y`，用 CDP 触摸事件验证可以滑动）。
+  - `abilityTags`：无目标技能写"无目标"（`instant` 的写"即时"），友方单位技能写"指向友方"；`abilityNumbers` 对充能技能把冷却写成"充能时间"，另外列出"引导 N 秒"。
+  - 3D 预览：石台 + 金色光圈，透明背景叠在 CSS 渐变上；`HeroModelSpec.previewMoves` 的条目可以是技能 id（前摇 + 释放）或 `fxTriggers` 的键（一次性动作），斧王是 吼 → 饥渴 → 反击螺旋（旋转一圈）→ 淘汰之刃；按住拖动转动模型，松开后慢慢转回 3/4 视角。帧率很低时（SwiftShader）也保证普攻出手前有一帧"剩余不到两个逻辑帧"，收招照常播放。
+  - HUD 新增纯函数 `cooldownState(u, ab)`（冷却遮罩比例和剩余秒数；充能技能按下一层恢复，并行充能取最快的一层）和 `portraitCanvas()`；`innateCounter` 的标签直接用先天技能的名字。充能技能还有层数时遮罩半透明、不显示秒数、按钮不算冷却；层数用完才和普通冷却一样。
+  - 布局：X1 在 R 正上方、X2 在 X1 左边（都是 8.5rem）；拖动瞄准的"取消"区从 R 上方挪到 E 上方偏左（right 23rem / bottom 39rem），不和 X1 / X2 重叠。先天主动（只有 1 级）不画等级格。双方 6 个小头像也改成 `drawPortrait` 画的小画布。
+  - 天赋弹窗放在技能区左上方、小地图左边（右上角被小地图占了），宽度 `min(56rem, 36vw)`，不挡住英雄前方的画面；弹窗出现（或重新展开）后 0.4 秒内的点击不算，防止正在点别处的手指误选；点选用 `click`（按下和松开都在同一个按钮上才算）。"稍后"收起后保持收起，直到点"天赋"小按钮或者没有待选的天赋。自动加点开启时不弹窗。
+  - 暂停菜单的天赋树按 Dota 的顺序 25 级在上，未解锁 / 没选的一侧只把颜色调暗（不用 `opacity`，否则背后的对局画面会透出来）；结算表背景也调得更不透明。
+  - "站立自动攻击"开关：`Controls.drain()` 每个逻辑帧把它写到玩家单位的 `autoAttack`（复活后也保持）。
+  - 键盘 Shift+F / Shift+G 也能给 X1 / X2 加点（先天主动不能加点，发了也无效）。
+  - 开发钩子：`__game.debug.level(n)` 对玩家英雄**只给技能点、不选天赋**（留给 HUD 的"+"和天赋弹窗，截图脚本靠它测弹窗），`all = true` 时其他英雄按 AI 的加点和天赋预设；`__game.start` 的 `radiant` 是玩家的队友（最多 2 名）、`dire` 是 3 名敌人，缺的由电脑补位。`setHeroLevel` / `refreshHero` 也还挂在 `__game.debug` 上。
+  - 包体：主包 74.6 kB → 90.6 kB（gzip 31.9 kB，含选英雄界面）；新的 `heroPreview` 代码块 4.9 kB，和 3D 渲染器共用 three（Rollup 把 three 和模型代码拆成一个共享块 607 kB，`renderer3d` 自身 79 kB）。
+  - 浏览器验证（Playwright + SwiftShader，844×390@2 触屏、667×375@2、915×412@2、1280×720，3D 和 `?renderer=2d`；脚本和截图在会话 scratchpad，没有提交）：开始界面 → 选英雄（斧王可选、其余 9 张"开发中"、隔 1 秒两张截图姿势不同、技能列表可以滚动、所有文字 ≥ 11px）→ 随机英雄 / 开始对局 → HUD（斧王没有 X1）；`debug.level(10)` 弹出天赋 → "稍后"→ 展开 → 点左边，暂停菜单天赋树 10 级左侧高亮；打开自动加点后 `level(25)` 几秒内技能加满、四层天赋按预设选好；临时给斧王加上测试用的 X1 / X2（并行充能 + 吸附落点）、计数和失效标记，检查小圆键、充能角标、冷却遮罩、拖动瞄准吸附；摇杆移动、"+"加点、轻点施法、攻击键；暂停 / 继续、站立自动攻击开关、结算 → 再来一局（同一个英雄）、退出对局 → 主菜单、结算 → 返回主菜单；来回进出选英雄界面 5 次没有 WebGL 上下文过多的警告，上次的英雄仍然选中；生产构建（`vite preview`）里同样走通。控制台 0 报错。
+  - 计划要求 PROGRESS 和代码一起提交；实际按任务分派的要求单独提交 `docs: progress (P2 task 7)`。
+
 ## 已知的小问题（推迟处理，不影响功能）
 主要是测试覆盖不足，例如嘲讽/引导期间不能移动、塔的强制目标 3 秒后失效、队伍金钱倍率等没有测试；另有少量写死的常量（小兵攻速 100、伤害 ±2 浮动、出兵阵型偏移）尚未移入 `BALANCE`。
-斧王 10 级天赋 A 已在 P2 Task 1 实现。玩家英雄的天赋要等 Task 7 的天赋弹窗才能选（AI 英雄已经会选）。淘汰之刃直接斩杀时不经过 `applyDamage`，所以不会更新目标的 `lastHeroDamage`（斧王本身就是击杀者，不影响记功）。
+斧王 10 级天赋 A 已在 P2 Task 1 实现；玩家英雄从 P2 Task 7 起用天赋弹窗选天赋。淘汰之刃直接斩杀时不经过 `applyDamage`，所以不会更新目标的 `lastHeroDamage`（斧王本身就是击杀者，不影响记功）。
 
 性能：只在 headless Chromium（无 GPU）里测过，还需要在真机（中端安卓，目标 60fps）上确认。镜头一次移动很远时（开局、复活、回城、镜头跟随切换）会在一帧里生成一行或多行新图块，4 倍 CPU 降速下这一帧最多约 28 毫秒；如果真机上能感觉到卡顿，可以在复活/回城前按目标位置预热图块。剩下最大的逐帧开销是飘字的 `strokeText`（每帧约 0.2 毫秒）和血条。
 
