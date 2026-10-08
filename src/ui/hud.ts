@@ -1,5 +1,5 @@
 import type { Match } from '../game/match';
-import type { Camera } from '../render/camera';
+import type { ViewCamera } from '../render/view';
 import type { AbilitySlot } from '../sim/core/types';
 import { Team } from '../sim/core/types';
 import { MAP } from '../sim/data/map';
@@ -75,7 +75,7 @@ export class Hud {
   };
   private q = <T extends Element>(sel: string): T => this.root.querySelector(sel) as T;
 
-  constructor(parent: HTMLElement, private readonly match: Match, private readonly camera: Camera) {
+  constructor(parent: HTMLElement, private readonly match: Match, private readonly camera: ViewCamera) {
     this.root = document.createElement('div');
     this.root.className = 'hud';
     this.root.innerHTML = `
@@ -261,10 +261,13 @@ export class Hud {
         g.fillRect(x - 1.5 * k, y - 1.5 * k, 3 * k, 3 * k);
       }
     }
-    const cam = this.camera;
+    // 视野框：屏幕四角投影到地面上的四边形（2D 镜头是矩形，3D 透视镜头是上宽下窄的梯形）
     g.strokeStyle = 'rgba(255,255,255,0.7)';
     g.lineWidth = k;
-    g.strokeRect((cam.x - cam.worldW / 2) * sx, (cam.y - cam.worldH / 2) * sy, cam.worldW * sx, cam.worldH * sy);
+    g.beginPath();
+    for (const p of this.camera.footprint()) g.lineTo(p.x * sx, p.y * sy);
+    g.closePath();
+    g.stroke();
   }
 
   destroy(): void {

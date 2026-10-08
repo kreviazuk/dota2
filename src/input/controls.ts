@@ -1,7 +1,7 @@
 import type { Command } from '../sim/commands';
 import type { Match } from '../game/match';
-import type { Camera } from '../render/camera';
-import type { AimIndicator } from '../render/renderer';
+import type { ViewCamera } from '../render/view';
+import type { AimIndicator } from '../render/view';
 import type { Hud } from '../ui/hud';
 import type { Vec2 } from '../sim/core/vec2';
 import { dist } from '../sim/core/vec2';
@@ -46,7 +46,7 @@ export class Controls {
   private attackHeld = false;
   private offs: (() => void)[] = [];
 
-  constructor(private readonly hud: Hud, private readonly match: Match, private readonly camera: Camera) {
+  constructor(private readonly hud: Hud, private readonly match: Match, private readonly camera: ViewCamera) {
     this.bindJoystick();
     this.bindButtons();
     this.bindSkills();

@@ -5,7 +5,7 @@ import type { Vec2 } from '../sim/core/vec2';
 import { dist, fromAngle } from '../sim/core/vec2';
 import { abilityCastRange, abilityValue, isValidUnitTarget } from '../sim/systems/abilities';
 import { nearestOf } from '../sim/query';
-import type { AimIndicator } from '../render/renderer';
+import type { AimIndicator } from '../render/view';
 
 /** 拖动瞄准单位技能时，在施法距离之外再放宽多少搜索目标（超出施法距离的目标会先走过去） */
 const UNIT_AIM_SLACK = 300;

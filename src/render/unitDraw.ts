@@ -224,6 +224,8 @@ export interface BarOpts {
   time?: number;
   /** 界面元素放大倍数（Camera.uiScale）：英雄血条完整放大，小兵和建筑的血条放大一半 */
   uiScale?: number;
+  /** 血条顶边的 y（同一坐标系）。缺省按单位半径放在 (x, y) 头顶；3D 渲染器传入投影后的头顶位置 */
+  top?: number;
 }
 
 /**
@@ -239,7 +241,7 @@ export function drawBars(ctx: CanvasRenderingContext2D, u: Unit, x: number, y: n
   const s = isHero ? ui : 1 + (ui - 1) * 0.5;
   const w = (isHero ? 110 : isBuilding ? 170 : 46) * s;
   const h = (isHero ? 13 : isBuilding ? 12 : 6) * s;
-  const top = isBuilding ? y - (u.building!.type === 'ancient' ? 170 : 150) : y - u.radius * 1.3 - (isHero ? 44 : 20) * s;
+  const top = opts.top !== undefined ? opts.top : isBuilding ? y - (u.building!.type === 'ancient' ? 170 : 150) : y - u.radius * 1.3 - (isHero ? 44 : 20) * s;
   const maxHp = Math.max(1, u.stats.maxHp);
   const pct = Math.max(0, Math.min(1, u.hp / maxHp));
   const manaH = 5 * s;

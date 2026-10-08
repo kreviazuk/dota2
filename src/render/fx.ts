@@ -1,6 +1,6 @@
 import type { SimEvent } from '../sim/core/events';
 import type { World } from '../sim/world';
-import type { Camera } from './camera';
+import type { ViewCamera } from './view';
 
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; max: number; size: number; color: string; drag: number; add: boolean }
 interface FloatText { x: number; y: number; vy: number; life: number; max: number; text: string; color: string; size: number }
@@ -42,7 +42,7 @@ export class FxSystem {
     this.texts.push({ x: x + (Math.random() - 0.5) * 30, y, vy: -90, life: 0.9, max: 0.9, text, color, size });
   }
 
-  consume(events: SimEvent[], world: World, playerId: number | null, cam: Camera): void {
+  consume(events: SimEvent[], world: World, playerId: number | null, cam: ViewCamera): void {
     const player = world.getUnit(playerId);
     for (const e of events) {
       switch (e.type) {
@@ -114,7 +114,7 @@ export class FxSystem {
     }
   }
 
-  private fxEvent(e: Extract<SimEvent, { type: 'fx' }>, world: World, cam: Camera): void {
+  private fxEvent(e: Extract<SimEvent, { type: 'fx' }>, world: World, cam: ViewCamera): void {
     const { x, y } = e.pos;
     switch (e.kind) {
       case 'axe_call':
@@ -216,20 +216,24 @@ export class FxSystem {
 
   /** uiScale：界面元素放大倍数（Camera.uiScale），手机横屏时放大飘字 */
   drawTexts(ctx: CanvasRenderingContext2D, uiScale = 1): void {
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
-    ctx.lineJoin = 'round';
-    for (const t of this.texts) {
-      const k = t.life / t.max;
-      ctx.globalAlpha = Math.min(1, k * 2);
-      // 出现时略微放大再回落
-      ctx.font = `bold ${Math.round(t.size * uiScale * (1 + 0.25 * Math.max(0, k - 0.8) * 5))}px sans-serif`;
-      ctx.lineWidth = 5 * uiScale;
-      ctx.strokeStyle = 'rgba(0,0,0,0.8)';
-      ctx.strokeText(t.text, t.x, t.y);
-      ctx.fillStyle = t.color;
-      ctx.fillText(t.text, t.x, t.y);
-    }
+    for (const t of this.texts) drawFloatText(ctx, t.text, t.color, t.size, t.life / t.max, t.x, t.y, uiScale);
     ctx.globalAlpha = 1;
   }
+}
+
+/**
+ * 画一条飘字（2D 渲染器和 3D 渲染器的界面层共用）。k = 剩余寿命比例 1→0：出现时略微放大再回落，最后淡出。
+ * 调用后 ctx.globalAlpha 可能不是 1。
+ */
+export function drawFloatText(ctx: CanvasRenderingContext2D, text: string, color: string, size: number, k: number, x: number, y: number, uiScale: number): void {
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.lineJoin = 'round';
+  ctx.globalAlpha = Math.min(1, k * 2);
+  ctx.font = `bold ${Math.round(size * uiScale * (1 + 0.25 * Math.max(0, k - 0.8) * 5))}px sans-serif`;
+  ctx.lineWidth = 5 * uiScale;
+  ctx.strokeStyle = 'rgba(0,0,0,0.8)';
+  ctx.strokeText(text, x, y);
+  ctx.fillStyle = color;
+  ctx.fillText(text, x, y);
 }

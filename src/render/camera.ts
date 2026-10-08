@@ -1,6 +1,7 @@
 import type { Vec2 } from '../sim/core/vec2';
 import { Team } from '../sim/core/types';
 import { MAP } from '../sim/data/map';
+import type { ViewCamera } from './view';
 
 /** 屏幕高度对应的世界单位数 */
 export const VIEW_WORLD_HEIGHT = 1400;
@@ -10,7 +11,7 @@ const MAX_UI_SCALE = 2;
 
 const clamp = (v: number, lo: number, hi: number) => (lo > hi ? (lo + hi) / 2 : Math.max(lo, Math.min(hi, v)));
 
-export class Camera {
+export class Camera implements ViewCamera {
   x: number = MAP.laneX;
   y: number = MAP.height / 2;
   /** CSS 像素 / 世界单位 */
@@ -84,6 +85,17 @@ export class Camera {
   /** CSS 像素 → 世界坐标 */
   screenToWorld(p: Vec2): Vec2 {
     return { x: (p.x - this.viewW / 2) / this.scale + this.x, y: (p.y - this.viewH / 2) / this.scale + this.y };
+  }
+
+  footprint(): Vec2[] {
+    const hw = this.worldW / 2;
+    const hh = this.worldH / 2;
+    return [
+      { x: this.x - hw, y: this.y - hh },
+      { x: this.x + hw, y: this.y - hh },
+      { x: this.x + hw, y: this.y + hh },
+      { x: this.x - hw, y: this.y + hh },
+    ];
   }
 
   visible(p: Vec2, margin = 200): boolean {

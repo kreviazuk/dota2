@@ -1,6 +1,8 @@
 import type { World } from '../sim/world';
 import type { Unit } from '../sim/entities/unit';
 import type { Vec2 } from '../sim/core/vec2';
+import type { SimEvent } from '../sim/core/events';
+import type { AimIndicator, GameRenderer } from './view';
 import { Team } from '../sim/core/types';
 import { Camera } from './camera';
 import { MapLayer } from './mapLayer';
@@ -8,27 +10,16 @@ import { FxSystem } from './fx';
 import { drawHero } from './heroVisuals';
 import { drawAreaEffect, drawBars, drawBuilding, drawCreep, drawProjectile, drawShadow, killMarkerFor } from './unitDraw';
 
-/** 手动瞄准时的指示器（由操作层计算，世界坐标） */
-export interface AimIndicator {
-  kind: 'unit' | 'point' | 'direction' | 'none';
-  origin: Vec2;
-  range: number;
-  point?: Vec2;
-  dir?: Vec2;
-  radius?: number;
-  width?: number;
-  targetId?: number;
-  /** 拖到了取消区：指示器变红 */
-  cancel: boolean;
-}
+export type { AimIndicator } from './view';
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 /**
- * 渲染总控：只读取 World 的状态（加上 FxSystem 消费的事件），从不修改 World。
+ * 2D 渲染总控（俯视 Canvas 2D；WebGL 不可用时的后备渲染器）：只读取 World 的状态（加上 FxSystem 消费的事件），从不修改 World。
  * 所有绘制都在世界坐标里进行，由 camera.apply 设置变换。
  */
-export class Renderer {
+export class Renderer implements GameRenderer {
+  readonly kind = '2d' as const;
   readonly camera = new Camera();
   readonly fx = new FxSystem();
   private readonly ctx: CanvasRenderingContext2D;
@@ -56,6 +47,10 @@ export class Renderer {
     const u = world.getUnit(followId);
     if (u) this.camera.follow(u.pos, u.team, 0, true);
     this.fx.clear();
+  }
+
+  consume(events: SimEvent[], world: World, followId: number | null): void {
+    this.fx.consume(events, world, followId, this.camera);
   }
 
   private ipos(u: { pos: Vec2; prevPos: Vec2 }, alpha: number): Vec2 {
