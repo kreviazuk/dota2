@@ -90,6 +90,20 @@ const battleHunger: AbilityDef = {
   },
 };
 
+/** 10 级天赋 A：每个生效中（斧王施放、目标存活）的战斗饥渴给斧王 +8% 移速 */
+const HUNGER_SPEED_PER = 0.08;
+const T10A_HUNGER_SPEED: ModifierDef = {
+  id: 'axe_t10a', name: '战斗饥渴移速', hidden: true, persistOnDeath: true, dispel: 'none',
+  stats: (_m, owner, world) => {
+    let n = 0;
+    for (const u of world.units) {
+      if (!u.alive) continue;
+      for (const m of u.modifiers) if (m.def.id === HUNGER.id && m.sourceId === owner.id) n++;
+    }
+    return n > 0 ? { moveSpeedPct: HUNGER_SPEED_PER * n } : {};
+  },
+};
+
 // ---------- E 反击螺旋 ----------
 const HELIX: ModifierDef = {
   id: 'axe_counter_helix', hidden: true, persistOnDeath: true, dispel: 'none',
@@ -223,8 +237,7 @@ export const AXE: HeroDef = {
   abilities: [berserkersCall, battleHunger, counterHelix, cullingBlade, oneManArmy],
   talents: [
     [
-      // P2 实现：按生效中的战斗饥渴数量给斧王加移速
-      { id: 'axe_t10a', name: '每个生效中的战斗饥渴 +8% 移速' },
+      { id: 'axe_t10a', name: '每个生效中的战斗饥渴 +8% 移速', modifier: T10A_HUNGER_SPEED },
       { id: 'axe_t10b', name: '+3 秒淘汰之刃增益持续时间', valueBonus: { abilityId: 'axe_culling_blade', key: 'buffDuration', add: 3 } },
     ],
     [

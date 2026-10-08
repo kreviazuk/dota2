@@ -9,6 +9,7 @@ export type SimEvent =
   | { type: 'miss'; attackerId: number; targetId: number }
   | { type: 'cast'; unitId: number; abilityId: string }
   | { type: 'levelUp'; unitId: number; level: number }
+  | { type: 'talent'; unitId: number; tier: number; side: 0 | 1; talentId: string }
   | { type: 'gold'; unitId: number; amount: number }
   | { type: 'respawn'; unitId: number }
   | { type: 'buildingDestroyed'; unitId: number; team: Team }

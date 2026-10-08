@@ -3,7 +3,8 @@ import { makeWorld, spawnDummy, runFor } from './helpers';
 import { createHero } from '../src/sim/systems/heroes';
 import { addModifier, findModifier, removeModifier } from '../src/sim/modifiers';
 import { applyDamage, killUnit } from '../src/sim/systems/damage';
-import { resolveTarget, syncPassives } from '../src/sim/systems/abilities';
+import { abilityValue, resolveTarget, syncPassives } from '../src/sim/systems/abilities';
+import { pickTalent } from '../src/sim/talents';
 import { Team } from '../src/sim/core/types';
 import type { World } from '../src/sim/world';
 import type { Unit } from '../src/sim/entities/unit';
@@ -175,5 +176,56 @@ describe('Axe', () => {
     const weak = spawnDummy(w, { kind: 'hero', team: Team.Dire, pos: { x: 1650, y: 4800 } });
     weak.hp = 200;
     expect(resolveTarget(w, a, a.ability('R')!)?.unit).toBe(weak);
+  });
+});
+
+describe('Axe talents', () => {
+  it('talent 10a: +8% move speed per active Battle Hunger', () => {
+    const w = makeWorld();
+    const a = axeAt(w, 1500, 5000, { W: 4 });
+    const e1 = spawnDummy(w, { kind: 'hero', team: Team.Dire, pos: { x: 1500, y: 4700 }, base: { damageMin: 0, damageMax: 0 } });
+    const e2 = spawnDummy(w, { kind: 'hero', team: Team.Dire, pos: { x: 1700, y: 4800 }, base: { damageMin: 0, damageMax: 0 } });
+    const base = a.stats.moveSpeed;
+    expect(pickTalent(w, a, 0, 0)).toBe(true);
+    w.step();
+    expect(a.stats.moveSpeed).toBeCloseTo(base);
+    w.issue(a.id, { type: 'cast', slot: 'W', target: { unitId: e1.id } });
+    runFor(w, 0.4);
+    a.ability('W')!.cooldown = 0;
+    w.issue(a.id, { type: 'cast', slot: 'W', target: { unitId: e2.id } });
+    runFor(w, 0.4);
+    expect(findModifier(e1, 'axe_battle_hunger', a.id)).toBeDefined();
+    expect(findModifier(e2, 'axe_battle_hunger', a.id)).toBeDefined();
+    expect(a.stats.moveSpeed).toBeCloseTo(base * 1.16);
+    removeModifier(w, e1, findModifier(e1, 'axe_battle_hunger')!);
+    w.step();
+    expect(a.stats.moveSpeed).toBeCloseTo(base * 1.08);
+    // 斧王自己的增益在死亡后保留
+    expect(findModifier(a, 'axe_t10a')?.def.persistOnDeath).toBe(true);
+  });
+
+  it('every Axe talent changes the documented value', () => {
+    const cases: { tier: 0 | 1 | 2 | 3; side: 0 | 1; slot: 'Q' | 'W' | 'E' | 'R'; key: string; expected: number }[] = [
+      { tier: 0, side: 1, slot: 'R', key: 'buffDuration', expected: 9 },
+      { tier: 1, side: 0, slot: 'Q', key: 'armor', expected: 25 },
+      { tier: 1, side: 1, slot: 'W', key: 'dps', expected: 32 },
+      { tier: 2, side: 0, slot: 'E', key: 'damage', expected: 200 },
+      { tier: 3, side: 0, slot: 'R', key: 'damage', expected: 625 },
+      { tier: 3, side: 1, slot: 'Q', key: 'radius', expected: 400 },
+    ];
+    for (const c of cases) {
+      const w = makeWorld();
+      const a = axeAt(w, 1500, 5000, { Q: 4, W: 4, E: 4, R: 3 });
+      a.hero!.level = 25;
+      expect(pickTalent(w, a, c.tier, c.side)).toBe(true);
+      expect(abilityValue(a, a.ability(c.slot)!, c.key)).toBe(c.expected);
+    }
+    const w = makeWorld();
+    const a = axeAt(w, 1500, 5000);
+    a.hero!.level = 20;
+    w.step();
+    const str = a.stats.str;
+    expect(pickTalent(w, a, 2, 1)).toBe(true);
+    expect(a.stats.str).toBeCloseTo(str + 15);
   });
 });

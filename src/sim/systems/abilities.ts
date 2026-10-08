@@ -12,27 +12,70 @@ export const levelValue = (arr: readonly number[] | undefined, level: number): n
   return arr[Math.max(0, Math.min(arr.length, level) - 1)];
 };
 
+export const isInnate = (def: AbilityDef): boolean => def.slot === 'innate' || !!def.innate;
+
 export const newAbilityInstance = (def: AbilityDef): AbilityInstance => ({
-  def, level: def.slot === 'innate' ? 1 : 0, cooldown: 0, charges: def.charges ?? 0, chargeTimer: 0, toggled: false, data: {},
+  def, level: isInnate(def) ? 1 : 0, cooldown: 0, charges: def.charges ?? 0, chargeTimer: 0, toggled: false, data: {}, chargeTimers: [],
 });
 
+const talentKey = (abilityId: string, key: string): string => `${abilityId}.${key}`;
+
+/** 天赋加值（`技能id.键`），缺省 0 */
+export function talentAdd(caster: Unit | undefined, abilityId: string, key: string): number {
+  return caster?.hero?.talentValueBonus?.[talentKey(abilityId, key)] ?? 0;
+}
+
+/** 天赋乘数（`技能id.键`），缺省 1 */
+export function talentMult(caster: Unit | undefined, abilityId: string, key: string): number {
+  return caster?.hero?.talentValueMult?.[talentKey(abilityId, key)] ?? 1;
+}
+
+/** 基础数值 × 天赋乘数 + 天赋加值 */
+const withTalent = (caster: Unit | undefined, ab: AbilityInstance, key: string, base: number): number =>
+  base * talentMult(caster, ab.def.id, key) + talentAdd(caster, ab.def.id, key);
+
+const abLevel = (ab: AbilityInstance): number => Math.max(1, ab.level);
+
+/** (等级数值 + 每英雄等级成长 × 英雄等级) × 天赋乘数 + 天赋加值。成长键名：`${key}PerLevel`；非英雄单位英雄等级按 1 */
 export function abilityValue(caster: Unit, ab: AbilityInstance, key: string): number {
-  const base = levelValue(ab.def.values[key], Math.max(1, ab.level));
-  return base + (caster.hero?.talentValueBonus[`${ab.def.id}.${key}`] ?? 0);
+  const lv = abLevel(ab);
+  let base = levelValue(ab.def.values[key], lv);
+  const per = ab.def.values[`${key}PerLevel`];
+  if (per) base += levelValue(per, lv) * (caster.hero?.level ?? 1);
+  return withTalent(caster, ab, key, base);
 }
 
 export const abilityCooldown = (ab: AbilityInstance, caster?: Unit): number =>
-  Math.max(0, levelValue(ab.def.cooldown, Math.max(1, ab.level)) + (caster?.hero?.talentValueBonus[`${ab.def.id}.cooldown`] ?? 0));
+  Math.max(0, withTalent(caster, ab, 'cooldown', levelValue(ab.def.cooldown, abLevel(ab))));
 export const abilityManaCost = (ab: AbilityInstance, caster?: Unit): number =>
-  Math.max(0, levelValue(ab.def.manaCost, Math.max(1, ab.level)) + (caster?.hero?.talentValueBonus[`${ab.def.id}.manaCost`] ?? 0));
+  Math.max(0, withTalent(caster, ab, 'manaCost', levelValue(ab.def.manaCost, abLevel(ab))));
+/** 施法距离：等级数值（含天赋）+ 施法距离加成 */
 export const abilityCastRange = (caster: Unit, ab: AbilityInstance): number =>
-  levelValue(ab.def.castRange, Math.max(1, ab.level)) + caster.stats.castRangeBonus;
+  withTalent(caster, ab, 'castRange', levelValue(ab.def.castRange, abLevel(ab))) + caster.stats.castRangeBonus;
+
+/** 施法前摇：castPoint / (1 + 施法速度)；instant 技能为 0 */
+export function abilityCastPoint(caster: Unit, ab: AbilityInstance): number {
+  if (ab.def.instant) return 0;
+  return (ab.def.castPoint ?? 0) / (1 + Math.max(-0.9, caster.stats.castSpeed));
+}
+
+/** 引导时间（含天赋）；0 = 不是引导技能 */
+export function abilityChannelTime(caster: Unit, ab: AbilityInstance): number {
+  const base = levelValue(ab.def.channelTime, ab.level);
+  return Math.max(0, withTalent(caster, ab, 'channelTime', base));
+}
+
+/** 充能上限（含天赋）；> 0 即充能制 */
+export function abilityMaxCharges(caster: Unit | undefined, ab: AbilityInstance): number {
+  return Math.max(0, Math.round(withTalent(caster, ab, 'charges', ab.def.charges ?? 0)));
+}
 
 export const makeCastContext = (world: World, caster: Unit, ab: AbilityInstance, target: ResolvedTarget): CastContext => ({
   world, caster, ability: ab, level: ab.level, target, v: (key: string) => abilityValue(caster, ab, key),
 });
 
-export const isReady = (ab: AbilityInstance): boolean => (ab.def.charges ? ab.charges > 0 : ab.cooldown <= 1e-6);
+export const isReady = (ab: AbilityInstance, caster?: Unit): boolean =>
+  abilityMaxCharges(caster, ab) > 0 ? ab.charges > 0 : ab.cooldown <= 1e-6;
 
 export function canCast(world: World, caster: Unit, ab: AbilityInstance): boolean {
   void world;
@@ -41,11 +84,23 @@ export function canCast(world: World, caster: Unit, ab: AbilityInstance): boolea
   if (tt === 'passive') return false;
   if (caster.hasState('stunned') || caster.hasState('silenced')) return false;
   if (tt === 'toggle') return true;
-  return isReady(ab) && caster.mana + 1e-6 >= abilityManaCost(ab, caster);
+  return isReady(ab, caster) && caster.mana + 1e-6 >= abilityManaCost(ab, caster);
 }
 
 export const isValidUnitTarget = (caster: Unit, ab: AbilityInstance, t: Unit): boolean =>
   isTargetableBy(caster, t, ab.def.targetTeam ?? 'enemy', !!ab.def.ignoresDebuffImmune) && (!ab.def.heroesOnly || t.kind === 'hero');
+
+/** pointSnap：把"origin → 落点"的距离吸附到最近的一档（方向不变；距离为 0 时用 fallbackDir） */
+export function snapPoint(origin: Vec2, fallbackDir: Vec2, steps: readonly number[], p: Vec2): Vec2 {
+  if (steps.length === 0) return { x: p.x, y: p.y };
+  const d = dist(origin, p);
+  const step = steps.reduce((a, b) => (Math.abs(b - d) < Math.abs(a - d) ? b : a));
+  const dir = d > 1e-6 ? normalize(sub(p, origin)) : fallbackDir;
+  return add(origin, scale(dir, step));
+}
+
+const hasExplicitTarget = (given?: CastTarget): boolean =>
+  !!given && (given.unitId !== undefined || given.point !== undefined || given.dir !== undefined);
 
 export function resolveTarget(world: World, caster: Unit, ab: AbilityInstance, given?: CastTarget): ResolvedTarget | null {
   const def = ab.def;
@@ -56,8 +111,15 @@ export function resolveTarget(world: World, caster: Unit, ab: AbilityInstance, g
     const heroes = e.filter((u) => u.kind === 'hero');
     return nearestOf(caster.pos, heroes.length ? heroes : e)?.pos ?? null;
   };
+  // 智能施法覆盖：没有给目标时先问技能自己的 smartTarget（所有目标类型）
+  const smartTarget = (): ResolvedTarget | null => (hasExplicitTarget(given) ? null : def.smartTarget?.(world, caster, ab) ?? null);
   switch (def.targetType) {
-    case 'none':
+    case 'none': {
+      const smart = smartTarget();
+      if (smart) return smart;
+      if (given?.dir && (given.dir.x || given.dir.y)) return { dir: normalize(given.dir) };
+      return {};
+    }
     case 'toggle':
       return {};
     case 'passive':
@@ -67,7 +129,8 @@ export function resolveTarget(world: World, caster: Unit, ab: AbilityInstance, g
         const u = world.getUnit(given.unitId);
         return u && isValidUnitTarget(caster, ab, u) ? { unit: u } : null;
       }
-      const smart = def.smartTarget?.(world, caster, ab);
+      // 单位技能：只要没指定单位就走 smartTarget（P1 行为）
+      const smart = def.smartTarget?.(world, caster, ab) ?? null;
       if (smart) return smart;
       const pool = world.units.filter((u) => dist(u.pos, caster.pos) - u.radius <= search && isValidUnitTarget(caster, ab, u));
       if ((def.targetTeam ?? 'enemy') === 'ally') {
@@ -79,17 +142,27 @@ export function resolveTarget(world: World, caster: Unit, ab: AbilityInstance, g
       return t ? { unit: t } : null;
     }
     case 'point': {
-      const clampP = (p: Vec2): Vec2 =>
-        dist(caster.pos, p) <= range ? { x: p.x, y: p.y } : add(caster.pos, scale(normalize(sub(p, caster.pos)), range));
-      if (given?.point) return { point: clampP(given.point) };
-      if (given?.dir) return { point: add(caster.pos, scale(normalize(given.dir), range)) };
+      const finish = (p: Vec2, fallbackDir: Vec2 = fromAngle(caster.facing)): Vec2 => {
+        if (def.pointSnap) return snapPoint(caster.pos, fallbackDir, def.pointSnap, p);
+        return dist(caster.pos, p) <= range ? { x: p.x, y: p.y } : add(caster.pos, scale(normalize(sub(p, caster.pos)), range));
+      };
+      if (given?.point) return { point: finish(given.point) };
+      if (given?.dir && (given.dir.x || given.dir.y)) {
+        const d = normalize(given.dir);
+        return { point: finish(add(caster.pos, scale(d, range)), d) };
+      }
+      const smart = smartTarget();
+      if (smart?.point) return { ...smart, point: finish(smart.point) };
+      if (smart) return smart;
       const p = nearestEnemyPos();
-      return { point: p ? clampP(p) : add(caster.pos, scale(fromAngle(caster.facing), Math.min(range, 400))) };
+      return { point: finish(p ?? add(caster.pos, scale(fromAngle(caster.facing), Math.min(range, 400)))) };
     }
     case 'direction': {
       const tryDir = (d: Vec2): ResolvedTarget | null => (d.x || d.y ? { dir: d } : null);
       if (given?.dir) { const r = tryDir(normalize(given.dir)); if (r) return r; }
       if (given?.point) { const r = tryDir(normalize(sub(given.point, caster.pos))); if (r) return r; }
+      const smart = smartTarget();
+      if (smart) return smart;
       const p = nearestEnemyPos();
       if (p) { const r = tryDir(normalize(sub(p, caster.pos))); if (r) return r; }
       return { dir: fromAngle(caster.facing) };
@@ -100,7 +173,8 @@ export function resolveTarget(world: World, caster: Unit, ab: AbilityInstance, g
 export function inCastRange(world: World, caster: Unit, ab: AbilityInstance, t: ResolvedTarget): boolean {
   void world;
   if (ab.def.targetType === 'unit' && t.unit) return edgeDist(caster, t.unit) <= abilityCastRange(caster, ab) + 1;
-  if (ab.def.targetType === 'point' && t.point) return dist(caster.pos, t.point) <= abilityCastRange(caster, ab) + 1;
+  // 吸附落点的技能按"施法者 → 落点"的相对距离施放，原地就能放
+  if (ab.def.targetType === 'point' && t.point && !ab.def.pointSnap) return dist(caster.pos, t.point) <= abilityCastRange(caster, ab) + 1;
   return true;
 }
 
@@ -127,6 +201,25 @@ export function toggleAbility(world: World, caster: Unit, ab: AbilityInstance): 
   world.events.emit({ type: 'cast', unitId: caster.id, abilityId: ab.def.id });
 }
 
+/** 扣蓝、进冷却或消耗一层充能 */
+function spendCast(u: Unit, ab: AbilityInstance): void {
+  u.mana -= abilityManaCost(ab, u);
+  const cd = abilityCooldown(ab, u);
+  if (abilityMaxCharges(u, ab) > 0) {
+    ab.charges--;
+    if (ab.def.chargeMode === 'parallel') ab.chargeTimers.push(cd);
+    else if (ab.chargeTimer <= 1e-6) ab.chargeTimer = cd;
+  } else {
+    ab.cooldown = cd;
+  }
+}
+
+/** 技能生效：cast 事件、onCast、施法者的 onAbilityCast 钩子 */
+function fireCast(world: World, u: Unit, ab: AbilityInstance, target: ResolvedTarget): void {
+  ab.def.onCast?.(makeCastContext(world, u, ab, target));
+  for (const m of u.modifiers.slice()) m.def.onAbilityCast?.(m, u, ab.def.id, world);
+}
+
 export function issueCast(world: World, caster: Unit, ab: AbilityInstance, given?: CastTarget): boolean {
   if (!canCast(world, caster, ab)) return false;
   if (ab.def.targetType === 'toggle') {
@@ -135,6 +228,13 @@ export function issueCast(world: World, caster: Unit, ab: AbilityInstance, given
   }
   const t = resolveTarget(world, caster, ab, given);
   if (!t) return false;
+  if (ab.def.instant) {
+    // 即时技能：不打断前摇、引导和普攻，也不改变当前指令
+    spendCast(caster, ab);
+    world.events.emit({ type: 'cast', unitId: caster.id, abilityId: ab.def.id });
+    fireCast(world, caster, ab, t);
+    return true;
+  }
   if (caster.cast) cancelCast(world, caster, true);
   caster.order = { kind: 'cast', ability: ab, target: t };
   caster.attack.windup = -1;
@@ -143,8 +243,21 @@ export function issueCast(world: World, caster: Unit, ab: AbilityInstance, given
 
 function tickCooldown(u: Unit, ab: AbilityInstance, dt: number): void {
   if (ab.cooldown > 0) ab.cooldown = Math.max(0, ab.cooldown - dt);
-  const max = ab.def.charges;
-  if (max && ab.charges < max) {
+  const max = abilityMaxCharges(u, ab);
+  if (max <= 0) return;
+  if (ab.def.chargeMode === 'parallel') {
+    if (ab.chargeTimers.length === 0) return;
+    const timers = ab.chargeTimers;
+    let w = 0;
+    for (let i = 0; i < timers.length; i++) {
+      const t = timers[i] - dt;
+      if (t <= 1e-6) ab.charges = Math.min(max, ab.charges + 1);
+      else timers[w++] = t;
+    }
+    timers.length = w;
+    return;
+  }
+  if (ab.charges < max) {
     ab.chargeTimer -= dt;
     if (ab.chargeTimer <= 1e-6) {
       ab.charges++;
@@ -159,21 +272,13 @@ function executeCast(world: World, u: Unit, c: CastState): void {
     cancelCast(world, u, true);
     return;
   }
-  const cost = abilityManaCost(ab, u);
-  if (u.mana + 1e-6 < cost || !isReady(ab)) {
+  if (u.mana + 1e-6 < abilityManaCost(ab, u) || !isReady(ab, u)) {
     cancelCast(world, u, true);
     return;
   }
-  u.mana -= cost;
-  const cd = abilityCooldown(ab, u);
-  if (ab.def.charges) {
-    ab.charges--;
-    if (ab.chargeTimer <= 1e-6) ab.chargeTimer = cd;
-  } else {
-    ab.cooldown = cd;
-  }
+  spendCast(u, ab);
   world.events.emit({ type: 'cast', unitId: u.id, abilityId: ab.def.id });
-  const channel = levelValue(ab.def.channelTime, ab.level);
+  const channel = abilityChannelTime(u, ab);
   if (channel > 0) {
     c.phase = 'channel';
     c.timer = channel;
@@ -182,8 +287,7 @@ function executeCast(world: World, u: Unit, c: CastState): void {
     u.cast = null;
     if (u.order.kind === 'cast') u.order = { kind: 'idle' };
   }
-  ab.def.onCast?.(makeCastContext(world, u, ab, c.target));
-  for (const m of u.modifiers.slice()) m.def.onAbilityCast?.(m, u, ab.def.id, world);
+  fireCast(world, u, ab, c.target);
 }
 
 export function updateAbilities(world: World, dt: number): void {
@@ -229,7 +333,7 @@ export function updateAbilities(world: World, dt: number): void {
       if (d.x || d.y) u.facing = angleOf(d);
     }
     u.attack.windup = -1;
-    const cast: CastState = { ability, target, phase: 'point', timer: ability.def.castPoint ?? 0, channelTotal: 0 };
+    const cast: CastState = { ability, target, phase: 'point', timer: abilityCastPoint(u, ability), channelTotal: 0 };
     u.cast = cast;
     if (cast.timer <= 1e-6) executeCast(world, u, cast);
   }

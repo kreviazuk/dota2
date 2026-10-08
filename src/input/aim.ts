@@ -3,7 +3,7 @@ import type { Unit } from '../sim/entities/unit';
 import type { AbilityInstance, CastTarget } from '../sim/heroes/types';
 import type { Vec2 } from '../sim/core/vec2';
 import { dist, fromAngle } from '../sim/core/vec2';
-import { abilityCastRange, abilityValue, isValidUnitTarget } from '../sim/systems/abilities';
+import { abilityCastRange, abilityValue, isValidUnitTarget, snapPoint } from '../sim/systems/abilities';
 import { nearestOf } from '../sim/query';
 import type { AimIndicator } from '../render/view';
 
@@ -33,17 +33,21 @@ export function aimAbility(world: World, caster: Unit, ab: AbilityInstance, dir:
   const range = abilityCastRange(caster, ab);
   const d = dir ?? fromAngle(caster.facing);
   const origin = { x: caster.pos.x, y: caster.pos.y };
-  const radius = abilityValue(caster, ab, 'radius');
+  const shape = ab.def.aimShape?.(caster, ab) ?? {};
+  const radius = shape.radius ?? abilityValue(caster, ab, 'radius');
   const along = (len: number): Vec2 => ({ x: origin.x + d.x * len, y: origin.y + d.y * len });
   switch (ab.def.targetType) {
     case 'direction': {
-      const len = range || abilityValue(caster, ab, 'distance') || DEFAULT_DIRECTION_LENGTH;
-      const width = abilityValue(caster, ab, 'width') || DEFAULT_DIRECTION_WIDTH;
+      const len = shape.length ?? (range || abilityValue(caster, ab, 'distance') || DEFAULT_DIRECTION_LENGTH);
+      const width = shape.width ?? (abilityValue(caster, ab, 'width') || DEFAULT_DIRECTION_WIDTH);
       return { indicator: { kind: 'direction', origin, range: len, dir: d, width, cancel }, target: { dir: d } };
     }
     case 'point': {
-      const p = along(range * ratio);
-      return { indicator: { kind: 'point', origin, range, point: p, radius: radius || DEFAULT_POINT_RADIUS, cancel }, target: { point: p } };
+      // 吸附落点（影魔毁灭阴影）：拖动距离按最远一档换算，再吸附到最近的一档
+      const snap = ab.def.pointSnap;
+      const reach = snap && snap.length ? Math.max(...snap) : range;
+      const p = snap && snap.length ? snapPoint(origin, d, snap, along(reach * ratio)) : along(range * ratio);
+      return { indicator: { kind: 'point', origin, range: reach, point: p, radius: radius || DEFAULT_POINT_RADIUS, cancel }, target: { point: p } };
     }
     case 'unit': {
       const p = along(range * ratio);

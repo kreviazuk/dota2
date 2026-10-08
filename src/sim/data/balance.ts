@@ -104,6 +104,8 @@ export const BALANCE = {
     attributeBonusPerPoint: 2,
     recallTime: 5,
     radius: 24,
+    /** 天赋 0–3 层的解锁等级 */
+    talentLevels: [10, 15, 20, 25],
   },
   maxGameTime: 2400,
 };

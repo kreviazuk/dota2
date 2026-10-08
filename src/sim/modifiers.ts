@@ -23,6 +23,8 @@ export interface StatBonus {
   moveSpeedPct?: number;
   evasion?: number; lifesteal?: number; spellAmp?: number; spellLifesteal?: number;
   castRange?: number; statusResist?: number; slowResist?: number;
+  /** 施法速度（加法叠加）：0.3 = 施法前摇 ÷ 1.3 */
+  castSpeed?: number;
 }
 
 export interface ModifierInstance {

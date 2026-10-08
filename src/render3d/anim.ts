@@ -1,5 +1,6 @@
 import type { Unit } from '../sim/entities/unit';
 import { DT } from '../sim/core/constants';
+import { abilityCastPoint } from '../sim/systems/abilities';
 
 /**
  * 动画状态选择和计时（纯逻辑，不依赖 Three）。每个单位的外观对象持有一个 AnimTracker，
@@ -37,7 +38,8 @@ export function animInput(u: Unit): AnimInput {
   const dx = u.pos.x - u.prevPos.x;
   const dy = u.pos.y - u.prevPos.y;
   const c = u.cast;
-  const castPoint = c?.ability.def.castPoint ?? 0;
+  // 含施法速度（例如影魔 25 级天赋），与 sim 的前摇计时一致
+  const castPoint = c ? abilityCastPoint(u, c.ability) : 0;
   return {
     alive: u.alive,
     speed: Math.hypot(dx, dy) / DT,

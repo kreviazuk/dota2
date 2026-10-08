@@ -6,6 +6,12 @@ export const SKILL_BUILDS: Record<string, AbilitySlot[]> = {
   axe: ['Q', 'E', 'E', 'W', 'E', 'R', 'E', 'Q', 'Q', 'Q', 'R', 'W', 'W', 'W', 'R'],
 };
 
+/** 天赋预设：下标 = 天赋层（10/15/20/25 级），0 = 左 / 1 = 右 */
+export const TALENT_BUILDS: Record<string, (0 | 1)[]> = {
+  // 移速、+8 饥渴伤害、+40 螺旋、+150 淘汰
+  axe: [0, 1, 0, 0],
+};
+
 const DEFAULT_BUILD: AbilitySlot[] = ['Q', 'W', 'E', 'Q', 'W', 'R', 'E', 'Q', 'W', 'E', 'R', 'Q', 'W', 'E', 'R'];
 
 /** 按预设加点顺序返回下一个可学的技能 */

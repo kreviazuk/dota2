@@ -6,6 +6,7 @@ import type { Unit } from './entities/unit';
 import type { World } from './world';
 import { cancelCast, canCast, issueCast, toggleAbility } from './systems/abilities';
 import { learnAbility } from './systems/progress';
+import { pickTalent } from './talents';
 import { canAttack, smartAttackTarget, lastHitTarget, buildingTarget } from './query';
 
 export type Command =
@@ -79,6 +80,10 @@ export function applyCommand(world: World, u: Unit, cmd: Command): void {
     }
     case 'learn':
       learnAbility(world, u, cmd.slot);
+      return;
+    case 'pickTalent':
+      // 死亡时也可以选
+      pickTalent(world, u, cmd.tier, cmd.side);
       return;
     case 'recall':
       if (!u.alive || !u.hero || isCommandLocked(u)) return;

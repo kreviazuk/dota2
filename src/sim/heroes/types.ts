@@ -28,6 +28,8 @@ export interface AbilityInstance {
   chargeTimer: number;
   toggled: boolean;
   data: Record<string, number>;
+  /** parallel 充能：每层正在恢复的剩余时间 */
+  chargeTimers: number[];
 }
 
 export interface CastState {
@@ -75,6 +77,16 @@ export interface AbilityDef {
   manaCost?: number[];
   /** 充能次数上限；每次充能恢复时间 = cooldown */
   charges?: number;
+  /** 充能恢复方式：sequential（缺省，一次恢复一层）/ parallel（每层独立计时，影魔毁灭阴影） */
+  chargeMode?: 'sequential' | 'parallel';
+  /** 先天主动技能（幻刺魅影无形放在 X1）：从 1 级起就是 1 级，不能加点、不占技能点 */
+  innate?: boolean;
+  /** 不打断当前动作（施法前摇、引导、普攻前摇）立即生效；只允许 targetType 'none'，castPoint 视为 0 */
+  instant?: boolean;
+  /** 地点技能：落点到施法者的距离吸附到最近的一档（影魔 200/450/700） */
+  pointSnap?: number[];
+  /** 开关技能第一次学会时自动开启（霜冻之箭） */
+  defaultToggled?: boolean;
   channelTime?: number[];
   channelAllowsMove?: boolean;
   ignoresDebuffImmune?: boolean;
@@ -86,14 +98,33 @@ export interface AbilityDef {
   onChannelEnd?(ctx: CastContext, interrupted: boolean): void;
   onToggle?(ctx: CastContext, on: boolean): void;
   smartTarget?(world: World, caster: Unit, ability: AbilityInstance): ResolvedTarget | null;
+  /** P1 的 AI 施法规则（Task 6 挪到 src/ai/usage 后删除） */
   aiCast?(world: World, caster: Unit, ability: AbilityInstance, skill: AiSkill): CastTarget | null;
+  /** 瞄准指示器的尺寸（缺省读 castRange / values.distance / values.width / values.radius） */
+  aimShape?(caster: Unit, ab: AbilityInstance): { length?: number; width?: number; radius?: number };
+  /** HUD 角标（层数、灵魂数……）；null = 不显示 */
+  counter?(u: Unit, ab: AbilityInstance): number | null;
+  /** 被动暂时失效（例如射手天赋附近有敌方英雄）时 HUD 变灰 */
+  inactive?(u: Unit, ab: AbilityInstance): boolean;
+}
+
+export interface TalentValueMod {
+  abilityId: string;
+  /** values 里的键，或 'cooldown' | 'manaCost' | 'castRange' | 'channelTime' | 'charges' */
+  key: string;
+  add?: number;
+  mult?: number;
 }
 
 export interface TalentDef {
   id: string;
+  /** 中文，界面直接显示 */
   name: string;
-  valueBonus?: { abilityId: string; key: string; add: number };
+  valueBonus?: TalentValueMod | TalentValueMod[];
+  /** 选择后挂一个永久、隐藏、不可驱散的 Modifier */
   stats?: StatBonus;
+  /** 自定义效果（必须 persistOnDeath: true） */
+  modifier?: ModifierDef;
 }
 
 export interface HeroDef {

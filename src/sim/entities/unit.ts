@@ -53,6 +53,8 @@ export interface HeroState {
   talents: (0 | 1 | null)[];
   /** key = `${abilityId}.${valueKey}` */
   talentValueBonus: Record<string, number>;
+  /** key = `${abilityId}.${valueKey}`，缺省 1 */
+  talentValueMult: Record<string, number>;
   respawnTimer: number;
   kills: number;
   deaths: number;
@@ -68,7 +70,7 @@ export interface HeroState {
 
 export const newHeroState = (heroId: string, attrs: HeroAttrs, playerControlled: boolean, gold: number): HeroState => ({
   heroId, attrs, level: 1, xp: 0, gold, skillPoints: 1, attributeBonusLevel: 0, talents: [null, null, null, null],
-  talentValueBonus: {}, respawnTimer: 0, kills: 0, deaths: 0, assists: 0, lastHits: 0, streak: 0, playerControlled,
+  talentValueBonus: {}, talentValueMult: {}, respawnTimer: 0, kills: 0, deaths: 0, assists: 0, lastHits: 0, streak: 0, playerControlled,
   lastDamagedTime: -999, creepAggroCd: 0, itemValue: 0,
 });
 

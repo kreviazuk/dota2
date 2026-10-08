@@ -9,7 +9,8 @@ import { isCommandLocked } from '../sim/commands';
 import { canCast } from '../sim/systems/abilities';
 import { canAttack, edgeDist, enemiesInRadius, expectedAttackDamage, nearestOf } from '../sim/query';
 import { forwardY, layoutFor } from '../sim/data/map';
-import { nextSkillToLearn } from './builds';
+import { nextSkillToLearn, TALENT_BUILDS } from './builds';
+import { canPickTalent } from '../sim/talents';
 
 /** P1 的简单 AI：会补刀、会放技能、低血回家、跟着兵线推进。P4 会替换为完整三层 AI。 */
 export class SimpleAI {
@@ -30,6 +31,10 @@ export class SimpleAI {
     const out: Command[] = [];
     const learn = nextSkillToLearn(me);
     if (learn) out.push({ type: 'learn', slot: learn });
+    // 天赋（死亡时也选）：一次把所有已解锁的层都选上
+    for (const tier of [0, 1, 2, 3] as const) {
+      if (canPickTalent(world, me, tier)) out.push({ type: 'pickTalent', tier, side: TALENT_BUILDS[me.defId]?.[tier] ?? 0 });
+    }
     if (!me.alive || me.order.kind === 'recall' || isCommandLocked(me)) return out;
 
     const L = layoutFor(me.team);

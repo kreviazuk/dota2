@@ -12,6 +12,8 @@ export interface ComputedStats {
   moveSpeed: number;
   evasion: number; lifesteal: number; spellAmp: number; spellLifesteal: number;
   castRangeBonus: number; statusResist: number; slowResist: number;
+  /** 施法速度：施法前摇 ÷ (1 + castSpeed) */
+  castSpeed: number;
   states: Set<UnitState>;
   tauntedBy: number | null;
   fearedBy: number | null;
@@ -21,13 +23,13 @@ export const emptyStats = (): ComputedStats => ({
   str: 0, agi: 0, int: 0, maxHp: 0, hpRegen: 0, maxMana: 0, manaRegen: 0, armor: 0, magicResist: 0,
   damageMin: 0, damageMax: 0, bonusDamage: 0, attackSpeed: 100, attackInterval: 1, attackPoint: 0, attackRange: 0,
   moveSpeed: 0, evasion: 0, lifesteal: 0, spellAmp: 0, spellLifesteal: 0, castRangeBonus: 0, statusResist: 0,
-  slowResist: 0, states: new Set(), tauntedBy: null, fearedBy: null,
+  slowResist: 0, castSpeed: 0, states: new Set(), tauntedBy: null, fearedBy: null,
 });
 
 const ADD_KEYS = [
   'str', 'agi', 'int', 'allStats', 'maxHp', 'hpRegen', 'hpRegenAmp', 'maxMana', 'manaRegen', 'manaRegenAmp', 'armor',
   'bonusDamage', 'baseDamagePct', 'attackSpeed', 'attackRange', 'moveSpeed', 'lifesteal', 'spellAmp', 'spellLifesteal',
-  'castRange', 'slowResist',
+  'castRange', 'slowResist', 'castSpeed',
 ] as const;
 type AddKey = (typeof ADD_KEYS)[number];
 
@@ -134,6 +136,7 @@ export function recomputeStats(world: World, u: Unit): void {
   s.spellAmp = acc.flat.spellAmp;
   s.spellLifesteal = acc.flat.spellLifesteal;
   s.castRangeBonus = acc.flat.castRange;
+  s.castSpeed = acc.flat.castSpeed;
 
   if (oldMaxHp > 0 && s.maxHp !== oldMaxHp && u.alive) u.hp = (u.hp / oldMaxHp) * s.maxHp;
   if (oldMaxMana > 0 && s.maxMana !== oldMaxMana) u.mana = (u.mana / oldMaxMana) * s.maxMana;
