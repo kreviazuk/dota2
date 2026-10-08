@@ -92,6 +92,8 @@ export interface AbilityDef {
   /** 被缠绕时不能施放（自己位移的技能：神圣一跳） */
   blockedByRoot?: boolean;
   ignoresDebuffImmune?: boolean;
+  /** 技能的效果是打出一次普攻（窒碍短匕、无敌斩）：可以选只受普攻影响的单位（治疗守卫，D17） */
+  attackBased?: boolean;
   values: Record<string, number[]>;
   /** 学会后常驻的被动 Modifier */
   passive?: ModifierDef;

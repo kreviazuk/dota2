@@ -4,10 +4,7 @@ import { dist } from '../../sim/core/vec2';
 import { abilityCastRange, abilityValue } from '../../sim/systems/abilities';
 import { edgeDist, isTargetableBy } from '../../sim/query';
 import { findModifier } from '../../sim/modifiers';
-import { attackedEnemyHero, keepsUltMana } from '../aiHelpers';
-
-/** 正在引导（持续施法）的单位 */
-const channelling = (u: Unit): boolean => u.cast?.phase === 'channel';
+import { attackedEnemyHero, channelling, keepsUltMana } from '../aiHelpers';
 
 /** 剩余眩晕时间（没有眩晕为 0） */
 const stunLeft = (u: Unit): number => findModifier(u, 'status_stun')?.duration ?? 0;

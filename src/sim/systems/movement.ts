@@ -73,8 +73,8 @@ export function updateMovement(world: World, dt: number): void {
     if (d < 1e-6) continue;
     const dir = steerAroundBuildings(world, u, scale(to, 1 / d));
     const step = Math.min(u.stats.moveSpeed * dt, d);
-    // 允许移动的引导（数箭齐发）中保持面向施法方向：边走边射
-    if (!u.cast) u.facing = angleOf(dir);
+    // 允许移动的引导（数箭齐发）中保持面向施法方向：边走边射（走到这里时 u.cast 只可能是允许移动的引导）
+    if (u.cast?.phase !== 'channel') u.facing = angleOf(dir);
     u.pos = clampToWalkable(add(u.pos, scale(dir, step)), u.radius);
   }
   resolveCollisions(world);

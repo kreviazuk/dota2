@@ -4,13 +4,7 @@ import type { Vec2 } from '../../sim/core/vec2';
 import { dist, dot, normalize, sub } from '../../sim/core/vec2';
 import { abilityValue } from '../../sim/systems/abilities';
 import { edgeDist, isTargetableBy } from '../../sim/query';
-import { enemyCreepsNear } from '../aiHelpers';
-
-/** 正在引导（持续施法）的单位 */
-const channelling = (u: Unit): boolean => u.cast?.phase === 'channel';
-
-/** 近战 = 普攻没有弹道（与精准光环的远程标准一致） */
-const isMelee = (u: Unit): boolean => u.isMelee;
+import { channelling, enemyCreepsNear, isMelee } from '../aiHelpers';
 
 /** 狂风能影响到的目标（不打减益免疫的） */
 const gustable = (me: Unit, u: Unit): boolean => isTargetableBy(me, u, 'enemy', false);

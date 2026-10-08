@@ -10,7 +10,7 @@ export const AXE_RULES: HeroAiRules = {
       const r = abilityValue(me, ab, 'radius') - 40;
       const heroes = enemiesInRadius(world, me.team, me.pos, r, { heroesOnly: true }).filter((h) => !h.hasState('hidden'));
       if (heroes.length > 0) return { cast: {} };
-      const creeps = enemiesInRadius(world, me.team, me.pos, r).filter((u) => u.kind !== 'hero' && !u.creep?.protectedUntilContact);
+      const creeps = enemiesInRadius(world, me.team, me.pos, r, { spell: true }).filter((u) => u.kind !== 'hero' && !u.creep?.protectedUntilContact);
       return creeps.length >= 4 && me.mana / me.stats.maxMana > 0.6 ? { cast: {} } : null;
     },
   },

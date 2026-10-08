@@ -67,7 +67,7 @@ const lightningBolt: AbilityDef = {
     const stun = ctx.v('stun');
     const aoe = ctx.v('aoe');
     // 25 级左天赋：目标周围 aoe 内的敌方非建筑单位都被劈中
-    const targets = aoe > 0 ? enemiesInRadius(world, caster.team, t.pos, aoe) : [t];
+    const targets = aoe > 0 ? enemiesInRadius(world, caster.team, t.pos, aoe, { spell: true }) : [t];
     world.events.emit({
       type: 'fx', kind: 'zeus_bolt', pos: { x: t.pos.x, y: t.pos.y }, unitId: caster.id, targetId: t.id, ...(aoe > 0 ? { radius: aoe } : {}),
     });

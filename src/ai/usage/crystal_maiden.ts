@@ -2,13 +2,7 @@ import type { HeroAiRules } from './types';
 import type { Unit } from '../../sim/entities/unit';
 import { abilityCastRange, abilityValue } from '../../sim/systems/abilities';
 import { edgeDist, enemiesInRadius, isHiddenFrom, isTargetableBy } from '../../sim/query';
-import { bestCirclePoint, keepsUltMana } from '../aiHelpers';
-
-/** 正在引导（持续施法）的单位 */
-const channelling = (u: Unit): boolean => u.cast?.phase === 'channel';
-
-/** 近战：攻击距离 < 400（D28 的远程标准是 ≥ 400） */
-const isMelee = (u: Unit): boolean => u.stats.attackRange < 400;
+import { bestCirclePoint, channelling, isMelee, keepsUltMana } from '../aiHelpers';
 
 /** 水晶室女：冰霜新星消耗和清兵、冰封禁制控人和自保、极寒领域团战 */
 export const CM_RULES: HeroAiRules = {
@@ -19,7 +13,7 @@ export const CM_RULES: HeroAiRules = {
       if (!keepsUltMana(c)) return null;
       const range = abilityCastRange(me, ab);
       const radius = abilityValue(me, ab, 'radius');
-      const cands = enemiesInRadius(world, me.team, me.pos, range + radius).filter((u) => !isHiddenFrom(u, me.team));
+      const cands = enemiesInRadius(world, me.team, me.pos, range + radius, { spell: true }).filter((u) => !isHiddenFrom(u, me.team));
       const best = bestCirclePoint(cands, radius, me.pos, range, world.balance.ai.heroWeight);
       if (!best) return null;
       if (best.heroes >= 1 || (best.count >= 3 && c.manaPct > 0.5)) return { cast: { point: best.point } };

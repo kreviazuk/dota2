@@ -3,6 +3,7 @@ import { Projectile, type ProjectileInit } from '../entities/projectile';
 import { AreaEffect, type AreaEffectInit } from '../entities/effect';
 import { add, dist, distToSegment, scale, type Vec2 } from '../core/vec2';
 import type { Unit } from '../entities/unit';
+import { attackOnly } from '../query';
 
 export function spawnProjectile(world: World, init: Omit<ProjectileInit, 'id'>): Projectile {
   const p = new Projectile({ ...init, id: world.allocId() });
@@ -29,13 +30,14 @@ export function disjointProjectiles(world: World, u: Unit): void {
 }
 
 /**
- * 直线弹道这一步（from → to）扫到的单位，按离 from 的距离排序：存活、非建筑、非无敌、没被这个弹道打过，
+ * 直线弹道这一步（from → to）扫到的单位，按离 from 的距离排序：存活、非建筑、非无敌、不是只受普攻影响的单位
+ * （直线弹道都是技能，D17）、没被这个弹道打过，
  * 通过 hitFilter（缺省 = 敌方），且到线段的距离 ≤ 碰撞半径 + 单位半径。自定义 update 的弹道（肉钩）也用它做碰撞
  */
 export function linearSweep(world: World, p: Projectile, from: Vec2, to: Vec2): Unit[] {
   const hits = world.units.filter(
     (u) =>
-      u.alive && !u.removed && u.kind !== 'building' && !u.hasState('invulnerable') && !p.hit.has(u.id) &&
+      u.alive && !u.removed && u.kind !== 'building' && !u.hasState('invulnerable') && !attackOnly(u) && !p.hit.has(u.id) &&
       (p.hitFilter ? p.hitFilter(world, u) : u.team !== p.team) &&
       distToSegment(u.pos, from, to) <= p.width + u.radius,
   );

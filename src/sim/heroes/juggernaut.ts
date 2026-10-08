@@ -56,7 +56,7 @@ const BLADE_FURY: ModifierDef = {
   interval: 0.2,
   // 每 0.2 秒对周围敌方非建筑单位造成 dps × 0.2 魔法伤害；学了剑舞时这一跳用剑舞的伪随机判定一次暴击
   onInterval: (m, owner, world) => {
-    const targets = enemiesInRadius(world, owner.team, owner.pos, m.data.radius ?? 0);
+    const targets = enemiesInRadius(world, owner.team, owner.pos, m.data.radius ?? 0, { spell: true });
     if (!targets.length) return;
     let crit = 1;
     if (bladeDanceOn(owner)) {
@@ -130,7 +130,7 @@ const slashInterval = (u: Unit): number => 100 / effectiveAttackSpeed(u.stats.at
 
 /** D15：主宰当前位置 radius 内随机选一个敌方英雄，没有英雄再随机选其他敌方单位（不含建筑、隐藏、无敌、不可选中） */
 function pickSlashTarget(world: World, j: Unit, radius: number): Unit | null {
-  const pool = unitsInRadius(world, j.pos, radius, (u) => u.team !== j.team && isTargetableBy(j, u, 'enemy', true));
+  const pool = unitsInRadius(world, j.pos, radius, (u) => u.team !== j.team && isTargetableBy(j, u, 'enemy', true, { attack: true }));
   if (!pool.length) return null;
   const heroes = pool.filter((u) => u.kind === 'hero');
   const list = heroes.length ? heroes : pool;
@@ -172,7 +172,7 @@ const OMNISLASH: ModifierDef = {
 const omnislash: AbilityDef = {
   id: 'jugg_omnislash', name: '无敌斩',
   description: '主宰跳向一名敌人并开始连续斩击，每一斩都会跳到附近随机的敌人身边（优先敌方英雄），斩击速度随攻击速度提高。期间主宰无敌、免疫减益、不能被选中，也不能接受其他指令；附近没有敌人时提前结束。施放时驱散自身的减益。',
-  slot: 'R', maxLevel: 3, requiredHeroLevels: [6, 12, 18], targetType: 'unit', targetTeam: 'enemy', damageType: 'physical',
+  slot: 'R', maxLevel: 3, requiredHeroLevels: [6, 12, 18], targetType: 'unit', targetTeam: 'enemy', damageType: 'physical', attackBased: true,
   castRange: [450], castPoint: 0.3, cooldown: [120], manaCost: [200, 275, 350],
   values: { duration: [3, 3.25, 3.5], attackSpeed: [40], bonusDamage: [25, 30, 35], radius: [425] },
   onCast: (ctx) => {

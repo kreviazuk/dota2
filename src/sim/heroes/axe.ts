@@ -27,7 +27,7 @@ const berserkersCall: AbilityDef = {
     const { world, caster } = ctx;
     const radius = ctx.v('radius');
     const duration = ctx.v('duration');
-    for (const e of enemiesInRadius(world, caster.team, caster.pos, radius)) {
+    for (const e of enemiesInRadius(world, caster.team, caster.pos, radius, { spell: true })) {
       if (e.creep?.protectedUntilContact || e.hasState('hidden')) continue;
       if (!addModifier(world, e, TAUNT, { sourceId: caster.id, duration, ignoreImmunity: true })) continue;
       if (e.cast) cancelCast(world, e, true);
@@ -110,7 +110,7 @@ const HELIX: ModifierDef = {
     m.data.readyAt = world.time + abilityValue(owner, ab, 'cooldown');
     const radius = abilityValue(owner, ab, 'radius');
     const dmg = abilityValue(owner, ab, 'damage');
-    for (const e of enemiesInRadius(world, owner.team, owner.pos, radius)) {
+    for (const e of enemiesInRadius(world, owner.team, owner.pos, radius, { spell: true })) {
       if (e.hasState('debuffImmune')) continue;
       applyDamage(world, { source: owner, target: e, amount: dmg, type: 'pure', isAttack: false, abilityId: 'axe_counter_helix', reflected: true });
     }

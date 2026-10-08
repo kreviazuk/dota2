@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import './testHero';
-import { makeWorld, spawnDummy, runFor } from './helpers';
+import { heroAt, makeWorld, spawnDummy, runFor } from './helpers';
+import { canAttack, enemiesInRadius, isTargetableBy } from '../src/sim/query';
+import { isValidUnitTarget } from '../src/sim/systems/abilities';
 import { spawnSummon } from '../src/sim/systems/summons';
 import { addModifier, findModifier, type ModifierDef } from '../src/sim/modifiers';
 import { applyDamage, killUnit } from '../src/sim/systems/damage';
@@ -155,5 +157,73 @@ describe('global death hook', () => {
     const victim = spawnDummy(w, { team: Team.Dire });
     killUnit(w, victim, a);
     expect(order).toEqual(['kill', 'death']);
+  });
+});
+
+describe('hit-count summons and spells (D17)', () => {
+  /** 夜魇的治疗守卫（按被攻击次数计算，1 次普攻摧毁） */
+  const direWard = (w: ReturnType<typeof makeWorld>, x: number, y: number): Unit => {
+    const owner = spawnDummy(w, { team: Team.Dire, pos: { x: x + 1500, y } });
+    return spawnSummon(w, owner, { defId: 'test_ward', name: '守卫', pos: { x, y }, radius: 20, duration: 60, hitsToKill: 1 });
+  };
+  const foe = (w: ReturnType<typeof makeWorld>, x: number, y: number): Unit =>
+    spawnDummy(w, { kind: 'hero', team: Team.Dire, pos: { x, y }, base: { maxHp: 5000, damageMin: 0, damageMax: 0 } });
+
+  it('spells cannot select them, area queries for spells skip them, attacks still can', () => {
+    const w = makeWorld();
+    const me = heroAt(w, 'zeus', { x: 1500, y: 5000 }, { levels: { Q: 1 } });
+    const ward = direWard(w, 1500, 4800);
+    expect(isTargetableBy(me, ward, 'enemy', true)).toBe(false);
+    expect(isTargetableBy(me, ward, 'enemy', true, { attack: true })).toBe(true);
+    expect(isValidUnitTarget(me, me.ability('Q')!, ward)).toBe(false);
+    expect(canAttack(me, ward)).toBe(true);
+    expect(enemiesInRadius(w, me.team, me.pos, 500)).toContain(ward);
+    expect(enemiesInRadius(w, me.team, me.pos, 500, { spell: true })).not.toContain(ward);
+  });
+
+  it('Arc Lightning does not bounce to the ward (it bounces past it to the next enemy)', () => {
+    const w = makeWorld();
+    const z = heroAt(w, 'zeus', { x: 1500, y: 5000 }, { levels: { Q: 1 }, heroLevel: 1 });
+    const first = foe(w, 1500, 4600);
+    const ward = direWard(w, 1500, 4450);
+    const next = foe(w, 1500, 4250);
+    w.events.drain();
+    w.issue(z.id, { type: 'cast', slot: 'Q', target: { unitId: first.id } });
+    const arcTargets: number[] = [];
+    for (let i = 0; i < 60; i++) {
+      w.step();
+      for (const e of w.events.drain()) if (e.type === 'fx' && e.kind === 'zeus_arc' && e.targetId !== undefined) arcTargets.push(e.targetId);
+    }
+    expect(arcTargets).toEqual([first.id, next.id]);
+    expect(ward.alive).toBe(true);
+  });
+
+  it('Gust does not silence or push the ward', () => {
+    const w = makeWorld();
+    const d = heroAt(w, 'drow_ranger', { x: 1500, y: 5000 }, { levels: { W: 4 } });
+    const ward = direWard(w, 1500, 4850);
+    const enemy = foe(w, 1530, 4700);
+    w.issue(d.id, { type: 'cast', slot: 'W', target: { dir: { x: 0, y: -1 } } });
+    runFor(w, 0.6);
+    expect(enemy.hasState('silenced')).toBe(true);
+    expect(ward.hasState('silenced')).toBe(false);
+    expect(ward.motion).toBeNull();
+    expect(ward.pos.y).toBeCloseTo(4850);
+    expect(ward.alive).toBe(true);
+  });
+
+  it('a normal attack and an attack-based ability (Stifling Dagger) still destroy the ward', () => {
+    const w = makeWorld();
+    const pa = heroAt(w, 'phantom_assassin', { x: 1500, y: 5000 }, { levels: { Q: 4 } });
+    const ward = direWard(w, 1500, 4900);
+    w.issue(pa.id, { type: 'attack', mode: 'smart', targetId: ward.id });
+    runFor(w, 1.5);
+    expect(ward.alive).toBe(false);
+
+    const ward2 = direWard(w, 1500, 4400);
+    expect(isValidUnitTarget(pa, pa.ability('Q')!, ward2)).toBe(true);
+    w.issue(pa.id, { type: 'cast', slot: 'Q', target: { unitId: ward2.id } });
+    runFor(w, 1.5);
+    expect(ward2.alive).toBe(false);
   });
 });

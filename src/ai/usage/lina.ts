@@ -5,10 +5,7 @@ import { dist, sub } from '../../sim/core/vec2';
 import { abilityCastPoint, abilityCastRange, abilityValue } from '../../sim/systems/abilities';
 import { edgeDist, isTargetableBy } from '../../sim/query';
 import { lagunaKills } from '../../sim/heroes/lina';
-import { attackedEnemyHero, enemyCreepsNear, keepsUltMana, nearestEnemyHero, predictPos, unitsInLine } from '../aiHelpers';
-
-/** 正在引导（持续施法）的单位 */
-const channelling = (u: Unit): boolean => u.cast?.phase === 'channel';
+import { attackedEnemyHero, channelling, enemyCreepsNear, keepsUltMana, nearestEnemyHero, predictPos, unitsInLine } from '../aiHelpers';
 
 /** 站着不能走：眩晕、缠绕或正在引导 */
 const pinned = (u: Unit): boolean => u.hasState('stunned') || u.hasState('rooted') || channelling(u);

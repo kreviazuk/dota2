@@ -26,7 +26,7 @@ interface LineFx { mesh: Mesh<BufferGeometry, ShaderMaterial>; life: number; max
 /** 折线的一个点：sim 坐标 (x, y) + 离地高度 h（世界高度，不是相对地面） */
 export interface LinePoint { x: number; y: number; h: number }
 
-const MAX_PARTICLES = 900;
+export const MAX_PARTICLES = 900;
 const MAX_TEXTS = 70;
 
 /** 粒子着色器：按透视缩放的圆形软点，颜色 / 透明度逐粒子 */

@@ -40,7 +40,7 @@ export const PUDGE_RULES: HeroAiRules = {
     decide: (c) => {
       const { world, me, ab } = c;
       if (ab.toggled) {
-        const anyone = enemiesInRadius(world, me.team, me.pos, 400).some((u) => !isHiddenFrom(u, me.team));
+        const anyone = enemiesInRadius(world, me.team, me.pos, 400, { spell: true }).some((u) => !isHiddenFrom(u, me.team));
         return !anyone || c.hpPct < 0.25 ? { toggle: true } : null;
       }
       if (c.retreating || c.hpPct <= 0.5) return null;

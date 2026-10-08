@@ -1241,6 +1241,9 @@ export class Renderer3D implements GameRenderer {
 
   private syncProjectiles(world: World, alpha: number, dt: number): void {
     const seen = new Set<number>();
+    // 每种外观的存活弹道数（发射器按它稀释粒子：ProjectileFrameCtx.count）
+    const counts = new Map<string, number>();
+    for (const pr of world.projectiles) if (!pr.done) counts.set(pr.visual, (counts.get(pr.visual) ?? 0) + 1);
     for (const pr of world.projectiles) {
       if (pr.done) continue;
       seen.add(pr.id);
@@ -1305,7 +1308,9 @@ export class Renderer3D implements GameRenderer {
         if (st.scaleWithWidth) v.mesh!.scale.x = (st.size / 14) * Math.max(0.2, pr.width / 100);
         if (st.emitter && dt > 0) {
           const dl = Math.hypot(dir.x, dir.y) || 1;
-          st.emitter({ fx: this.fx, x: p.x, y: p.y, h, gy: groundHeight(p.x, p.y), dir: { x: dir.x / dl, y: dir.y / dl }, width: pr.width, traveled: pr.traveled, dt });
+          st.emitter({ fx: this.fx, x: p.x, y: p.y, h, gy: groundHeight(p.x, p.y), dir: { x: dir.x / dl, y: dir.y / dl }, width: pr.width, traveled: pr.traveled, dt,
+            count: counts.get(pr.visual) ?? 1,
+          });
         }
         if (v.chain) this.placeChain(world, pr, v, p, h, alpha);
         v.trail -= dt;

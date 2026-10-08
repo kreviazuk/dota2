@@ -10,6 +10,7 @@ import { canCast } from '../sim/systems/abilities';
 import { alliesInRadius, canAttack, edgeDist, enemiesInRadius, expectedAttackDamage, nearestOf } from '../sim/query';
 import { forwardY, layoutFor } from '../sim/data/map';
 import { nextSkillToLearn, TALENT_BUILDS } from './builds';
+import { enemyTowers, underEnemyTower } from './aiHelpers';
 import { canPickTalent } from '../sim/talents';
 import { AI_RULES, type AiCtx, type AiDecision, type AiRule, type HeroAiRules } from './usage/index';
 
@@ -25,6 +26,8 @@ interface RuleEntry { ab: AbilityInstance; slot: AbilitySlot; rule: AiRule; prio
 export class SimpleAI {
   private nextThink = 0;
   private retreating = false;
+  /** 脱离战斗（disengage 施法之后）撤退到这个时刻；期间按撤退处理，但不回城、到时间后恢复正常 */
+  private disengageUntil = -Infinity;
 
   /** rules 缺省为全部英雄的规则表（测试可以换成假规则） */
   constructor(readonly unitId: number, readonly skill: AiSkill, private readonly rules: HeroAiRules = AI_RULES) {}
@@ -57,23 +60,32 @@ export class SimpleAI {
     } else if (hpPct < this.skill.retreatHp) {
       this.retreating = true;
     }
+    const retreating = this.retreating || world.time < this.disengageUntil;
     // P1 的 1000 范围（回城判断、换血目标）保持不变；技能规则看 1500 范围（AiCtx）
     const enemyHeroes = enemiesInRadius(world, me.team, me.pos, 1000, { heroesOnly: true }).filter((h) => canAttack(me, h));
     const ctx: Omit<AiCtx, 'ab'> = {
       world, me, skill: this.skill,
       enemyHeroes: enemiesInRadius(world, me.team, me.pos, CTX_RADIUS, { heroesOnly: true }).filter((h) => canAttack(me, h)),
       allyHeroes: alliesInRadius(world, me.team, me.pos, CTX_RADIUS, { heroesOnly: true, excludeId: me.id }),
-      hpPct, manaPct, retreating: this.retreating,
+      hpPct, manaPct, retreating,
     };
     const rules = this.ruleEntries(me);
 
-    if (this.retreating) {
+    if (retreating) {
       // 正在施放（或走向施放位置的）逃跑技能：不下移动指令，否则会把它打断
       const busyAb = me.cast?.ability ?? (me.order.kind === 'cast' ? me.order.ability : null);
-      if (busyAb && this.rules[busyAb.def.id]?.escape) return out;
-      if (this.tryRules(world, ctx, rules.filter((r) => r.rule.escape), out)) return out;
+      // 逃跑技能从下指令到施放结束每帧都重新思考：施法一结束（指令变回 idle）就下移动指令，
+      // 不给站立自动攻击出手的时间（普攻会结束魅影无形）
+      if (busyAb && this.rules[busyAb.def.id]?.escape) {
+        this.nextThink = world.time;
+        return out;
+      }
+      if (this.tryRules(world, ctx, rules.filter((r) => r.rule.escape), out)) {
+        this.nextThink = world.time;
+        return out;
+      }
       if (atHome) out.push({ type: 'stop' });
-      else if (enemyHeroes.length === 0 && dist(me.pos, L.fountain) > 2500) out.push({ type: 'recall' });
+      else if (this.retreating && enemyHeroes.length === 0 && dist(me.pos, L.fountain) > 2500) out.push({ type: 'recall' });
       else out.push({ type: 'moveTo', point: L.fountain });
       return out;
     }
@@ -117,7 +129,7 @@ export class SimpleAI {
     }
 
     const enemyCreeps = enemiesInRadius(world, me.team, me.pos, 800).filter((u) => u.kind !== 'hero' && canAttack(me, u));
-    const safeCreeps = enemyCreeps.filter((c) => !this.underEnemyTower(world, me, c.pos) || this.towerBusy(world, me));
+    const safeCreeps = enemyCreeps.filter((c) => !underEnemyTower(world, me.team, c.pos) || this.towerBusy(world, me));
     if (safeCreeps.length && hpPct > 0.4) {
       const t = safeCreeps.reduce((a, b) => (b.hp < a.hp ? b : a));
       out.push({ type: 'attack', mode: 'smart', targetId: t.id });
@@ -150,7 +162,13 @@ export class SimpleAI {
       const d: AiDecision = e.rule.decide({ ...ctx, ab: e.ab });
       if (!d) continue;
       if ('toggle' in d) out.push({ type: 'toggle', slot: e.slot });
-      else out.push({ type: 'cast', slot: e.slot, target: d.cast });
+      else {
+        out.push({ type: 'cast', slot: e.slot, target: d.cast });
+        if (d.disengage) {
+          this.disengageUntil = world.time + world.balance.ai.disengageTime;
+          this.nextThink = world.time;
+        }
+      }
       return true;
     }
     return false;
@@ -166,24 +184,16 @@ export class SimpleAI {
     return nearestOf(me.pos, world.units.filter((u) => u.kind === 'building' && canAttack(me, u)));
   }
 
-  private enemyTowers(world: World, me: Unit): Unit[] {
-    return world.units.filter((u) => u.kind === 'building' && u.alive && u.team !== me.team && u.base.damageMax > 0);
-  }
-
-  private underEnemyTower(world: World, me: Unit, p: Vec2): boolean {
-    return this.enemyTowers(world, me).some((t) => dist(t.pos, p) <= t.stats.attackRange + t.radius + 60);
-  }
-
   /** 敌塔正在打我方小兵（可以安全地在塔下输出） */
   private towerBusy(world: World, me: Unit): boolean {
-    return this.enemyTowers(world, me).some((t) => {
+    return enemyTowers(world, me.team).some((t) => {
       const tgt = world.getUnit(t.attack.targetId);
       return !!tgt && tgt.kind !== 'hero' && dist(t.pos, me.pos) < t.stats.attackRange + 400;
     });
   }
 
   private enemyTowerTargeting(world: World, me: Unit): Unit | null {
-    return this.enemyTowers(world, me).find((t) => t.attack.targetId === me.id) ?? null;
+    return enemyTowers(world, me.team).find((t) => t.attack.targetId === me.id) ?? null;
   }
 
   private pickHeroTarget(world: World, me: Unit, enemies: Unit[], hpPct: number): Unit | null {
@@ -192,7 +202,7 @@ export class SimpleAI {
     const scored = cands
       .map((e) => ({ e, pct: e.hp / e.stats.maxHp }))
       .filter(({ e, pct }) => {
-        if (this.underEnemyTower(world, me, e.pos) && !(pct < 0.25 && hpPct > 0.5)) return false;
+        if (underEnemyTower(world, me.team, e.pos) && !(pct < 0.25 && hpPct > 0.5)) return false;
         return !(hpPct < 0.45 && pct > 0.5);
       })
       .sort((a, b) => a.pct - b.pct);

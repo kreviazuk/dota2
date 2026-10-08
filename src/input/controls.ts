@@ -40,10 +40,11 @@ export function castCommandFor(u: Unit, ab: AbilityInstance, heldDir: Vec2 | nul
 
 /**
  * 摇杆 / 方向键一直按着、英雄却停下来了（施法前摇结束后指令变回 idle、攻击目标死亡、回城结束……）时，
- * 重新按按住的方向走；否则拇指还推着摇杆，英雄却站着不动，要松开再推一次。施法中（含引导）不发。
+ * 重新按按住的方向走；否则拇指还推着摇杆，英雄却站着不动，要松开再推一次。施法中（含引导）、
+ * 不接受指令（busy：无敌斩、肉钩出钩）时不发（否则每帧都推一个被丢弃的移动指令）。
  */
 export function heldMoveCommand(u: Unit, heldDir: Vec2 | null): Command | null {
-  if (!heldDir || (!heldDir.x && !heldDir.y) || !u.alive || u.cast || u.order.kind !== 'idle') return null;
+  if (!heldDir || (!heldDir.x && !heldDir.y) || !u.alive || u.cast || u.hasState('busy') || u.order.kind !== 'idle') return null;
   return { type: 'move', dir: { x: heldDir.x, y: heldDir.y } };
 }
 

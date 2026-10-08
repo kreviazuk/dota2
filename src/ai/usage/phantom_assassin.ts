@@ -4,15 +4,7 @@ import { dist } from '../../sim/core/vec2';
 import { layoutFor } from '../../sim/data/map';
 import { abilityCastRange, abilityValue } from '../../sim/systems/abilities';
 import { edgeDist, isAliveUnit, isTargetableBy } from '../../sim/query';
-import { attackedEnemyHero, enemyCreepsNear, physicalDamageTo, underAttack } from '../aiHelpers';
-
-/** 我方是否站在敌方防御塔的射程里（按塔中心到单位中心，含塔和单位半径） */
-function underEnemyTower(me: Unit, u: Unit, world: { units: Unit[] }): boolean {
-  return world.units.some(
-    (b) => b.kind === 'building' && b.alive && b.team !== me.team && b.building?.type === 'tower' &&
-      dist(b.pos, u.pos) <= b.stats.attackRange + b.radius + u.radius,
-  );
-}
+import { attackedEnemyHero, enemyCreepsNear, physicalDamageTo, underAttack, underEnemyTower } from '../aiHelpers';
 
 /** 幻影刺客：短匕消耗 / 远程补刀、幻影突袭切入或借友方单位逃跑、魅影无形撤退或保命 */
 export const PA_RULES: HeroAiRules = {
@@ -71,13 +63,14 @@ export const PA_RULES: HeroAiRules = {
         if (d > range || !isTargetableBy(me, h, 'enemy', false)) continue;
         const pct = h.hp / h.stats.maxHp;
         if (pct >= 0.7 && d <= reach) continue;
-        if (pct >= 0.25 && underEnemyTower(me, h, world)) continue;
+        if (pct >= 0.25 && underEnemyTower(world, me.team, h.pos, h.radius)) continue;
         if (!best || h.hp < best.hp) best = h;
       }
       return best ? { cast: { unitId: best.id } } : null;
     },
   },
-  // 魅影无形：撤退中且 800 内有敌方英雄或正在被攻击；或者交战中（正在打敌方英雄 / 被攻击）自己血量 < 50%
+  // 魅影无形：撤退中且 800 内有敌方英雄或正在被攻击；或者交战中（正在打敌方英雄 / 被攻击）自己血量 < 50%——
+  // 交战中开的要 disengage：AI 随后撤退一段时间，不再普攻（普攻会结束魅影无形）
   pa_blur: {
     priority: 20,
     escape: true,
@@ -86,7 +79,7 @@ export const PA_RULES: HeroAiRules = {
       const attacked = underAttack(world, me);
       if (c.retreating) return attacked || c.enemyHeroes.some((e) => edgeDist(me, e) <= 800) ? { cast: {} } : null;
       const fighting = attacked || !!attackedEnemyHero(c);
-      return fighting && c.hpPct < 0.5 ? { cast: {} } : null;
+      return fighting && c.hpPct < 0.5 ? { cast: {}, disengage: true } : null;
     },
   },
 };

@@ -31,7 +31,7 @@ function throwDagger(world: World, pa: Unit, target: Unit, o: { pct: number; bas
 const stiflingDagger: AbilityDef = {
   id: 'pa_stifling_dagger', name: '窒碍短匕',
   description: '向一名敌人掷出追踪的短匕，命中时按幻影刺客攻击力的一部分加上固定伤害打出一次必定命中的攻击（会触发恩赐解脱等攻击效果），并大幅降低目标的移动速度。不会结束魅影无形，也可以用来远程补刀。',
-  slot: 'Q', maxLevel: 4, targetType: 'unit', targetTeam: 'enemy', damageType: 'physical', castPoint: 0.3,
+  slot: 'Q', maxLevel: 4, targetType: 'unit', targetTeam: 'enemy', damageType: 'physical', castPoint: 0.3, attackBased: true,
   castRange: [700, 850, 1000, 1150], cooldown: [6], manaCost: [30],
   values: {
     baseDamage: [65, 70, 75, 80], attackPct: [0.3, 0.45, 0.6, 0.75], slow: [0.5], slowDuration: [2.1, 2.4, 2.7, 3.0], speed: [1200],
@@ -49,7 +49,7 @@ const stiflingDagger: AbilityDef = {
     if (extra > 0) {
       const range = abilityCastRange(caster, ability);
       const pool = enemiesInRadius(world, caster.team, caster.pos, range + caster.radius)
-        .filter((u) => u.id !== main.id && edgeDist(caster, u) <= range && isTargetableBy(caster, u, 'enemy', false))
+        .filter((u) => u.id !== main.id && edgeDist(caster, u) <= range && isTargetableBy(caster, u, 'enemy', false, { attack: true }))
         .sort((a, b) => (a.kind === 'hero' ? 0 : 1) - (b.kind === 'hero' ? 0 : 1) || dist(caster.pos, a.pos) - dist(caster.pos, b.pos));
       targets.push(...pool.slice(0, extra));
     }

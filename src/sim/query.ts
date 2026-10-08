@@ -21,9 +21,21 @@ export const canAttack = (attacker: Unit, t: Unit): boolean =>
   isAliveUnit(t) && t.team !== attacker.team && !t.hasState('invulnerable') && !t.hasState('untargetable') &&
   !isHiddenFrom(t, attacker.team);
 
-/** 能否被 caster 的技能选为目标 */
-export function isTargetableBy(caster: Unit, t: Unit, team: TargetTeam, allowDebuffImmune: boolean): boolean {
+/**
+ * 只受普攻影响的单位：按被攻击次数计算的召唤物（治疗守卫，D17）。技能不能选它为目标、范围技能不影响它
+ * （isTargetableBy、RadiusOpts.spell、直线弹道 linearSweep 都排除它）；普攻和"打出一次普攻"的技能（窒碍短匕、无敌斩）照常能摧毁它
+ */
+export const attackOnly = (u: Unit): boolean => u.summon?.hitsToKill !== undefined;
+
+/**
+ * 能否被 caster 的技能选为目标。opts.attack：这个技能的效果是一次普攻（窒碍短匕、无敌斩），
+ * 可以选只受普攻影响的单位（attackOnly）
+ */
+export function isTargetableBy(
+  caster: Unit, t: Unit, team: TargetTeam, allowDebuffImmune: boolean, opts: { attack?: boolean } = {},
+): boolean {
   if (!isAliveUnit(t) || t.kind === 'building') return false;
+  if (!opts.attack && attackOnly(t)) return false;
   if (t.hasState('invulnerable') || t.hasState('untargetable')) return false;
   if (isHiddenFrom(t, caster.team)) return false;
   if (team === 'enemy' && t.team === caster.team) return false;
@@ -37,6 +49,8 @@ export interface RadiusOpts {
   includeBuildings?: boolean;
   includeInvulnerable?: boolean;
   excludeId?: number;
+  /** 技能的范围效果：不含只受普攻影响的单位（attackOnly，治疗守卫） */
+  spell?: boolean;
 }
 
 /** 边缘距离在 radius 内的存活单位 */
@@ -55,6 +69,7 @@ const passes = (u: Unit, o: RadiusOpts): boolean =>
   (!o.heroesOnly || u.kind === 'hero') &&
   (o.includeBuildings || u.kind !== 'building') &&
   (o.includeInvulnerable || !u.hasState('invulnerable')) &&
+  !(o.spell && attackOnly(u)) &&
   u.id !== o.excludeId;
 
 export const enemiesInRadius = (world: World, team: Team, center: Vec2, radius: number, opts: RadiusOpts = {}): Unit[] =>

@@ -67,6 +67,8 @@ export interface ProjectileFrameCtx {
   width: number;
   traveled: number;
   dt: number;
+  /** 这一帧同一外观（visual）的存活弹道数：多道同时出现时（20 道魂之挽歌）发射器可以按它稀释粒子 */
+  count: number;
 }
 
 const PROJ = new Map<string, ProjectileStyle>();

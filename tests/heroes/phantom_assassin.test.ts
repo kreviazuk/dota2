@@ -15,6 +15,7 @@ import { getHeroDef } from '../../src/sim/heroes/index';
 import { PA_RULES } from '../../src/ai/usage/phantom_assassin';
 import { SKILL_BUILDS, TALENT_BUILDS } from '../../src/ai/builds';
 import { DIFFICULTY } from '../../src/ai/difficulty';
+import { SimpleAI } from '../../src/ai/simpleAI';
 import { Team, type AbilitySlot } from '../../src/sim/core/types';
 import type { World } from '../../src/sim/world';
 import type { Unit } from '../../src/sim/entities/unit';
@@ -495,7 +496,40 @@ describe('Phantom Assassin AI', () => {
     p.order = { kind: 'attack', targetId: h.id, persistent: true };
     expect(X.decide(ctxFor(w, p, 'X1', [h]))).toBeNull();
     p.hp = p.stats.maxHp * 0.4;
-    expect(X.decide(ctxFor(w, p, 'X1', [h]))).toEqual({ cast: {} });
+    expect(X.decide(ctxFor(w, p, 'X1', [h]))).toEqual({ cast: {}, disengage: true });
+  });
+
+  it('Blur cast mid-fight makes the AI disengage: she stops attacking and becomes hidden after the 0.8 s delay', () => {
+    // 多个种子：AI 的思考间隔是随机的，施法结束的那一帧可能正好没轮到它思考
+    for (let seed = 1; seed <= 10; seed++) {
+      const w = makeWorld(seed);
+      const p = heroAt(w, PA, { x: 1500, y: 5000 }, { levels: ALL });
+      // 贴身（在普攻距离内）的敌方英雄
+      const h = foe(w, 1500, 4900, { hp: 1e6 });
+      w.step();
+      p.hp = p.stats.maxHp * 0.4;
+      p.order = { kind: 'attack', targetId: h.id, persistent: true };
+      // 和对局里的电脑英雄一样开着站立自动攻击：施法结束、指令变回 idle 的那一刻不能让她自动出手
+      p.autoAttack = true;
+      const ai = new SimpleAI(p.id, DIFFICULTY.normal.skill);
+      let castAt = -1;
+      let hiddenAt = -1;
+      let attacksAfter = 0;
+      for (let i = 0; i < 30 * 5; i++) {
+        ai.update(w);
+        w.step();
+        for (const e of w.events.drain()) {
+          if (castAt >= 0 && e.type === 'damage' && e.sourceId === p.id && e.isAttack) attacksAfter++;
+        }
+        if (castAt < 0 && findModifier(p, 'pa_blur')) castAt = w.time;
+        if (castAt >= 0 && hiddenAt < 0 && p.hasState('hidden')) hiddenAt = w.time;
+      }
+      expect(castAt, `seed ${seed}`).toBeGreaterThan(0);
+      expect(attacksAfter, `seed ${seed}`).toBe(0);
+      expect(findModifier(p, 'pa_blur'), `seed ${seed}`).toBeDefined();
+      expect(hiddenAt, `seed ${seed}`).toBeGreaterThanOrEqual(castAt + 0.8 - 1e-6);
+      expect(p.hasState('hidden'), `seed ${seed}`).toBe(true);
+    }
   });
 
   it('AI uses every active ability in a skirmish and Coup de Grace procs', () => {

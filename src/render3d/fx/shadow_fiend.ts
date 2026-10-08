@@ -124,13 +124,17 @@ registerProjectileStyle('sf_requiem_line', {
   // 不按碰撞宽度缩放：20 道波在 300 外就会首尾相接糊成一个圈；固定成一小段（约 57 宽）的暗红魂能段，每道线都看得清
   mesh: 'wave', color: 0x6a060c, size: 8, height: 42,
   emitter: (c) => {
+    // 粒子池是所有特效共用的（MAX_PARTICLES）：超过 5 道时每道线的发射量按 √(5 / 道数) 稀释，
+    // 20 道满灵魂的魂之挽歌约占池子的 40%，不把别的特效挤掉；发射量按 速率 × dt 随机取整，与帧率无关
+    const k = Math.min(1, Math.sqrt(5 / Math.max(1, c.count)));
     // 每道线一个清楚的"头"：普通混合的暗红魂火 + 很小的叠加亮芯
-    if (Math.random() < c.dt * 70) {
+    if (Math.random() < c.dt * 70 * k) {
       c.fx.emit(c.x, c.gy + rnd(36, 50), c.y, c.dir.x * 260, rnd(0, 20), c.dir.y * 260, Math.random() < 0.6 ? SOUL : SOUL_DEEP, rnd(24, 30), 0.14, false, -30, 0.95);
     }
-    if (Math.random() < c.dt * 25) c.fx.emit(c.x, c.gy + 44, c.y, c.dir.x * 300, 0, c.dir.y * 300, SOUL_LIGHT, 10, 0.1, true);
+    if (Math.random() < c.dt * 25 * k) c.fx.emit(c.x, c.gy + 44, c.y, c.dir.x * 300, 0, c.dir.y * 300, SOUL_LIGHT, 10, 0.1, true);
     // 细长的黑红尾迹（只铺在线的中间）
-    const n = Math.ceil(c.dt * 50);
+    const rate = c.dt * 50 * k;
+    const n = Math.floor(rate) + (Math.random() < rate - Math.floor(rate) ? 1 : 0);
     for (let i = 0; i < n; i++) {
       const off = (Math.random() * 2 - 1) * Math.min(18, c.width * 0.15);
       const back = rnd(0, 26);

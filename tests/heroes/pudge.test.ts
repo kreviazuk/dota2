@@ -408,6 +408,30 @@ describe('Pudge', () => {
     expect(damages(w5.events.drain()).filter((d) => d.sourceId === p5.id && d.targetId === c5.id)).toHaveLength(6);
   });
 
+  it('Dismember ends with the stun: status resistance that shortens the debuff also ends the channel, pull and ticks', () => {
+    const w = makeWorld();
+    const p = heroAt(w, PUDGE, P0, { levels: { R: 3 } });
+    const t = foe(w, 1500, 4800, { hp: 100000 });
+    // 50% 状态抗性：肢解的眩晕 (2.75 + 0.1) × 0.5 ≈ 1.43 秒
+    addModifier(w, t, { id: 'test_status_resist', stats: () => ({ statusResist: 0.5 }) });
+    w.step();
+    expect(t.stats.statusResist).toBeCloseTo(0.5);
+    w.events.drain();
+    w.issue(p.id, { type: 'cast', slot: 'R', target: { unitId: t.id } });
+    runFor(w, 0.35);
+    expect(p.cast?.phase).toBe('channel');
+    expect(findModifier(t, 'pudge_dismembered')!.total).toBeCloseTo(2.85 * 0.5, 2);
+    runFor(w, 1.45);
+    expect(findModifier(t, 'pudge_dismembered')).toBeUndefined();
+    expect(t.hasState('stunned')).toBe(false);
+    expect(p.cast).toBeNull();
+    const posAfter = { ...t.pos };
+    runFor(w, 1.5);
+    expect(t.pos).toEqual(posAfter);
+    // 0、0.5、1.0 秒共 3 跳
+    expect(damages(w.events.drain()).filter((d) => d.sourceId === p.id && d.targetId === t.id)).toHaveLength(3);
+  });
+
   it('Flesh Heap gains 2 strength when an enemy hero dies within 450 or is killed by Pudge', () => {
     const w = makeWorld();
     const p = heroAt(w, PUDGE, P0, { heroLevel: 10 });

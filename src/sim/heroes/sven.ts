@@ -30,7 +30,7 @@ const stormHammer: AbilityDef = {
       kind: 'homing', targetId: t.id, visual: 'sven_hammer',
       // 命中：以目标为圆心，范围内所有敌方非建筑单位受到魔法伤害并眩晕（斯温中途死亡也照常生效）
       onHit: (w, target) => {
-        for (const e of enemiesInRadius(w, caster.team, target.pos, radius)) {
+        for (const e of enemiesInRadius(w, caster.team, target.pos, radius, { spell: true })) {
           applyDamage(w, { source: caster, target: e, amount: damage, type: 'magical', isAttack: false, abilityId: 'sven_storm_hammer' });
           if (e.alive) applyControl(w, e, 'stun', { source: caster, duration: stun });
         }

@@ -159,7 +159,7 @@ const ROT: ModifierDef = {
   // 每 0.2 秒：范围内敌方非建筑单位受到 dps × 0.2 魔法伤害，帕吉自己也受到同样的伤害（不会致死，不吃技能增强 / 吸血）
   onInterval: (_m, owner, world) => {
     const amount = rotValue(owner, 'dps') * 0.2;
-    for (const u of enemiesInRadius(world, owner.team, owner.pos, rotValue(owner, 'radius'))) {
+    for (const u of enemiesInRadius(world, owner.team, owner.pos, rotValue(owner, 'radius'), { spell: true })) {
       applyDamage(world, { source: owner, target: u, amount, type: 'magical', isAttack: false, abilityId: 'pudge_rot' });
     }
     if (owner.alive) {
@@ -265,7 +265,8 @@ const dismember: AbilityDef = {
     const c = caster.cast;
     if (!c || c.ability !== ability) return;
     const t = ctx.target.unit;
-    if (!t || !t.alive || t.removed) {
+    // 目标死亡，或者肢解的眩晕已经提前结束（状态抗性缩短了它）：引导、拉近和伤害一起结束
+    if (!t || !t.alive || t.removed || !findModifier(t, DISMEMBERED.id, caster.id)) {
       cancelCast(world, caster, true);
       return;
     }

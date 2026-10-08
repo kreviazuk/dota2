@@ -23,7 +23,7 @@ const crystalNova: AbilityDef = {
     if (!p) return;
     const radius = ctx.v('radius');
     const damage = ctx.v('damage');
-    for (const u of enemiesInRadius(world, caster.team, p, radius)) {
+    for (const u of enemiesInRadius(world, caster.team, p, radius, { spell: true })) {
       applyDamage(world, { source: caster, target: u, amount: damage, type: 'magical', isAttack: false, abilityId: 'cm_crystal_nova' });
       if (u.alive) {
         applySlow(world, u, {
@@ -170,7 +170,7 @@ const freezingField: AbilityDef = {
       const p = { x: caster.pos.x + Math.cos(a) * d, y: caster.pos.y + Math.sin(a) * d };
       const radius = ctx.v('blastRadius');
       const damage = ctx.v('damage');
-      for (const u of enemiesInRadius(world, caster.team, p, radius)) {
+      for (const u of enemiesInRadius(world, caster.team, p, radius, { spell: true })) {
         applyDamage(world, { source: caster, target: u, amount: damage, type: 'magical', isAttack: false, abilityId: 'cm_freezing_field' });
       }
       world.events.emit({ type: 'fx', kind: 'cm_ff_blast', pos: p, radius, unitId: caster.id });

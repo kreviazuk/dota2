@@ -17,8 +17,12 @@ export interface AiCtx {
   retreating: boolean;
 }
 
-/** 规则只返回意图，不直接改 World：施法（目标可省略 = 智能施法）、切换开关，或什么都不做 */
-export type AiDecision = { cast: CastTarget } | { toggle: true } | null;
+/**
+ * 规则只返回意图，不直接改 World：施法（目标可省略 = 智能施法）、切换开关，或什么都不做。
+ * disengage：这次施法是为了脱离战斗（交战中开魅影无形）——施法后 AI 撤退 BALANCE.ai.disengageTime 秒，
+ * 不再重新下攻击指令（否则第一次普攻就把魅影无形打掉了）
+ */
+export type AiDecision = { cast: CastTarget; disengage?: boolean } | { toggle: true } | null;
 
 export interface AiRule {
   decide(c: AiCtx): AiDecision;

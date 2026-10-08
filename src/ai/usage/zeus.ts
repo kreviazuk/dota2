@@ -4,10 +4,7 @@ import { sub } from '../../sim/core/vec2';
 import { abilityCastRange, abilityValue } from '../../sim/systems/abilities';
 import { edgeDist, isAliveUnit, isHiddenFrom, isTargetableBy } from '../../sim/query';
 import { staticFieldPct } from '../../sim/heroes/zeus';
-import { enemyCreepsNear, keepsUltMana, magicDamageTo, nearestEnemyHero, towardHome } from '../aiHelpers';
-
-/** 正在引导（持续施法）的单位 */
-const channelling = (u: Unit): boolean => u.cast?.phase === 'channel';
+import { channelling, enemyCreepsNear, keepsUltMana, magicDamageTo, nearestEnemyHero, towardHome } from '../aiHelpers';
 
 /** 宙斯一次技能伤害（含技能增强）+ 按目标当前生命估算的静电场，打到 t 身上的实际数值 */
 function zeusHitOn(me: Unit, t: Unit, damage: number): number {

@@ -7,6 +7,8 @@ import { createHero } from '../src/sim/systems/heroes';
 import { newAbilityInstance } from '../src/sim/systems/abilities';
 import type { AbilityDef } from '../src/sim/heroes/types';
 import { Team } from '../src/sim/core/types';
+import { addModifier, removeModifier } from '../src/sim/modifiers';
+import { killUnit } from '../src/sim/systems/damage';
 
 describe('joystick math', () => {
   it('clamps the knob to the radius and normalizes direction', () => {
@@ -150,5 +152,26 @@ describe('held joystick', () => {
     expect(axe.order.kind).toBe('idle');
     expect(heldMoveCommand(axe, up)).toEqual({ type: 'move', dir: up });
     expect(heldMoveCommand(axe, null)).toBeNull(); // 松开摇杆后不动
+  });
+
+  it('does not push moves while busy (Omnislash, hook flight), dead, or following a non-idle order', () => {
+    const w = makeWorld();
+    const axe = createHero(w, 'axe', Team.Radiant, true);
+    axe.pos = { x: 1500, y: 5000 };
+    w.step();
+    const up = { x: 0, y: -1 };
+    expect(heldMoveCommand(axe, up)).toEqual({ type: 'move', dir: up });
+    const busy = addModifier(w, axe, { id: 'test_busy', states: ['busy'] }, { sourceId: axe.id })!;
+    w.step();
+    expect(axe.order.kind).toBe('idle');
+    expect(heldMoveCommand(axe, up)).toBeNull();
+    removeModifier(w, axe, busy);
+    w.step();
+    expect(heldMoveCommand(axe, up)).toEqual({ type: 'move', dir: up });
+    axe.order = { kind: 'moveTo', point: { x: 1500, y: 4000 } };
+    expect(heldMoveCommand(axe, up)).toBeNull();
+    axe.order = { kind: 'idle' };
+    killUnit(w, axe, null);
+    expect(heldMoveCommand(axe, up)).toBeNull();
   });
 });

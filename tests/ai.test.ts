@@ -184,6 +184,30 @@ describe('ai usage rules', () => {
     expect(normal).not.toHaveBeenCalled();
   });
 
+  it('a disengage cast puts the AI into retreat for BALANCE.ai.disengageTime, without recalling, then it fights again', () => {
+    const { w, me, enemy } = arena();
+    me.ability('Q')!.level = 1;
+    me.ability('W')!.level = 1;
+    me.hp = me.stats.maxHp * 0.8;
+    const esc = vi.fn(() => ({ cast: {}, disengage: true }));
+    const ai = new SimpleAI(me.id, DIFFICULTY.normal.skill, { axe_berserkers_call: { escape: true, decide: esc } });
+    expect(casts(ai.think(w, me))).toEqual([{ type: 'cast', slot: 'Q', target: {} }]);
+    expect(esc.mock.calls[0]).toMatchObject([{ retreating: false }]);
+    me.ability('Q')!.cooldown = 100;
+    // 撤退：往泉水走、不打敌方英雄；离泉水很远且附近没有敌人也不回城
+    let cmds = ai.think(w, me);
+    expect(cmds.some((c) => c.type === 'moveTo')).toBe(true);
+    expect(cmds.some((c) => c.type === 'attack')).toBe(false);
+    enemy.pos = { x: 1500, y: 2000 };
+    expect(ai.think(w, me).some((c) => c.type === 'recall')).toBe(false);
+    // 到时间后恢复正常（敌方英雄回到身边就打）
+    enemy.pos = { x: 1500, y: 4950 };
+    enemy.hp = enemy.stats.maxHp * 0.3;
+    w.time += w.balance.ai.disengageTime + 0.01;
+    cmds = ai.think(w, me);
+    expect(cmds.some((c) => c.type === 'attack' && c.targetId === enemy.id)).toBe(true);
+  });
+
   it('only whileCasting rules are tried while casting', () => {
     const { w, me, enemy } = arena();
     me.ability('Q')!.level = 1;

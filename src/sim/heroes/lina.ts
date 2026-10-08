@@ -60,7 +60,7 @@ const lightStrikeArray: AbilityDef = {
     spawnEffect(world, {
       team: caster.team, sourceId: caster.id, pos: p, radius, duration: ctx.v('delay'), visual: 'lina_lsa',
       onEnd: (w, e) => {
-        for (const u of enemiesInRadius(w, caster.team, e.pos, radius)) {
+        for (const u of enemiesInRadius(w, caster.team, e.pos, radius, { spell: true })) {
           applyDamage(w, { source: caster, target: u, amount: damage, type: 'magical', isAttack: false, abilityId: 'lina_light_strike_array' });
           if (u.alive) applyControl(w, u, 'stun', { source: caster, duration: stun });
         }

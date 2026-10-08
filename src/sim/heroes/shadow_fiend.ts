@@ -136,7 +136,7 @@ const shadowraze: AbilityDef = {
     const stackDamage = ctx.v('stackDamage');
     const stackDuration = ctx.v('stackDuration');
     const withAttack = ctx.v('attackDamage') > 0;
-    for (const u of enemiesInRadius(world, caster.team, p, radius)) {
+    for (const u of enemiesInRadius(world, caster.team, p, radius, { spell: true })) {
       const stacks = findModifier(u, RAZE_STACK.id, caster.id)?.stacks ?? 0;
       applyDamage(world, {
         source: caster, target: u, amount: damage + stackDamage * stacks, type: 'magical', isAttack: false, abilityId: 'sf_shadowraze',

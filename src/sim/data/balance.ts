@@ -122,6 +122,8 @@ export const BALANCE = {
     heroWeight: 3,
     /** 大招就绪（或快就绪）时，其他技能施放后至少留下大招的魔耗（keepsUltMana） */
     conserveUltMana: true,
+    /** 规则带 disengage 的施法（交战中开魅影无形）之后撤退多少秒（≥ 魅影无形的 0.8 秒隐藏延迟 + 几秒拉开距离） */
+    disengageTime: 4,
   },
   maxGameTime: 2400,
 };

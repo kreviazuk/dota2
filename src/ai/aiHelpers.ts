@@ -143,6 +143,22 @@ export function lineClearTo(
   return true;
 }
 
+/** 正在引导（持续施法）的单位 */
+export const channelling = (u: Unit): boolean => u.cast?.phase === 'channel';
+
+/** 近战 = 普攻没有弹道（Unit.isMelee；与选英雄界面、精准光环的远程标准一致，D28） */
+export const isMelee = (u: Unit): boolean => u.isMelee;
+
+/** 敌方会攻击的建筑（防御塔、泉水） */
+export function enemyTowers(world: World, team: Team): Unit[] {
+  return world.units.filter((u) => u.kind === 'building' && u.alive && u.team !== team && u.base.damageMax > 0);
+}
+
+/** 点 p 是否在敌方防御塔（或泉水）的射程里：塔中心到 p 的距离 ≤ 攻击距离 + 塔半径 + margin */
+export function underEnemyTower(world: World, team: Team, p: Vec2, margin = 60): boolean {
+  return enemyTowers(world, team).some((t) => dist(t.pos, p) <= t.stats.attackRange + t.radius + margin);
+}
+
 /** 魔法伤害打到目标身上的实际数值（× (1 − 魔抗)） */
 export const magicDamageTo = (t: Unit, amount: number): number => amount * (1 - t.stats.magicResist);
 

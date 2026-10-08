@@ -19,7 +19,7 @@ import { summonModelSpec } from '../src/render3d/models/registry';
 import { cameraCalm, CALM_FOLLOW_RATE } from '../src/render/cameraHints';
 import { makeWorld, heroAt } from './helpers';
 import { findModifier } from '../src/sim/modifiers';
-import { Fx3D } from '../src/render3d/fx3d';
+import { Fx3D, MAX_PARTICLES } from '../src/render3d/fx3d';
 import { lookupAreaVisual as areaVisual, lookupFx as fxFor, lookupModifierVisual as modVisual, projectileStyle as projStyle } from '../src/render3d/fx/registry';
 import { getHeroDef } from '../src/sim/heroes';
 import '../src/render3d/fx/index';
@@ -1099,5 +1099,30 @@ describe('Shadow Fiend model', () => {
     expect(projStyle('hero:shadow_fiend')?.mesh).toBe('orb');
     expect(projStyle('sf_requiem_line')?.mesh).toBe('wave');
     expect(projStyle('sf_requiem_line')?.emitter).toBeTypeOf('function');
+  });
+
+  it('a 20-line Requiem keeps its trail particles well under half of the shared pool, at 60 and 144 fps', () => {
+    const emitter = projStyle('sf_requiem_line')!.emitter!;
+    for (const fps of [60, 144]) {
+      const fx = new Fx3D();
+      const dt = 1 / fps;
+      const lines = 20;
+      let peak = 0;
+      // 速度 700、射程 1000：约 1.43 秒
+      for (let f = 0; f * dt < 1000 / 700; f++) {
+        const traveled = 700 * f * dt;
+        for (let i = 0; i < lines; i++) {
+          const a = (i * Math.PI * 2) / lines;
+          const dir = { x: Math.cos(a), y: Math.sin(a) };
+          emitter({ fx, x: dir.x * traveled, y: dir.y * traveled, h: 42, gy: 0, dir, width: 62 + 0.075 * traveled, traveled, dt, count: lines });
+        }
+        fx.update(dt, 720, 1);
+        peak = Math.max(peak, fx.particleCount);
+      }
+      // 放出时还有约 50 个烟尘粒子；魂能段自己不超过池子的 45%（整个魂之挽歌 ≤ 50%）
+      expect(peak, `${fps} fps`).toBeLessThanOrEqual(MAX_PARTICLES * 0.45);
+      // 也不能稀到看不见
+      expect(peak, `${fps} fps`).toBeGreaterThan(100);
+    }
   });
 });

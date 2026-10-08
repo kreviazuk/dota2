@@ -18,13 +18,13 @@ import type { World } from '../../src/sim/world';
 import type { Unit } from '../../src/sim/entities/unit';
 import type { AiCtx } from '../../src/ai/usage/types';
 
-/** 不会还手的敌方木桩 */
+/** 不会还手的敌方木桩；给了 range 的是远程（普攻有弹道，D28） */
 const foe = (
   w: World, x: number, y: number, o: { kind?: 'hero' | 'creep' | 'building'; hp?: number; range?: number } = {},
 ): Unit =>
   spawnDummy(w, {
     kind: o.kind ?? 'hero', team: Team.Dire, pos: { x, y },
-    base: { damageMin: 0, damageMax: 0, maxHp: o.hp ?? 1000, attackRange: o.range ?? 150 },
+    base: { damageMin: 0, damageMax: 0, maxHp: o.hp ?? 1000, attackRange: o.range ?? 150, projectileSpeed: o.range ? 900 : 0 },
   });
 
 const ALL = { Q: 4, W: 4, E: 4, R: 3 } as const;
@@ -332,6 +332,9 @@ describe('Crystal Maiden AI', () => {
     expect(W.escape).toBe(true);
     expect(W.decide(ctxFor(w, c, 'W', [melee, ranged, caster]))).toEqual({ cast: { unitId: melee.id } });
     expect(W.decide(ctxFor(w, c, 'W', [ranged]))).toBeNull();
+    // 攻击距离不到 400 的远程英雄（宙斯 380）也不算近战
+    const shortRanged = foe(w, 1450, 4700, { range: 380 });
+    expect(W.decide(ctxFor(w, c, 'W', [shortRanged]))).toBeNull();
     w.issue(caster.id, { type: 'cast', slot: 'R' });
     w.step();
     expect(caster.cast?.phase).toBe('channel');
