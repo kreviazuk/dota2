@@ -101,10 +101,10 @@ function paintGround(trees: TreeInst[]): HTMLCanvasElement {
 
   // 1. 树林地面：夜魇一侧偏焦褐、天辉一侧偏青绿
   const grad = g.createLinearGradient(0, 1500, 0, 8500);
-  grad.addColorStop(0, '#3a2c20');
-  grad.addColorStop(0.42, '#38361f');
-  grad.addColorStop(0.58, '#2e4322');
-  grad.addColorStop(1, '#2a4c24');
+  grad.addColorStop(0, '#463424');
+  grad.addColorStop(0.42, '#423e24');
+  grad.addColorStop(0.58, '#34502a');
+  grad.addColorStop(1, '#30582a');
   g.fillStyle = grad;
   g.fillRect(TX0, TZ0, TX1 - TX0, TZ1 - TZ0);
   for (let i = 0; i < 2600; i++) {
@@ -384,7 +384,7 @@ function treeGeometry(kind: TreeKind, dire: boolean, seed: number): BufferGeomet
   b.cyl(5, 9, 46, 5, trunk, { p: [0, 23, 0], top: 0x5a3a24 }, true);
   // 天辉：鲜绿的松树和阔叶树；夜魇：焦黑发灰的松树和暗红的枯叶树
   const pal = dire
-    ? kind === 'leafy' ? [0x3e1614, 0x5a221c, 0x7a3022, 0x9a4a2a] : [0x242c26, 0x323e32, 0x46503c, 0x666446]
+    ? kind === 'leafy' ? [0x3e1614, 0x5a221c, 0x7a3022, 0x9a4a2a] : [0x223a2e, 0x2f4a36, 0x47603e, 0x6e7448]
     : kind === 'leafy' ? [0x2a5a22, 0x3f7a2c, 0x5e9a36, 0x8ab84a] : [0x173f20, 0x24592a, 0x3a7a34, 0x62a044];
   if (kind === 'pine') {
     b.cone(50, 74, 7, pal[0], { p: [0, 70, 0], top: pal[1], jitter: 0.12 }, true);

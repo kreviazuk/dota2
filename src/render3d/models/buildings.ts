@@ -154,9 +154,19 @@ const glowMat = (key: string, color: number, additive = false, opacity = 1): Mat
   return m;
 };
 
-export function makeHalo(color: number, size: number, opacity = 0.8): Sprite {
-  const s = new Sprite(new SpriteMaterial({ map: haloTexture(), color, blending: AdditiveBlending, transparent: true, depthWrite: false, opacity, toneMapped: false }));
+const haloMats = new Map<string, SpriteMaterial>();
+/** 光晕精灵。shared = 共用同色同透明度的材质（弹道这种频繁创建的用；建筑的光晕各自一份，dispose 时可以释放） */
+export function makeHalo(color: number, size: number, opacity = 0.8, shared = false): Sprite {
+  const make = () => new SpriteMaterial({ map: haloTexture(), color, blending: AdditiveBlending, transparent: true, depthWrite: false, opacity, toneMapped: false });
+  let mat: SpriteMaterial;
+  if (shared) {
+    const key = `${color}:${opacity}`;
+    mat = haloMats.get(key) ?? make();
+    haloMats.set(key, mat);
+  } else mat = make();
+  const s = new Sprite(mat);
   s.scale.set(size, size, 1);
+  s.userData.sharedMaterial = shared;
   return s;
 }
 

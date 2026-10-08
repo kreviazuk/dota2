@@ -508,8 +508,8 @@ export class Renderer3D implements GameRenderer {
     const scene = this.scene;
     scene.background = new Color(0x141b12);
     scene.fog = new Fog(0x1a2216, 2600, 6200);
-    scene.add(new HemisphereLight(0xd0e2ff, 0x4a3c2a, 1.15));
-    const sun = (this.sun = new DirectionalLight(0xfff0d8, 2.6));
+    scene.add(new HemisphereLight(0xd6e6ff, 0x5a4a34, 1.4));
+    const sun = (this.sun = new DirectionalLight(0xfff0d8, 2.8));
     sun.castShadow = true;
     sun.shadow.mapSize.set(this.shadowSize, this.shadowSize);
     sun.shadow.bias = -0.0006;
@@ -828,7 +828,7 @@ export class Renderer3D implements GameRenderer {
         const mesh = new Mesh(geo, this.projMat(pr.visual, pr.team));
         mesh.castShadow = pr.visual === 'siege';
         obj.add(mesh);
-        if (pr.visual !== 'siege') obj.add(makeHalo(big ? teamColor(pr.team) : pr.team === Team.Radiant ? 0x80ff90 : 0xff8060, big ? 90 : 40, 0.9));
+        if (pr.visual !== 'siege') obj.add(makeHalo(big ? teamColor(pr.team) : pr.team === Team.Radiant ? 0x80ff90 : 0xff8060, big ? 90 : 40, 0.9, true));
         this.dyn.add(obj);
         const d0 = target ? Math.hypot(target.pos.x - pr.pos.x, target.pos.y - pr.pos.y) : pr.maxDistance === Infinity ? 600 : pr.maxDistance;
         v = {
@@ -852,7 +852,6 @@ export class Renderer3D implements GameRenderer {
     }
     for (const [id, v] of this.projs) if (!seen.has(id)) {
       v.obj.removeFromParent();
-      for (const c of v.obj.children) if (c instanceof Sprite) c.material.dispose();
       this.projs.delete(id);
     }
   }
