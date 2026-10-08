@@ -1,0 +1,223 @@
+import { describe, it, expect } from 'vitest';
+import { Vector3 } from 'three';
+import { facingToRotY, groundHeight, simToThree, threeToSim, RIVER_DEPTH, FOREST_RISE } from '../src/render3d/coords';
+import { Camera3D, CAM3D, cameraDistance, rayPlaneY } from '../src/render3d/camera3d';
+import { AnimTracker, BACKSWING, blendPose, selectState, turnToward, windupProgress, type AnimInput } from '../src/render3d/anim';
+import { arcFor, homingProgress, projectileHeight } from '../src/render3d/projectileArc';
+import { attackPose, axePose, deathPose, idlePose, releasePose, runPose } from '../src/render3d/models/axe';
+import { MAP } from '../src/sim/data/map';
+import { Team } from '../src/sim/core/types';
+import { DT } from '../src/sim/core/constants';
+
+const DEG = Math.PI / 180;
+
+describe('sim ↔ three coordinates', () => {
+  it('maps x→x, y→z, height→y and back', () => {
+    const v = simToThree(120, 4500, 33);
+    expect(v).toEqual({ x: 120, y: 33, z: 4500 });
+    expect(threeToSim(v)).toEqual({ x: 120, y: 4500 });
+  });
+  it('rotates +Z-facing models to the sim facing direction', () => {
+    for (const f of [0, Math.PI / 2, -Math.PI / 2, 2.5, -3]) {
+      const fwd = new Vector3(0, 0, 1).applyAxisAngle(new Vector3(0, 1, 0), facingToRotY(f));
+      expect(fwd.x).toBeCloseTo(Math.cos(f));
+      expect(fwd.z).toBeCloseTo(Math.sin(f));
+    }
+  });
+  it('keeps the walkable lane flat, sinks the river and raises the forest', () => {
+    expect(groundHeight(MAP.laneX, 3000)).toBe(0);
+    expect(groundHeight(MAP.laneX + 450, 7000)).toBe(0);
+    expect(groundHeight(MAP.laneX, MAP.riverY)).toBeCloseTo(-RIVER_DEPTH);
+    expect(groundHeight(MAP.laneX + MAP.laneHalfWidth + 300, 3000)).toBeCloseTo(FOREST_RISE);
+    // 基地比道路宽
+    expect(groundHeight(MAP.laneX + 700, 500)).toBe(0);
+  });
+});
+
+describe('3D camera', () => {
+  const cam = new Camera3D();
+  cam.resize(844, 390, 2);
+  cam.follow({ x: MAP.laneX, y: 6000 }, Team.Radiant, 0, true);
+
+  it('ray-plane intersection', () => {
+    const hit = rayPlaneY(new Vector3(0, 100, 0), new Vector3(0, -1, 1).normalize(), 0)!;
+    expect(hit.y).toBeCloseTo(0);
+    expect(hit.z).toBeCloseTo(100);
+    expect(rayPlaneY(new Vector3(0, 100, 0), new Vector3(0, 1, 0), 0)).toBeNull();
+  });
+
+  it('covers about VIEW_WORLD_HEIGHT of ground from the bottom to the top of the screen', () => {
+    const top = cam.screenToWorld({ x: cam.viewW / 2, y: 0 });
+    const bottom = cam.screenToWorld({ x: cam.viewW / 2, y: cam.viewH });
+    expect(bottom.y - top.y).toBeCloseTo(CAM3D.span, 0);
+    expect(cameraDistance(CAM3D.pitchDeg * DEG, CAM3D.fovDeg * DEG, CAM3D.span)).toBeGreaterThan(0);
+  });
+
+  it('looks up the lane toward the Dire base: screen up = smaller sim y, screen right = larger sim x', () => {
+    const c = cam.screenToWorld({ x: cam.viewW / 2, y: cam.viewH / 2 });
+    const up = cam.screenToWorld({ x: cam.viewW / 2, y: cam.viewH / 2 - 50 });
+    const right = cam.screenToWorld({ x: cam.viewW / 2 + 50, y: cam.viewH / 2 });
+    expect(up.y).toBeLessThan(c.y);
+    expect(up.x).toBeCloseTo(c.x);
+    expect(right.x).toBeGreaterThan(c.x);
+    // 镜头中心在英雄前方（夜魇方向）
+    expect(cam.y).toBeCloseTo(6000 - CAM3D.lookAhead);
+    const hero = cam.worldToScreen({ x: MAP.laneX, y: 6000 });
+    expect(hero.y).toBeGreaterThan(cam.viewH / 2);
+  });
+
+  it('screenToWorld inverts worldToScreen on the ground', () => {
+    for (const p of [{ x: 1234, y: 5900 }, { x: 1700, y: 5500 }, { x: 1100, y: 6300 }]) {
+      const w = cam.screenToWorld(cam.worldToScreen(p));
+      expect(w.x).toBeCloseTo(p.x, 3);
+      expect(w.y).toBeCloseTo(p.y, 3);
+    }
+  });
+
+  it('ground footprint is a trapezoid wider at the top (far side)', () => {
+    const [tl, tr, br, bl] = cam.footprint();
+    expect(tr.x - tl.x).toBeGreaterThan(br.x - bl.x);
+    expect(tl.y).toBeLessThan(bl.y);
+    expect(cam.visible({ x: MAP.laneX, y: 6000 })).toBe(true);
+    expect(cam.visible({ x: MAP.laneX, y: 2000 })).toBe(false);
+    expect(cam.worldH).toBeCloseTo(CAM3D.span, 0);
+  });
+
+  it('enlarges UI elements on short screens like the 2D camera', () => {
+    const c = new Camera3D();
+    c.resize(1600, 800, 1);
+    expect(c.uiScale).toBe(1);
+    c.resize(844, 390, 2);
+    expect(c.uiScale).toBeCloseTo(720 / 390);
+  });
+
+  it('follows smoothly and clamps to the map', () => {
+    const c = new Camera3D();
+    c.resize(844, 390, 1);
+    c.follow({ x: MAP.laneX, y: 6000 }, Team.Radiant, 0, true);
+    c.follow({ x: MAP.laneX, y: 7000 }, Team.Radiant, 1 / 60);
+    expect(c.y).toBeGreaterThan(6000 - CAM3D.lookAhead);
+    expect(c.y).toBeLessThan(7000 - CAM3D.lookAhead);
+    c.follow({ x: 5000, y: -500 }, Team.Radiant, 0, true);
+    expect(c.x).toBeLessThanOrEqual(MAP.laneX + CAM3D.xRange);
+    expect(c.y).toBeGreaterThan(0);
+  });
+});
+
+const input = (o: Partial<AnimInput> = {}): AnimInput => ({
+  alive: true, speed: 0, windup: -1, attackPoint: 0.4, castAbility: null, castProgress: 0, channel: false, stunned: false, taunted: false, ...o,
+});
+
+describe('animation state selection and timing', () => {
+  it('prioritises death > stun > release > cast > channel > attack > run > idle', () => {
+    expect(selectState(input({ alive: false, stunned: true }), true, true)).toBe('dead');
+    expect(selectState(input({ stunned: true, castAbility: 'x' }), true, true)).toBe('stunned');
+    expect(selectState(input({ castAbility: 'x' }), true, true)).toBe('release');
+    expect(selectState(input({ castAbility: 'x', channel: true }), true, false)).toBe('cast');
+    expect(selectState(input({ channel: true, speed: 300 }), true, false)).toBe('channel');
+    expect(selectState(input({ speed: 300 }), true, false)).toBe('attack');
+    expect(selectState(input({ speed: 300 }), false, false)).toBe('run');
+    expect(selectState(input({ speed: 10 }), false, false)).toBe('idle');
+  });
+
+  it('windup progress reaches 1 exactly when the sim launches the attack', () => {
+    expect(windupProgress(-1, 0.4, 0.5)).toBe(-1);
+    expect(windupProgress(0.4, 0.4, 0)).toBeCloseTo(0);
+    expect(windupProgress(0.2, 0.4, 0)).toBeCloseTo(0.5);
+    expect(windupProgress(DT, 0.4, 1)).toBeCloseTo(1);
+  });
+
+  it('starts a backswing only when a windup completes, not when it is interrupted', () => {
+    const tr = new AnimTracker();
+    let w = 0.4;
+    while (w > 1e-6) {
+      tr.update(input({ windup: w }), DT, 0);
+      expect(tr.state).toBe('attack');
+      w -= DT;
+    }
+    tr.update(input({ windup: -1 }), 1 / 60, 0);
+    expect(tr.backswing).toBeGreaterThan(0);
+    expect(tr.backswingTotal).toBeLessThanOrEqual(BACKSWING);
+    expect(tr.state).toBe('attack');
+    for (let i = 0; i < 40; i++) tr.update(input(), 1 / 60, 0);
+    expect(tr.state).toBe('idle');
+
+    const t2 = new AnimTracker();
+    t2.update(input({ windup: 0.3 }), DT, 0);
+    t2.update(input({ windup: -1, speed: 300 }), DT, 0);
+    expect(t2.backswing).toBe(0);
+    expect(t2.state).toBe('run');
+  });
+
+  it('advances the run cycle with distance travelled and blends between states', () => {
+    const tr = new AnimTracker();
+    for (let i = 0; i < 30; i++) tr.update(input({ speed: 300 }), 1 / 60, 0, 150);
+    expect(tr.state).toBe('run');
+    expect(tr.blend).toBe(1);
+    const p0 = tr.runPhase;
+    tr.update(input({ speed: 300 }), 0.1, 0, 150);
+    // 300 单位/秒 × 0.1 秒 = 30 单位 = 步态周期 150 的 1/5
+    expect((tr.runPhase - p0 + Math.PI * 2) % (Math.PI * 2)).toBeCloseTo((Math.PI * 2) / 5, 1);
+    tr.update(input({ speed: 0 }), 1 / 60, 0);
+    tr.update(input({ speed: 0 }), 1 / 60, 0);
+    expect(tr.state).toBe('idle');
+    expect(tr.blend).toBeLessThan(1);
+  });
+
+  it('tracks one-shot releases, death time, hit flash and ignores paused frames', () => {
+    const tr = new AnimTracker();
+    tr.trigger('axe_berserkers_call', 0.5);
+    tr.update(input(), 0.1, 0);
+    expect(tr.state).toBe('release');
+    expect(tr.releaseK).toBeCloseTo(0.2);
+    tr.update(input(), 0.5, 0);
+    expect(tr.release).toBeNull();
+    tr.hit();
+    tr.update(input(), 0, 0);
+    expect(tr.flash).toBe(1);
+    tr.update(input({ alive: false }), 0.1, 0);
+    tr.update(input({ alive: false }), 0.25, 0);
+    expect(tr.state).toBe('dead');
+    expect(tr.deadTime).toBeCloseTo(0.25);
+    tr.update(input(), 0.1, 0);
+    expect(tr.deadTime).toBe(-1);
+  });
+
+  it('blends poses and turns along the shortest arc', () => {
+    expect(blendPose({ a: 1, b: 2 }, { a: 3, c: 4 }, 0.5)).toEqual({ a: 2, b: 1, c: 2 });
+    expect(turnToward(3, -3, 1, 0.1)).toBeCloseTo(3.1);
+    expect(turnToward(0, 0.05, 10, 0.1)).toBe(0.05);
+  });
+});
+
+describe('Axe poses', () => {
+  const finite = (p: Record<string, number>) => Object.values(p).every(Number.isFinite);
+  it('produces finite poses for every state', () => {
+    for (const p of [idlePose(1), runPose(2), attackPose(0), attackPose(0.6), attackPose(1), deathPose(0.3), deathPose(3)]) expect(finite(p)).toBe(true);
+    for (const id of ['axe_berserkers_call', 'axe_battle_hunger', 'axe_culling_blade', 'helix']) expect(finite(releasePose(id, 0.5))).toBe(true);
+  });
+  it('raises the axe during the windup and strikes down at the moment of impact', () => {
+    expect(attackPose(0.6).shRX).toBeLessThan(attackPose(0).shRX - 2);
+    expect(attackPose(1).shRX).toBeGreaterThan(attackPose(0.6).shRX + 1.5);
+  });
+  it('falls over and sinks after death', () => {
+    expect(deathPose(1).bodyX).toBeLessThan(-1.3);
+    expect(deathPose(3).sink).toBeGreaterThan(30);
+    const tr = new AnimTracker();
+    tr.update(input({ alive: false }), 0.1, 0);
+    expect(axePose(tr, 0).bodyX).toBeLessThanOrEqual(0);
+  });
+});
+
+describe('projectile flight height', () => {
+  it('interpolates launch → target height with an arc that peaks mid-flight', () => {
+    expect(projectileHeight(300, 100, 0, 50)).toBe(300);
+    expect(projectileHeight(300, 100, 1, 50)).toBe(100);
+    expect(projectileHeight(100, 100, 0.5, 50)).toBe(150);
+    expect(homingProgress(1000, 250)).toBeCloseTo(0.75);
+    expect(homingProgress(1000, 1500)).toBe(0);
+    expect(homingProgress(0, 10)).toBe(1);
+    expect(arcFor('siege', 690)).toBeGreaterThan(arcFor('creep', 500));
+    expect(arcFor('tower', 700)).toBeLessThan(arcFor('creep', 500));
+  });
+});
