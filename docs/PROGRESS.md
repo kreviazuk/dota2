@@ -100,7 +100,7 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
 | 1 | 技能框架扩展 + 天赋系统 + 斧王全部天赋 | ✅ |
 | 2 | 控制状态、强制位移、计时器、隐藏规则 | ✅ |
 | 3 | 战斗扩展（攻击信息、技能发起的攻击、分裂、伪随机、护甲拆分、伤害钩子、护盾、伤害统计） | ✅ |
-| 4 | 光环、召唤物、全局死亡钩子 | |
+| 4 | 光环、召唤物、全局死亡钩子 | ✅ |
 | 5 | 渲染框架（模型注册表、共用人形骨骼、特效 / 弹道 / 状态外观注册表、2D 后备注册表） | |
 | 6 | AI 框架（技能使用表）、选人补位、调试工具 | |
 | 7 | 选英雄界面、天赋弹窗、X1/X2 技能键、角标、自动加点 | |
@@ -119,6 +119,7 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
 - Task 1（2026-10-08）：`src/sim/talents.ts`（`pendingTalentTier` / `canPickTalent` / `pickTalent` / `hasTalent` / `pickedTalents`）、`pickTalent` 指令（死亡时也能选）和 `talent` 事件；天赋数值加成支持加值和乘数（技能数值、冷却、魔耗、施法距离、引导时间、充能）、`stats`（隐藏、不可驱散、死亡保留的 `talent:<id>` Modifier）和自定义 `modifier`；技能框架新增先天主动（`innate`）、即时技能（`instant`）、并行充能（`chargeMode: 'parallel'`）、落点吸附（`pointSnap`）、`<键>PerLevel` 按英雄等级成长、施法速度（`castSpeed`）、`defaultToggled`、所有目标类型的 `smartTarget`、`none` 技能透传 `dir`、`aimShape` / `counter` / `inactive` 字段（后两个 Task 7 的 HUD 才用）。斧王 8 个天赋全部生效（10 级 A 按生效中的战斗饥渴数量加移速），AI 按 `TALENT_BUILDS` 选天赋（斧王 `[0, 1, 0, 0]`）。共 208 个测试；`npm run sim -- --games 4 --seed 1` 4 局都正常推掉遗迹（18:21–34:11）。
 - Task 2（2026-10-08）：`src/sim/status.ts`（`applyControl` 眩晕 / 缠绕 / 沉默 / 缴械 / 破坏 / 禁用物品，同类取剩余时间更长的一个；`applySlow` 按 key + 来源刷新、不同 key 或来源叠加，可同时减攻速和魔抗；`applyFear` 支持 `addUpTo` 累加上限；`CONTROL_NAMES`）；`src/sim/systems/motion.ts`（`startMotion` / `endMotion` / `knockback` / `blinkTo` / `motionHeight` / `updateMotion`，`Unit.motion`）；`World.after()` 计时器；`busy` 状态；`isDisabled`（眩晕或禁用行动的位移）替换攻击、移动、施法、回城里的 `hasState('stunned')`；对敌隐藏（`isHiddenFrom`）的单位不能被普攻、不能被技能选中，范围效果照常命中。新的系统顺序：spawner → heroes → buildings → creepAI → abilities → attacks → motion → movement → projectiles → effects → timers → regen。共 228 个测试；`npm run sim -- --games 4 --seed 1` 结果与 Task 1 完全相同（18:21–34:11）。
 - Task 3（2026-10-08）：`AttackInfo` 扩展（`damageMult`、`abilityId`、`noProcs`、`ignoreBaseArmor`、`visual`、`flags`）和 `newAttackInfo()`；`performAttack`（技能发起的攻击，`instant` 立即结算或按 `projectileSpeed` 发追踪弹道，普攻的 `launchAttack` 也走它）、`rollAttackDamage`；`DamageInfo` 新增 `ignoreArmor` / `ignoreBaseArmor` / `noSpellAmp` / `attack` / `preMitigation`；Modifier 新增 `onBeforeDealDamage`（减免前、来源一侧）和 `finalStats`（第三轮属性）；护甲拆成 `baseArmor` + `bonusArmor`；`HeroState.damageDealt`；`src/sim/prd.ts`（`prdC` 二分求常数，与 Dota 表一致：20% → 0.055704、25% → 0.084744）、`src/sim/systems/cleave.ts`（梯形分裂）、`src/sim/shields.ts`（按伤害类型吸收的独立护盾）。新增 `tests/combat.test.ts`（18 个），共 246 个测试；`npm run sim -- --games 4 --seed 1` 结果与 Task 1/2 完全相同（18:21–34:11，随机数调用顺序没有变）。
+- Task 4（2026-10-08）：`src/sim/auras.ts`（`AuraDef` / `updateAuras`：每 tick 给范围内的单位挂子 Modifier，离开后残留 `BALANCE.auras.linger` = 0.5 秒；同名光环不叠加；`active` 为 false 或主人被破坏 / 死亡时不施加；`includeSelf` / `includeBuildings` / `filter` / `childData`）；`src/sim/systems/summons.ts`（`spawnSummon` / `updateSummons`：`kind 'summon'`、没有赏金、到期死亡并移除、跟随主人身后、主人死亡后原地不动；`hitsToKill` 的召唤物每次普攻固定掉 1 点，其他伤害无效）；`ModifierDef.onUnitDeath`（任意单位死亡时对每个存活英雄调用）；防御塔把召唤物和小兵放在同一优先级。新的系统顺序：spawner → heroes → auras → buildings → creepAI → abilities → attacks → motion → movement → projectiles → effects → timers → summons → regen。新增 `tests/auras.test.ts`（9 个）、`tests/summons.test.ts`（7 个），共 262 个测试；`npm run sim -- --games 4 --seed 1` 结果与 Task 1–3 完全相同（18:21–34:11）。
 
 ## 后续阶段（尚未写实施计划）
 （P2 进行中，见上面）P3 物品与商店 → P4 完整 AI、精英怪、选人、难度 → P5 平衡调参 → P6 特效音效和 Capacitor 打包 APK。详见设计文档 §14。
@@ -216,6 +217,16 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
   - 护盾的 `addShield` 在目标死亡时返回 `null`（计划签名是 `ModifierInstance`）；护盾不保留到死亡后、可以被弱驱散（Modifier 默认值）；`isShield(m)` 供渲染层的护盾条使用。
   - `prdRoll` 在 `p ≤ 0` 时不消耗随机数（仍然累加未触发次数）。
   - 计划要求 PROGRESS 和代码一起提交；实际按任务分派的要求单独提交 `docs: progress (P2 task 3)`。
+
+- P2 Task 4（光环、召唤物、全局死亡钩子）：
+  - `AuraDef` 的 `radius` / `childData` / `active` 多了第三个参数 `m`（光环所在的 Modifier 实例），这样召唤物身上的光环（治疗守卫）也能从 `m.abilityLevel` / `m.data` 读等级；子 Modifier 的 `abilityLevel` 取自 `m.abilityLevel`。
+  - 半径按"光环主人中心到目标边缘"计算（与 `unitsInRadius` 一致）。光环对隐藏、无敌的单位照常生效；`debuff` 子 Modifier 对减益免疫单位无效（已有的照常残留到时间结束）。
+  - 减益子 Modifier 的残留时间预先除以 (1 − 状态抗性)，所以残留时间总是 0.5 秒，不会被状态抗性缩短（计划没写）。
+  - 两个来源的同名光环：每 tick 依次刷新同一个实例，`sourceId` / `data` 取最后刷新的那个来源（按 `world.units` 顺序）。
+  - `hitsToKill` 的召唤物：普攻固定 1 点伤害，跳过攻击类型系数、护甲、伤害前钩子和受伤钩子（护盾、格挡）；照常发 `damage` 事件、调用来源的 `onDealtDamage`、计入英雄的 `damageDealt.creeps`；不更新 `lastHeroDamage`（没有赏金，不需要记功）。
+  - 跟随的"容差 50"放进 `BALANCE.summons.followSlack`；"主人身后"按主人当前朝向计算。召唤物的攻击类型 / 护甲类型都是 `basic`。
+  - `onUnitDeath` 在 `onKill` 之后、死者的 Modifier 被移除之前调用；召唤物到期死亡（击杀者 null）也会触发。
+  - 计划要求 PROGRESS 和代码一起提交；实际按任务分派的要求单独提交 `docs: progress (P2 task 4)`。
 
 ## 已知的小问题（推迟处理，不影响功能）
 主要是测试覆盖不足，例如嘲讽/引导期间不能移动、塔的强制目标 3 秒后失效、队伍金钱倍率等没有测试；另有少量写死的常量（小兵攻速 100、伤害 ±2 浮动、出兵阵型偏移）尚未移入 `BALANCE`。
