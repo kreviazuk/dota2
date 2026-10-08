@@ -7,6 +7,7 @@ import type { ComputedStats } from '../stats';
 import { emptyStats } from '../stats';
 import type { AbilityInstance, CastState, ResolvedTarget } from '../heroes/types';
 import type { ForcedMotion } from '../systems/motion';
+import type { SummonState } from '../systems/summons';
 
 export interface UnitBase {
   maxHp: number;
@@ -147,6 +148,8 @@ export class Unit {
   hero?: HeroState;
   creep?: CreepState;
   building?: BuildingState;
+  /** kind = 'summon' 的单位：主人、到期时间、按次数死亡、跟随 */
+  summon?: SummonState;
 
   constructor(i: UnitInit) {
     this.id = i.id;

@@ -107,6 +107,14 @@ export const BALANCE = {
     /** 天赋 0–3 层的解锁等级 */
     talentLevels: [10, 15, 20, 25],
   },
+  auras: {
+    /** 离开光环范围后子 Modifier 残留的秒数 */
+    linger: 0.5,
+  },
+  summons: {
+    /** 跟随型召唤物与主人的距离超过 follow + followSlack 时才移动 */
+    followSlack: 50,
+  },
   maxGameTime: 2400,
 };
 

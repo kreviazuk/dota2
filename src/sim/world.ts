@@ -18,6 +18,8 @@ import { updateSpawner, updateCreepAI } from './systems/creeps';
 import { updateHeroes, onHeroKilled } from './systems/heroes';
 import { onUnitKilledEconomy } from './systems/economy';
 import { updateMotion } from './systems/motion';
+import { updateAuras } from './auras';
+import { updateSummons } from './systems/summons';
 
 export interface WorldConfig {
   seed: number;
@@ -75,10 +77,10 @@ export class World {
     this.spawner = { nextWaveTime: this.balance.waves.firstWaveTime, waveIndex: 0 };
     this.config = { seed: cfg.seed, recordEvents: cfg.recordEvents ?? false, spawnCreeps: cfg.spawnCreeps ?? true };
     // 系统执行顺序（后续任务在对应位置插入）：
-    // spawner → heroes → buildings → creepAI → abilities → attacks → motion → movement → projectiles → effects → timers → regen
+    // spawner → heroes → auras → buildings → creepAI → abilities → attacks → motion → movement → projectiles → effects → timers → summons → regen
     this.systems.push(
-      updateSpawner, updateHeroes, updateBuildings, updateCreepAI, updateAbilities, updateAttacks, updateMotion, updateMovement,
-      updateProjectiles, updateEffects, updateTimers, updateRegen,
+      updateSpawner, updateHeroes, updateAuras, updateBuildings, updateCreepAI, updateAbilities, updateAttacks, updateMotion,
+      updateMovement, updateProjectiles, updateEffects, updateTimers, updateSummons, updateRegen,
     );
     this.killListeners.push(onBuildingKilled, onUnitKilledEconomy, onHeroKilled);
   }

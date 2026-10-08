@@ -3,6 +3,7 @@ import type { World } from './world';
 import type { DamageInfo } from './systems/damage';
 import type { AttackInfo } from './systems/attack';
 import type { ComputedStats } from './stats';
+import type { AuraDef } from './auras';
 import { recomputeStats } from './stats';
 
 export type UnitState =
@@ -85,6 +86,10 @@ export interface ModifierDef {
   onDealtDamage?: Hook<[owner: Unit, target: Unit, world: World, info: DamageInfo]>;
   onKill?: Hook<[owner: Unit, victim: Unit, world: World]>;
   onDeath?: Hook<[owner: Unit, killer: Unit | null, world: World]>;
+  /** 任意单位死亡时（在击杀者的 onKill 之后），对场上每个存活英雄（不含死者）的 Modifier 调用（腐肉堆积） */
+  onUnitDeath?: Hook<[owner: Unit, victim: Unit, killer: Unit | null, world: World]>;
+  /** 光环：updateAuras 每 tick 给范围内的单位挂上 aura.child（见 src/sim/auras.ts） */
+  aura?: AuraDef;
   onAbilityCast?: Hook<[owner: Unit, abilityId: string, world: World]>;
 }
 

@@ -38,6 +38,8 @@ export function applyDamage(world: World, info: DamageInfo): number {
   const t = info.target;
   if (!t.alive || t.removed || t.hasState('invulnerable')) return 0;
   const src = info.source;
+  // 按被攻击次数计算的召唤物（治疗守卫）：普攻固定 1 点，其他伤害无效
+  if (t.summon?.hitsToKill !== undefined) return applyHitCountDamage(world, info);
   let amt = info.amount;
   if (src && info.isAttack) amt *= world.balance.damageMatrix[src.attackClass][t.armorClass];
   if (src && !info.isAttack && info.abilityId && !info.noSpellAmp) amt *= 1 + src.stats.spellAmp;
@@ -82,6 +84,20 @@ export function applyDamage(world: World, info: DamageInfo): number {
   return amt;
 }
 
+function applyHitCountDamage(world: World, info: DamageInfo): number {
+  const t = info.target;
+  if (!info.isAttack) return 0;
+  const src = info.source;
+  info.preMitigation = 1;
+  info.amount = 1;
+  t.hp -= 1;
+  if (src && src.hero && src.team !== t.team) src.hero.damageDealt.creeps += 1;
+  world.events.emit({ type: 'damage', sourceId: src?.id ?? null, targetId: t.id, amount: 1, damageType: info.type, crit: false, isAttack: true });
+  if (src) for (const m of src.modifiers.slice()) m.def.onDealtDamage?.(m, src, t, world, info);
+  if (t.hp <= 0.0001 && t.alive) killUnit(world, t, src);
+  return 1;
+}
+
 export function heal(world: World, u: Unit, amount: number): number {
   if (!u.alive || amount <= 0) return 0;
   const before = u.hp;
@@ -104,6 +120,10 @@ export function killUnit(world: World, victim: Unit, killer: Unit | null): void 
   victim.attack.windup = -1;
   for (const m of victim.modifiers.slice()) m.def.onDeath?.(m, victim, killer, world);
   if (killer) for (const m of killer.modifiers.slice()) m.def.onKill?.(m, killer, victim, world);
+  for (const h of world.units.slice()) {
+    if (h.kind !== 'hero' || !h.alive || h === victim) continue;
+    for (const m of h.modifiers.slice()) m.def.onUnitDeath?.(m, h, victim, killer, world);
+  }
   removeModifiersOnDeath(world, victim);
   world.events.emit({ type: 'death', unitId: victim.id, killerId: killer?.id ?? null });
   for (const l of world.killListeners) l(world, victim, killer);
