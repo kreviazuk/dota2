@@ -203,6 +203,15 @@ describe('2D looks, shield bar and status markers', () => {
     const ys = (fx as unknown as { texts: { y: number }[] }).texts.map((x) => x.y);
     expect(ys.length).toBe(2);
     expect(Math.abs(ys[0] - ys[1])).toBeGreaterThan(20);
+    // 正上方另一个单位同一时刻挨打：只按目标单位叠，不会被算进上面那个人的叠层
+    const fx2 = new FxSystem();
+    const a = spawnDummy(w, { kind: 'hero', team: Team.Dire, pos: { x: 1500, y: 4800 } });
+    const b = spawnDummy(w, { kind: 'hero', team: Team.Dire, pos: { x: 1500, y: 5000 } });
+    fx2.consume([
+      { type: 'damage', sourceId: null, targetId: a.id, amount: 200, damageType: 'magical', crit: false, isAttack: false },
+      { type: 'damage', sourceId: null, targetId: b.id, amount: 200, damageType: 'magical', crit: false, isAttack: false },
+    ], w, null, cam);
+    expect((fx2 as unknown as { texts: { y: number }[] }).texts.map((x) => x.y)).toEqual([4740, 4940]);
   });
 
   it('status markers follow control states, fear and slows', () => {

@@ -4,7 +4,8 @@ import type { ViewCamera } from './view';
 import { lookupFx2D } from './fx2d';
 
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; max: number; size: number; color: string; drag: number; add: boolean }
-interface FloatText { x: number; y: number; vy: number; life: number; max: number; text: string; color: string; size: number }
+/** key：伤害数字所属的目标单位 id（同一时刻打在同一个目标上的数字往上叠） */
+interface FloatText { x: number; y: number; vy: number; life: number; max: number; text: string; color: string; size: number; key?: number }
 /** color 是不带 alpha 的前缀，例如 'rgba(255,60,40,' */
 interface Ring { x: number; y: number; r0: number; r1: number; life: number; max: number; color: string; width: number }
 interface Slash { x: number; y: number; angle: number; life: number; max: number; color: string; size: number }
@@ -92,9 +93,9 @@ export class FxSystem {
     ctx.fillRect(0, 0, w, h);
   }
 
-  text(x: number, y: number, text: string, color: string, size = 26): void {
+  text(x: number, y: number, text: string, color: string, size = 26, key?: number): void {
     if (this.texts.length >= MAX_TEXTS) this.texts.shift();
-    this.texts.push({ x: x + (Math.random() - 0.5) * 30, y, vy: -90, life: 0.9, max: 0.9, text, color, size });
+    this.texts.push({ x: x + (Math.random() - 0.5) * 30, y, vy: -90, life: 0.9, max: 0.9, text, color, size, key });
   }
 
   consume(events: SimEvent[], world: World, playerId: number | null, cam: ViewCamera): void {
@@ -111,8 +112,8 @@ export class FxSystem {
             const size = e.crit ? 40 : involvesPlayer ? 28 : 22;
             // 同一时刻打在同一个目标上的几个数字（静电场 + 技能本体）往上叠
             let n = 0;
-            for (const tt of this.texts) if (tt.max - tt.life < 0.08 && Math.abs(tt.x - t.pos.x) < 40 && tt.y <= t.pos.y - 59 && tt.y > t.pos.y - 400) n++;
-            this.text(t.pos.x, t.pos.y - 60 - n * size * 2, `${Math.round(e.amount)}${e.crit ? '!' : ''}`, color, size);
+            for (const tt of this.texts) if (tt.key === t.id && tt.max - tt.life < 0.08) n++;
+            this.text(t.pos.x, t.pos.y - 60 - n * size * 2, `${Math.round(e.amount)}${e.crit ? '!' : ''}`, color, size, t.id);
           }
           if (e.isAttack) this.burst(t.pos.x, t.pos.y, 4, 'rgba(255,80,60,0.9)', 160, 5, 0.3, false);
           break;
