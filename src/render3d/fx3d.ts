@@ -435,7 +435,7 @@ export class Fx3D {
           break;
         }
         case 'fx':
-          this.fxEvent(e, world, cam, heightOf);
+          this.fxEvent(e, world, cam, heightOf, playerId);
           break;
         default:
           break;
@@ -443,11 +443,11 @@ export class Fx3D {
     }
   }
 
-  private fxEvent(e: Extract<SimEvent, { type: 'fx' }>, world: World, cam: Camera3D, heightOf: HeightOf): void {
+  private fxEvent(e: Extract<SimEvent, { type: 'fx' }>, world: World, cam: Camera3D, heightOf: HeightOf, playerId: number | null): void {
     // 先查注册表（各英雄的 fx/<id>.ts、通用的 fx/common.ts），没有再走内置分支
     const h = lookupFx(e.kind);
     if (h) {
-      h(e, { fx: this, world, cam, heightOf });
+      h(e, { fx: this, world, cam, heightOf, playerId });
       return;
     }
     const { x, y } = e.pos;

@@ -1,18 +1,10 @@
-import type { AiCtx, HeroAiRules } from './types';
+import type { HeroAiRules } from './types';
 import type { Unit } from '../../sim/entities/unit';
 import { dist } from '../../sim/core/vec2';
 import { abilityCastRange, abilityValue } from '../../sim/systems/abilities';
-import { edgeDist, isAliveUnit, isTargetableBy } from '../../sim/query';
+import { edgeDist, isTargetableBy } from '../../sim/query';
 import { findModifier } from '../../sim/modifiers';
-import { keepsUltMana } from '../aiHelpers';
-
-/** 我正在攻击的敌方英雄（攻击指令的目标，或者普攻锁定的目标）；没有返回 null */
-function attackedEnemyHero(c: AiCtx): Unit | null {
-  const { world, me } = c;
-  const id = me.order.kind === 'attack' ? me.order.targetId : me.attack.targetId;
-  const t = world.getUnit(id);
-  return isAliveUnit(t) && t.kind === 'hero' && t.team !== me.team ? t : null;
-}
+import { attackedEnemyHero, keepsUltMana } from '../aiHelpers';
 
 /** 正在引导（持续施法）的单位 */
 const channelling = (u: Unit): boolean => u.cast?.phase === 'channel';

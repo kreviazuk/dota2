@@ -21,7 +21,7 @@ export function registerFx2D(kind: string, h: Fx2DHandler): void {
 /** 查不到时返回 undefined（调用方走默认分支） */
 export const lookupFx2D = (kind: string): Fx2DHandler | undefined => FX.get(kind);
 
-export interface Projectile2DStyle { color: string; size: number; shape?: 'orb' | 'line' | 'arrow' }
+export interface Projectile2DStyle { color: string; size: number; shape?: 'orb' | 'line' | 'arrow' | 'wave' }
 
 const PROJ = new Map<string, Projectile2DStyle>();
 
@@ -115,5 +115,64 @@ registerModifier2D('sven_gods_strength', (ctx, u, _m, x, y, t) => {
   ctx.beginPath();
   ctx.ellipse(x, y + r * 0.2, r, r * 0.66, 0, 0, Math.PI * 2);
   ctx.fill();
+  ctx.stroke();
+});
+
+// ---------- 莉娜 ----------
+registerProjectile2D('hero:lina', { color: '#ff8a30', size: 8, shape: 'orb' });
+registerProjectile2D('lina_dragon_slave', { color: '#ff6a1e', size: 34, shape: 'wave' });
+
+/** 龙破斩出手：手前一团火 */
+registerFx2D('lina_dragon_slave', (fx, e) => {
+  const d = e.dir ?? { x: 0, y: -1 };
+  fx.burst(e.pos.x + d.x * 40, e.pos.y + d.y * 40, 16, 'rgba(255,170,60,0.95)', 260, 7, 0.35);
+});
+
+/** 光击阵：火圈 + 向外飞散的火星 + 轻微震屏 */
+registerFx2D('lina_lsa', (fx, e, _w, cam) => {
+  const r = e.radius ?? 250;
+  fx.ring(e.pos.x, e.pos.y, 20, r, 'rgba(255,110,40,', 0.45, 18);
+  fx.ring(e.pos.x, e.pos.y, r * 0.6, r * 1.05, 'rgba(255,200,90,', 0.35, 6);
+  fx.burst(e.pos.x, e.pos.y, 36, 'rgba(255,150,50,0.95)', 420, 8, 0.6);
+  if (cam.visible(e.pos)) cam.shake(5);
+});
+
+/** 神灭斩：沿莉娜 → 目标的直线排一串红白火花 */
+registerFx2D('lina_laguna', (fx, e, world) => {
+  const u = world.getUnit(e.unitId);
+  const t = world.getUnit(e.targetId);
+  if (!u) return;
+  const to = t?.pos ?? e.pos;
+  for (let i = 0; i <= 10; i++) {
+    const k = i / 10;
+    fx.burst(u.pos.x + (to.x - u.pos.x) * k, u.pos.y + (to.y - u.pos.y) * k, 3, i % 2 ? 'rgba(255,255,255,0.95)' : 'rgba(255,50,30,0.95)', 70, 7, 0.35);
+  }
+});
+
+registerFx2D('lina_laguna_hit', (fx, e, _w, cam) => {
+  fx.ring(e.pos.x, e.pos.y, 10, 200, 'rgba(255,40,30,', 0.5, 14);
+  fx.burst(e.pos.x, e.pos.y, 40, 'rgba(255,80,60,0.95)', 420, 8, 0.6);
+  if (cam.visible(e.pos)) cam.shake(10);
+});
+
+/** 炽魂：脚下绕圈的火点，个数 = 层数 */
+registerModifier2D('lina_fiery_soul_stack', (ctx, u, m, x, y, t) => {
+  const r = u.radius * 1.9;
+  ctx.fillStyle = 'rgba(255,150,50,0.95)';
+  for (let i = 0; i < m.stacks; i++) {
+    const a = t * 2.6 + (i / m.stacks) * Math.PI * 2;
+    ctx.beginPath();
+    ctx.arc(x + Math.cos(a) * r, y + r * 0.2 + Math.sin(a) * r * 0.66, 4, 0, Math.PI * 2);
+    ctx.fill();
+  }
+});
+
+/** 慢热烧灼：脚下闪烁的橙红色圈 */
+registerModifier2D('lina_slow_burn_dot', (ctx, u, _m, x, y, t) => {
+  const r = u.radius * 1.4;
+  ctx.strokeStyle = `rgba(255,${90 + Math.round(60 * Math.sin(t * 14))},30,0.85)`;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.ellipse(x, y + r * 0.2, r, r * 0.66, 0, 0, Math.PI * 2);
   ctx.stroke();
 });

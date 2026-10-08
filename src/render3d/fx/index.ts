@@ -6,3 +6,5 @@ import './common';
 import '../models/axe';
 import '../models/sven';
 import './sven';
+import '../models/lina';
+import './lina';

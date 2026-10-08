@@ -1,6 +1,7 @@
 import type { HeroDef } from './types';
 import { AXE } from './axe';
 import { SVEN } from './sven';
+import { LINA } from './lina';
 
 const REGISTRY = new Map<string, HeroDef>();
 
@@ -20,3 +21,4 @@ export const allHeroIds = (): string[] => [...REGISTRY.keys()];
 
 registerHero(AXE);
 registerHero(SVEN);
+registerHero(LINA);

@@ -138,6 +138,14 @@ export function lowestHpEnemyHero(c: AiCtx, maxDist: number): Unit | null {
   return best;
 }
 
+/** 我正在攻击的敌方英雄（攻击指令的目标，或者普攻锁定的目标）；没有返回 null */
+export function attackedEnemyHero(c: AiCtx): Unit | null {
+  const { world, me } = c;
+  const id = me.order.kind === 'attack' ? me.order.targetId : me.attack.targetId;
+  const t = world.getUnit(id);
+  return isAliveUnit(t) && t.kind === 'hero' && t.team !== me.team ? t : null;
+}
+
 /** p 周围 r 内（边缘距离）我能看见的敌方小兵（含精英怪，不含英雄、建筑、召唤物） */
 export function enemyCreepsNear(world: World, me: Unit, p: Vec2, r: number): Unit[] {
   return enemiesInRadius(world, me.team, p, r).filter(

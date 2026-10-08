@@ -21,7 +21,12 @@ const PLAN = {
   sven_storm_hammer: { proj: 'sven_hammer', fx: [['sven_hammer_hit', 3, 'hit']], afterMs: 1500 },
   sven_warcry: { fx: [['sven_warcry', 3, 'release'], ['sven_warcry', 12, 'release2']] },
   sven_gods_strength: { fx: [['sven_gods_strength', 3, 'release'], ['sven_gods_strength', 14, 'release2']] },
+  lina_dragon_slave: { proj: 'lina_dragon_slave', fx: [['lina_dragon_slave', 14, 'wave']] },
+  lina_light_strike_array: { area: 'lina_lsa', fx: [['lina_lsa', 3, 'hit'], ['lina_lsa', 10, 'hit2']] },
+  lina_laguna_blade: { fx: [['lina_laguna', 3, 'beam'], ['lina_laguna_hit', 3, 'hit']], afterMs: 2500 },
 };
+/** 普攻（被动）要截的时刻：分裂斩痕（fx）或普攻弹道（proj） */
+const ATTACK = { sven: { fx: 'cleave' }, lina: { proj: 'hero:lina' } };
 
 (async () => {
   const browser = await chromium.launch({
@@ -152,6 +157,10 @@ const PLAN = {
     if (!instant) {
       await freezeWhen((m) => { const u = eval(m); return !!u.cast && u.cast.phase === 'point' && u.cast.timer < 0.08; }, meU(), `${slot}-windup`);
     }
+    if (plan.area) {
+      // 区域效果（预警圈）进行到一半时
+      await freezeWhen((v) => window.__game.session.match.world.effects.some((e) => e.visual === v && !e.done && e.elapsed > e.duration * 0.5), plan.area, `${slot}-area`);
+    }
     if (plan.proj) {
       await freezeWhen((v) => window.__game.session.match.world.projectiles.some((p) => p.visual === v && p.pos && Math.hypot(p.pos.x - p.prevPos.x, p.pos.y - p.prevPos.y) > 0 && window.__frame % 1 === 0 && p.data !== undefined && (p.__seen = (p.__seen ?? 0) + 1) > 3), plan.proj, `${slot}-flight`);
     }
@@ -181,9 +190,17 @@ const PLAN = {
     scale = 0.2;
     await run(scale);
     await freezeWhen((m) => { const u = eval(m); return u.attack.windup > 0 && u.attack.windup < 0.05; }, meU(), 'attack-windup');
-    for (const n of [1, 3, 6]) {
-      await page.evaluate(() => { window.__fx = []; });
-      await freezeOnFx('cleave', n, `attack-cleave${n}`);
+    const atk = ATTACK[HERO] ?? {};
+    if (atk.fx) {
+      for (const n of [1, 3, 6]) {
+        await page.evaluate(() => { window.__fx = []; });
+        await freezeOnFx(atk.fx, n, `attack-${atk.fx}${n}`);
+      }
+    }
+    if (atk.proj) {
+      await freezeWhen((v) => window.__game.session.match.world.projectiles.some((p) => p.visual === v && (p.__seen = (p.__seen ?? 0) + 1) > 4), atk.proj, 'attack-flight');
+      await wait(2500);
+      await shot('attack-after');
     }
   }
   await page.evaluate(() => { window.__game.timeScale = 1; });

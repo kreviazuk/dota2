@@ -5,6 +5,7 @@ import { canLearn } from '../sim/systems/progress';
 export const SKILL_BUILDS: Record<string, AbilitySlot[]> = {
   axe: ['Q', 'E', 'E', 'W', 'E', 'R', 'E', 'Q', 'Q', 'Q', 'R', 'W', 'W', 'W', 'R'],
   sven: ['Q', 'W', 'E', 'W', 'W', 'R', 'W', 'Q', 'Q', 'Q', 'R', 'E', 'E', 'E', 'R'],
+  lina: ['Q', 'W', 'Q', 'E', 'Q', 'R', 'Q', 'W', 'W', 'W', 'R', 'E', 'E', 'E', 'R'],
 };
 
 /** 天赋预设：下标 = 天赋层（10/15/20/25 级），0 = 左 / 1 = 右 */
@@ -13,6 +14,8 @@ export const TALENT_BUILDS: Record<string, (0 | 1)[]> = {
   axe: [0, 1, 0, 0],
   // +5 秒战吼、+25% 分裂、−25% 风暴之拳冷却和魔耗、+50% 神之力量
   sven: [0, 1, 0, 0],
+  // −3 秒龙破斩冷却、+110 光击阵伤害、−20 秒神灭斩冷却、慢热 80% / 5 秒
+  lina: [1, 1, 0, 0],
 };
 
 const DEFAULT_BUILD: AbilitySlot[] = ['Q', 'W', 'E', 'Q', 'W', 'R', 'E', 'Q', 'W', 'E', 'R', 'Q', 'W', 'E', 'R'];

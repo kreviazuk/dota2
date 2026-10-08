@@ -768,6 +768,8 @@ export class Renderer3D implements GameRenderer {
   private buildings = new Map<number, BuildingView>();
   private projs = new Map<number, ProjView>();
   private areas = new Map<number, RingDecal>();
+  /** 区域效果外观要求的第二个贴地圈（AreaVisualCtx.extra） */
+  private areaExtras = new Map<number, RingDecal>();
   private areaPool: RingDecal[] = [];
   private anchors: Anchor[] = [];
   private time = 0;
@@ -891,8 +893,9 @@ export class Renderer3D implements GameRenderer {
     for (const v of this.summons.values()) v.dispose();
     for (const f of this.unitFx.values()) f.dispose();
     for (const p of this.projs.values()) this.removeProj(p);
-    for (const d of this.areas.values()) d.hide();
-    this.areaPool.push(...this.areas.values());
+    for (const d of [...this.areas.values(), ...this.areaExtras.values()]) d.hide();
+    this.areaPool.push(...this.areas.values(), ...this.areaExtras.values());
+    this.areaExtras.clear();
     this.heroes.clear();
     this.creeps.clear();
     this.summons.clear();
@@ -1235,8 +1238,8 @@ export class Renderer3D implements GameRenderer {
       let v = this.projs.get(pr.id);
       if (!v) {
         const d0 = target ? Math.hypot(target.pos.x - pr.pos.x, target.pos.y - pr.pos.y) : pr.maxDistance === Infinity ? 600 : pr.maxDistance;
-        const h0 = groundHeight(pr.pos.x, pr.pos.y) + this.sourceHeight(world, pr);
         const st = projectileStyle(pr.visual);
+        const h0 = groundHeight(pr.pos.x, pr.pos.y) + (st?.height ?? this.sourceHeight(world, pr));
         const obj = new Group();
         if (st) {
           const mesh = this.styleMesh(pr.visual, st);
@@ -1278,7 +1281,8 @@ export class Renderer3D implements GameRenderer {
       }
       if (target) v.h1 = groundHeight(target.pos.x, target.pos.y) + this.heightOf(target) * (target.kind === 'building' ? 0.35 : 0.55);
       const prog = target ? homingProgress(v.d0, Math.hypot(target.pos.x - p.x, target.pos.y - p.y)) : Math.min(1, pr.traveled / Math.max(1, v.d0));
-      const h = projectileHeight(v.h0, v.h1 || v.h0, prog, v.arc);
+      // 固定离地高度的外观（贴地火墙）跟着地形起伏
+      const h = v.style?.height !== undefined ? groundHeight(p.x, p.y) + v.style.height : projectileHeight(v.h0, v.h1 || v.h0, prog, v.arc);
       v.obj.position.set(p.x, h, p.y);
       const st = v.style;
       if (st) {
@@ -1288,6 +1292,10 @@ export class Renderer3D implements GameRenderer {
         if (st.spin) v.mesh!.rotation.x += st.spin * dt;
         else if (st.mesh === 'orb') v.mesh!.rotation.y += dt * 8;
         if (st.scaleWithWidth) v.mesh!.scale.x = (st.size / 14) * Math.max(0.2, pr.width / 100);
+        if (st.emitter && dt > 0) {
+          const dl = Math.hypot(dir.x, dir.y) || 1;
+          st.emitter({ fx: this.fx, x: p.x, y: p.y, h, gy: groundHeight(p.x, p.y), dir: { x: dir.x / dl, y: dir.y / dl }, width: pr.width, traveled: pr.traveled, dt });
+        }
         if (v.chain) this.placeChain(world, pr, v, p, h, alpha);
         v.trail -= dt;
         if (st.trail && v.trail <= 0 && dt > 0) {
@@ -1350,7 +1358,16 @@ export class Renderer3D implements GameRenderer {
       }
       const custom = lookupAreaVisual(e.visual);
       if (custom) {
-        custom(e, { decal: d, fx: this.fx, world, time, dt });
+        const extra = (): RingDecal => {
+          let d2 = this.areaExtras.get(e.id);
+          if (!d2) {
+            d2 = this.areaPool.pop() ?? new RingDecal(false, 3);
+            if (!d2.mesh.parent) this.dyn.add(d2.mesh);
+            this.areaExtras.set(e.id, d2);
+          }
+          return d2;
+        };
+        custom(e, { decal: d, fx: this.fx, world, time, dt, extra });
         continue;
       }
       const k = Math.max(0, 1 - e.elapsed / Math.max(0.001, e.duration));
@@ -1362,6 +1379,11 @@ export class Renderer3D implements GameRenderer {
       d.hide();
       this.areaPool.push(d);
       this.areas.delete(id);
+    }
+    for (const [id, d] of this.areaExtras) if (!seen.has(id)) {
+      d.hide();
+      this.areaPool.push(d);
+      this.areaExtras.delete(id);
     }
   }
 

@@ -14,7 +14,11 @@ import type { RingDecal } from '../decals';
  */
 export type FxEvent = Extract<SimEvent, { type: 'fx' }>;
 
-export interface FxCtx { fx: Fx3D; world: World; cam: Camera3D; heightOf: HeightOf }
+export interface FxCtx {
+  fx: Fx3D; world: World; cam: Camera3D; heightOf: HeightOf;
+  /** 镜头跟随的玩家英雄（没有时 null）：涉及玩家的特效可以加全屏闪光 */
+  playerId: number | null;
+}
 export type FxHandler = (e: FxEvent, c: FxCtx) => void;
 
 const FX = new Map<string, FxHandler>();
@@ -38,12 +42,31 @@ export interface ProjectileStyle {
   trail?: { color: number; every: number; size: number; additive: boolean };
   /** 抛物线高度，缺省按 P1 的 arcFor */
   arc?: number;
+  /** 固定的飞行高度（离地），缺省从施法者的出手高度飞向目标（贴地推进的火墙用） */
+  height?: number;
   /** 弧度 / 秒（绕横轴翻滚） */
   spin?: number;
   /** 从施法者手部画一条链子到弹道（肉钩） */
   chain?: { color: number; width: number };
   /** 直线波：宽度跟随 projectile.width 缩放（基准宽度 100） */
   scaleWithWidth?: boolean;
+  /** 每帧调用的粒子发射器（贴地火墙之类网格做不出来的部分） */
+  emitter?: (c: ProjectileFrameCtx) => void;
+}
+
+/** 弹道外观的逐帧上下文：x / y 是插值后的位置（sim 坐标），h 是弹道的世界高度，gy 是脚下地面高度 */
+export interface ProjectileFrameCtx {
+  fx: Fx3D;
+  x: number;
+  y: number;
+  h: number;
+  gy: number;
+  /** 飞行方向（单位向量，sim 坐标） */
+  dir: { x: number; y: number };
+  /** 直线弹道的碰撞半径（Projectile.width） */
+  width: number;
+  traveled: number;
+  dt: number;
 }
 
 const PROJ = new Map<string, ProjectileStyle>();
@@ -122,7 +145,11 @@ export function registerUnitVisual(v: UnitVisual): void {
 export const unitVisuals = (): readonly UnitVisual[] => UNIT_VISUALS;
 
 // ---------- 区域效果 ----------
-export interface AreaVisualCtx { decal: RingDecal; fx: Fx3D; world: World; time: number; dt: number }
+export interface AreaVisualCtx {
+  decal: RingDecal; fx: Fx3D; world: World; time: number; dt: number;
+  /** 这个区域效果的第二个贴地圈（第一次调用时创建，效果结束时一起回收）：预警圈的内层填充之类 */
+  extra(): RingDecal;
+}
 export type AreaVisual = (e: AreaEffect, c: AreaVisualCtx) => void;
 
 const AREAS = new Map<string, AreaVisual>();

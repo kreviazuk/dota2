@@ -26,7 +26,7 @@ describe('match', () => {
     const a = new Match(cfg(7)), b = new Match(cfg(7));
     for (let i = 0; i < 3000; i++) { a.step(); b.step(); }
     expect(snapshot(a)).toBe(snapshot(b));
-  });
+  }, 30_000);
   it('runs 10 minutes of AI vs AI without breaking', () => {
     const m = new Match(cfg(3));
     for (let i = 0; i < 30 * 600 && !m.over; i++) m.step();

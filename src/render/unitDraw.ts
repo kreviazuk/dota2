@@ -355,11 +355,30 @@ export function drawAreaEffect(ctx: CanvasRenderingContext2D, e: AreaEffect, t: 
   ctx.fill();
 }
 
-/** 注册了 2D 外观的弹道：orb = 发光球，line = 沿飞行方向的短线，arrow = 箭头 */
-function drawStyledProjectile(ctx: CanvasRenderingContext2D, p: Projectile, x: number, y: number, t: number, color: string, size: number, shape: 'orb' | 'line' | 'arrow'): void {
+/** 注册了 2D 外观的弹道：orb = 发光球，line = 沿飞行方向的短线，arrow = 箭头，wave = 宽度跟随碰撞半径的新月形波 */
+function drawStyledProjectile(ctx: CanvasRenderingContext2D, p: Projectile, x: number, y: number, t: number, color: string, size: number, shape: 'orb' | 'line' | 'arrow' | 'wave'): void {
   const dx = p.dir?.x ?? p.pos.x - p.prevPos.x;
   const dy = p.dir?.y ?? p.pos.y - p.prevPos.y;
   const a = Math.atan2(dy, dx);
+  if (shape === 'wave') {
+    const half = Math.max(size, p.width);
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(a);
+    const g = ctx.createLinearGradient(-size * 1.5, 0, size * 0.6, 0);
+    g.addColorStop(0, 'rgba(0,0,0,0)');
+    g.addColorStop(0.6, color);
+    g.addColorStop(1, '#fff3c0');
+    ctx.fillStyle = g;
+    ctx.globalAlpha = 0.85 + 0.15 * Math.sin(t * 25);
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.4, -half);
+    ctx.quadraticCurveTo(size * 1.2, 0, -size * 0.4, half);
+    ctx.quadraticCurveTo(-size * 0.2, 0, -size * 0.4, -half);
+    ctx.fill();
+    ctx.restore();
+    return;
+  }
   if (shape === 'orb') {
     const g = ctx.createRadialGradient(x, y, 1, x, y, size * 2.2);
     g.addColorStop(0, '#fff');

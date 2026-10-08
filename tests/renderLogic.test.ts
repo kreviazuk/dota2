@@ -166,6 +166,14 @@ describe('2D looks, shield bar and status markers', () => {
     expect(HERO_LOOKS.sven).toMatchObject({ body: '#2f4f8f', trim: '#c9d3e2', skin: '#8fa0b5', initial: '斯', weapon: 'greatsword' });
   });
 
+  it('Lina has 2D effects for every fx event, her projectiles and her stacks', () => {
+    for (const k of ['lina_dragon_slave', 'lina_lsa', 'lina_laguna', 'lina_laguna_hit']) expect(lookupFx2D(k)).toBeTypeOf('function');
+    expect(lookupProjectile2D('lina_dragon_slave')?.shape).toBe('wave');
+    expect(lookupProjectile2D('hero:lina')?.color).toBe('#ff8a30');
+    for (const k of ['lina_fiery_soul_stack', 'lina_slow_burn_dot']) expect(lookupModifier2D(k)).toBeTypeOf('function');
+    expect(HERO_LOOKS.lina).toMatchObject({ body: '#e2401e', trim: '#ffb347', skin: '#f0c8a8', initial: '莉', weapon: 'flame' });
+  });
+
   it('status markers follow control states, fear and slows', () => {
     const w = makeWorld();
     const src = spawnDummy(w, { kind: 'hero', team: Team.Radiant });

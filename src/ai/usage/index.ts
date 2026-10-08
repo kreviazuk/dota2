@@ -1,6 +1,7 @@
 import type { AiRule, HeroAiRules } from './types';
 import { AXE_RULES } from './axe';
 import { SVEN_RULES } from './sven';
+import { LINA_RULES } from './lina';
 
 export type { AiCtx, AiDecision, AiRule, HeroAiRules } from './types';
 
@@ -8,6 +9,7 @@ export type { AiCtx, AiDecision, AiRule, HeroAiRules } from './types';
 export const AI_RULES: HeroAiRules = {
   ...AXE_RULES,
   ...SVEN_RULES,
+  ...LINA_RULES,
 };
 
 export const aiRuleFor = (abilityId: string): AiRule | undefined => AI_RULES[abilityId];

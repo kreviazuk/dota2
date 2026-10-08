@@ -7,7 +7,8 @@ import { arcFor, homingProgress, projectileHeight } from '../src/render3d/projec
 import { Bone, MeshBasicMaterial } from 'three';
 import { AXE_SPEC, attackPose, axePose, deathPose, idlePose, releasePose, runPose } from '../src/render3d/models/axe';
 import { SVEN_SPEC, attackPose as svenAttack } from '../src/render3d/models/sven';
-import { lookupFx as fxFor, lookupModifierVisual as modVisual, projectileStyle as projStyle } from '../src/render3d/fx/registry';
+import { LINA_SPEC, attackPose as linaAttack, runPose as linaRun, idlePose as linaIdle } from '../src/render3d/models/lina';
+import { lookupAreaVisual as areaVisual, lookupFx as fxFor, lookupModifierVisual as modVisual, projectileStyle as projStyle } from '../src/render3d/fx/registry';
 import { getHeroDef } from '../src/sim/heroes';
 import '../src/render3d/fx/index';
 import { heroModelIds, heroModelSpec } from '../src/render3d/models/registry';
@@ -272,11 +273,13 @@ describe('hero model registry and shared humanoid rig', () => {
         const si = m.mesh.geometry.getAttribute('skinIndex');
         const sw = m.mesh.geometry.getAttribute('skinWeight');
         expect(si.count).toBeGreaterThan(100);
+        // 逐顶点检查（先计数再断言一次：每个顶点调用 expect 太慢，英雄多了会超时）
+        let bad = 0;
         for (let i = 0; i < si.count; i++) {
-          expect(si.getX(i)).toBeGreaterThanOrEqual(0);
-          expect(si.getX(i)).toBeLessThan(spec.bones.length);
-          expect(sw.getX(i)).toBe(1);
+          const b = si.getX(i);
+          if (b < 0 || b >= spec.bones.length || sw.getX(i) !== 1) bad++;
         }
+        expect(bad).toBe(0);
         expect(m.headHeightWorld).toBeCloseTo(spec.headHeight * spec.scale);
         // 所有部件都挂在存在的骨骼上，名字一一对应
         for (const [name] of spec.bones) expect(m.bones[name]).toBeDefined();
@@ -397,5 +400,57 @@ describe('Sven model', () => {
     expect(projStyle('sven_hammer')?.mesh).toBe('hammer');
     for (const k of ['sven_storm_hammer', 'sven_hammer_hit', 'sven_warcry', 'sven_gods_strength']) expect(fxFor(k)).toBeTypeOf('function');
     for (const k of ['sven_warcry', 'sven_gods_strength']) expect(modVisual(k)).toBeDefined();
+  });
+});
+
+describe('Lina model', () => {
+  const finite = (p: Record<string, number>) => Object.values(p).every(Number.isFinite);
+  it('lina poses are finite for every state and ability', () => {
+    const actives = getHeroDef('lina').abilities.filter((a) => a.targetType !== 'passive').map((a) => a.id);
+    expect(Object.keys(LINA_SPEC.releaseDur).sort()).toEqual([...actives].sort());
+    const states: Partial<AnimInput>[] = [{}, { speed: 300 }, { windup: 0.4 }, { channel: true }, { stunned: true }, { stunned: true, motion: 'knockback' }, { alive: false }, { taunted: true }];
+    for (const inp of states) {
+      const tr = new AnimTracker();
+      tr.update(input(inp), 0.05, 0.5);
+      tr.update(input(inp), 0.3, 0.5);
+      expect(finite(LINA_SPEC.pose(tr, 1.7, null))).toBe(true);
+    }
+    for (const id of Object.keys(LINA_SPEC.releaseDur)) {
+      for (const cp of [0, 0.5, 1]) {
+        const tr = new AnimTracker();
+        tr.update(input({ castAbility: id, castProgress: cp }), 0.05, 0);
+        expect(tr.state).toBe('cast');
+        expect(finite(LINA_SPEC.pose(tr, 0.4, null))).toBe(true);
+      }
+      for (const k of [0, 0.5, 1]) {
+        const tr = new AnimTracker();
+        const dur = LINA_SPEC.releaseDur[id];
+        tr.trigger(id, dur);
+        tr.update(input(), Math.max(1e-3, k * dur * 0.999), 0);
+        expect(tr.state).toBe('release');
+        expect(finite(LINA_SPEC.pose(tr, 0.4, null))).toBe(true);
+      }
+    }
+  });
+
+  it('flings the right hand forward, and the ponytail streams back when running', () => {
+    // 蓄力时右手收到身后，出手时向前平伸
+    expect(linaAttack(0.7).shRX).toBeGreaterThan(0.5);
+    expect(linaAttack(1).shRX).toBeLessThan(-1.3);
+    // 跑动时整条马尾（三节角度之和）向后飘得更平
+    const tail = (p: Record<string, number>) => p.hair1X + p.hair2X + p.hair3X;
+    expect(tail(linaRun(1, 0))).toBeGreaterThan(tail(linaIdle(0)) + 0.35);
+    expect(LINA_SPEC.bones.map((b) => b[0])).toEqual(expect.arrayContaining(['hair1', 'hair2', 'hair3', 'handL', 'handR']));
+    // 头顶高度（血条锚点）在模型的头发尖之上
+    expect(LINA_SPEC.headHeight * LINA_SPEC.scale).toBeGreaterThan(170);
+  });
+
+  it('registers its projectiles, fx events, area and modifier visuals', () => {
+    expect(projStyle('hero:lina')?.mesh).toBe('orb');
+    expect(projStyle('lina_dragon_slave')).toMatchObject({ mesh: 'wave', scaleWithWidth: true, height: 26 });
+    expect(projStyle('lina_dragon_slave')?.emitter).toBeTypeOf('function');
+    for (const k of ['lina_dragon_slave', 'lina_lsa', 'lina_laguna', 'lina_laguna_hit']) expect(fxFor(k)).toBeTypeOf('function');
+    expect(areaVisual('lina_lsa')).toBeTypeOf('function');
+    for (const k of ['lina_fiery_soul_stack', 'lina_slow_burn_dot']) expect(modVisual(k)).toBeDefined();
   });
 });
