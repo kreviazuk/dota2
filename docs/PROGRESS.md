@@ -99,7 +99,7 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
 |---|---|---|
 | 1 | 技能框架扩展 + 天赋系统 + 斧王全部天赋 | ✅ |
 | 2 | 控制状态、强制位移、计时器、隐藏规则 | ✅ |
-| 3 | 战斗扩展（攻击信息、技能发起的攻击、分裂、伪随机、护甲拆分、伤害钩子、护盾、伤害统计） | |
+| 3 | 战斗扩展（攻击信息、技能发起的攻击、分裂、伪随机、护甲拆分、伤害钩子、护盾、伤害统计） | ✅ |
 | 4 | 光环、召唤物、全局死亡钩子 | |
 | 5 | 渲染框架（模型注册表、共用人形骨骼、特效 / 弹道 / 状态外观注册表、2D 后备注册表） | |
 | 6 | AI 框架（技能使用表）、选人补位、调试工具 | |
@@ -118,6 +118,7 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
 
 - Task 1（2026-10-08）：`src/sim/talents.ts`（`pendingTalentTier` / `canPickTalent` / `pickTalent` / `hasTalent` / `pickedTalents`）、`pickTalent` 指令（死亡时也能选）和 `talent` 事件；天赋数值加成支持加值和乘数（技能数值、冷却、魔耗、施法距离、引导时间、充能）、`stats`（隐藏、不可驱散、死亡保留的 `talent:<id>` Modifier）和自定义 `modifier`；技能框架新增先天主动（`innate`）、即时技能（`instant`）、并行充能（`chargeMode: 'parallel'`）、落点吸附（`pointSnap`）、`<键>PerLevel` 按英雄等级成长、施法速度（`castSpeed`）、`defaultToggled`、所有目标类型的 `smartTarget`、`none` 技能透传 `dir`、`aimShape` / `counter` / `inactive` 字段（后两个 Task 7 的 HUD 才用）。斧王 8 个天赋全部生效（10 级 A 按生效中的战斗饥渴数量加移速），AI 按 `TALENT_BUILDS` 选天赋（斧王 `[0, 1, 0, 0]`）。共 208 个测试；`npm run sim -- --games 4 --seed 1` 4 局都正常推掉遗迹（18:21–34:11）。
 - Task 2（2026-10-08）：`src/sim/status.ts`（`applyControl` 眩晕 / 缠绕 / 沉默 / 缴械 / 破坏 / 禁用物品，同类取剩余时间更长的一个；`applySlow` 按 key + 来源刷新、不同 key 或来源叠加，可同时减攻速和魔抗；`applyFear` 支持 `addUpTo` 累加上限；`CONTROL_NAMES`）；`src/sim/systems/motion.ts`（`startMotion` / `endMotion` / `knockback` / `blinkTo` / `motionHeight` / `updateMotion`，`Unit.motion`）；`World.after()` 计时器；`busy` 状态；`isDisabled`（眩晕或禁用行动的位移）替换攻击、移动、施法、回城里的 `hasState('stunned')`；对敌隐藏（`isHiddenFrom`）的单位不能被普攻、不能被技能选中，范围效果照常命中。新的系统顺序：spawner → heroes → buildings → creepAI → abilities → attacks → motion → movement → projectiles → effects → timers → regen。共 228 个测试；`npm run sim -- --games 4 --seed 1` 结果与 Task 1 完全相同（18:21–34:11）。
+- Task 3（2026-10-08）：`AttackInfo` 扩展（`damageMult`、`abilityId`、`noProcs`、`ignoreBaseArmor`、`visual`、`flags`）和 `newAttackInfo()`；`performAttack`（技能发起的攻击，`instant` 立即结算或按 `projectileSpeed` 发追踪弹道，普攻的 `launchAttack` 也走它）、`rollAttackDamage`；`DamageInfo` 新增 `ignoreArmor` / `ignoreBaseArmor` / `noSpellAmp` / `attack` / `preMitigation`；Modifier 新增 `onBeforeDealDamage`（减免前、来源一侧）和 `finalStats`（第三轮属性）；护甲拆成 `baseArmor` + `bonusArmor`；`HeroState.damageDealt`；`src/sim/prd.ts`（`prdC` 二分求常数，与 Dota 表一致：20% → 0.055704、25% → 0.084744）、`src/sim/systems/cleave.ts`（梯形分裂）、`src/sim/shields.ts`（按伤害类型吸收的独立护盾）。新增 `tests/combat.test.ts`（18 个），共 246 个测试；`npm run sim -- --games 4 --seed 1` 结果与 Task 1/2 完全相同（18:21–34:11，随机数调用顺序没有变）。
 
 ## 后续阶段（尚未写实施计划）
 （P2 进行中，见上面）P3 物品与商店 → P4 完整 AI、精英怪、选人、难度 → P5 平衡调参 → P6 特效音效和 Capacitor 打包 APK。详见设计文档 §14。
@@ -203,6 +204,18 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
   - `World.after` 同一次执行中新加入且已经到期的回调（例如 `after(0)`）在同一个 tick 里执行；回调导致分出胜负时停止执行剩余的计时器。
   - `nearestEnemy` 也排除对敌隐藏的单位（目前没有调用者）。
   - 计划要求 PROGRESS 和代码一起提交；实际按任务分派的要求单独提交 `docs: progress (P2 task 2)`。
+
+- P2 Task 3（战斗扩展）：
+  - `noSpellAmp` 同时关闭技能吸血（D11 要求分裂不触发吸血；数箭齐发同样处理）。分裂伤害不是攻击，所以普攻吸血本来就不触发。
+  - 技能发起的攻击把 `atk.abilityId` 也写进 `DamageInfo.abilityId`（`isAttack` 仍为 true，所以不受技能增强、不触发技能吸血）；`noProcs` 的攻击照常触发普攻吸血（计划没写，按 P1 普攻规则）。
+  - `performAttack` 不发 `attackStart` 事件、不引小兵 / 防御塔仇恨（这两件事只在普攻前摇开始时做）；近战攻击者不论 `instant` 都立即结算。
+  - `damageDealt` 只统计对**敌方**单位的伤害（帕吉腐烂之类的自伤不算），按实际扣掉的生命计（溢出伤害不算）；召唤物和精英怪计入 `creeps`。
+  - `onBeforeDealDamage` 对所有带来源的伤害都调用（包括反弹伤害、来源已死亡的弹道），钩子里再调用 `applyDamage` 时要自己用 `abilityId` 防止递归；钩子让目标死亡或变成无敌时这次伤害作废（返回 0）。
+  - `finalStats` 在全部面板（含移速、闪避、施法速度）算完之后、生命 / 魔法按比例缩放之前调用，所以它改最大生命也会按比例调整当前生命；改护甲时需要同时改 `bonusArmor`。
+  - 分裂：主目标方向为零向量（重叠）时用攻击者朝向；不打无敌单位，隐藏单位照常命中（D6）；`applyCleave` 不论有没有命中都发 `fx 'cleave'`（带 `unitId` = 攻击者）。
+  - 护盾的 `addShield` 在目标死亡时返回 `null`（计划签名是 `ModifierInstance`）；护盾不保留到死亡后、可以被弱驱散（Modifier 默认值）；`isShield(m)` 供渲染层的护盾条使用。
+  - `prdRoll` 在 `p ≤ 0` 时不消耗随机数（仍然累加未触发次数）。
+  - 计划要求 PROGRESS 和代码一起提交；实际按任务分派的要求单独提交 `docs: progress (P2 task 3)`。
 
 ## 已知的小问题（推迟处理，不影响功能）
 主要是测试覆盖不足，例如嘲讽/引导期间不能移动、塔的强制目标 3 秒后失效、队伍金钱倍率等没有测试；另有少量写死的常量（小兵攻速 100、伤害 ±2 浮动、出兵阵型偏移）尚未移入 `BALANCE`。
