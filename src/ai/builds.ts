@@ -9,6 +9,7 @@ export const SKILL_BUILDS: Record<string, AbilitySlot[]> = {
   crystal_maiden: ['W', 'Q', 'E', 'Q', 'Q', 'R', 'Q', 'W', 'W', 'W', 'R', 'E', 'E', 'E', 'R'],
   zeus: ['Q', 'W', 'Q', 'E', 'Q', 'R', 'Q', 'W', 'W', 'W', 'R', 'E', 'E', 'E', 'R'],
   drow_ranger: ['W', 'Q', 'E', 'Q', 'E', 'R', 'E', 'Q', 'E', 'Q', 'R', 'W', 'W', 'W', 'R'],
+  phantom_assassin: ['Q', 'W', 'Q', 'E', 'Q', 'R', 'Q', 'E', 'E', 'E', 'R', 'W', 'W', 'W', 'R'],
 };
 
 /** 天赋预设：下标 = 天赋层（10/15/20/25 级），0 = 左 / 1 = 右 */
@@ -25,6 +26,8 @@ export const TALENT_BUILDS: Record<string, (0 | 1)[]> = {
   zeus: [1, 1, 0, 0],
   // −18% 霜冻之箭魔耗、+75 攻击距离、+25% 数箭齐发伤害、+8% 射手天赋几率
   drow_ranger: [0, 0, 1, 0],
+  // −2 秒窒碍短匕冷却、+20% 飘忽不定闪避、+60 幻影突袭攻速、+10% 恩赐解脱几率
+  phantom_assassin: [1, 0, 1, 0],
 };
 
 const DEFAULT_BUILD: AbilitySlot[] = ['Q', 'W', 'E', 'Q', 'W', 'R', 'E', 'Q', 'W', 'E', 'R', 'Q', 'W', 'E', 'R'];

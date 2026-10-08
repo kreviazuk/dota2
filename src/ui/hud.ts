@@ -383,6 +383,7 @@ export class Hud {
     g.fillStyle = '#2a6f86';
     g.fillRect(0, (MAP.riverY - MAP.riverHalf) * sy, W, MAP.riverHalf * 2 * sy);
     const w = this.match.world;
+    const viewer = w.getUnit(this.match.playerUnitId)?.team ?? Team.Radiant;
     for (const u of w.units) {
       if (u.removed) continue;
       const x = u.pos.x * sx, y = u.pos.y * sy;
@@ -393,7 +394,8 @@ export class Hud {
         const s = (u.building?.type === 'ancient' ? 12 : 8) * k;
         g.fillRect(x - s / 2, y - s / 2, s, s);
       } else if (u.kind === 'hero') {
-        if (!u.alive) continue;
+        // 对玩家一方隐藏的敌方英雄（魅影无形）不画
+        if (!u.alive || (u.team !== viewer && u.hasState('hidden'))) continue;
         g.fillStyle = col;
         g.beginPath();
         g.arc(x, y, 5 * k, 0, Math.PI * 2);

@@ -33,9 +33,16 @@ const PLAN = {
   zeus_thundergods_wrath: { fx: [['zeus_wrath', 1, 'flash'], ['zeus_wrath_hit', 5, 'hit']], afterMs: 2500 },
   drow_gust: { proj: 'drow_gust', fx: [['drow_gust', 10, 'push']] },
   drow_multishot: { proj: 'drow_multishot', fx: [['drow_multishot', 3, 'start'], ['drow_multishot', 150, 'wave2']], afterMs: 1500 },
+  pa_stifling_dagger: { proj: 'pa_dagger', fx: [['pa_stifling_dagger', 3, 'release']] },
+  pa_phantom_strike: { fx: [['pa_phantom_strike', 2, 'strike'], ['pa_phantom_strike', 10, 'strike2']] },
+  pa_blur: { fx: [['pa_blur', 3, 'release'], ['pa_blur', 40, 'blur']], afterMs: 2500 },
 };
 /** 普攻（被动）要截的时刻：分裂斩痕（fx）或普攻弹道（proj） */
-const ATTACK = { sven: { fx: 'cleave' }, lina: { proj: 'hero:lina' }, crystal_maiden: { proj: 'hero:crystal_maiden' }, zeus: { proj: 'hero:zeus' }, drow_ranger: { proj: 'drow_frost_arrow' } };
+// prep：开始普攻前在页面里执行的代码（me = 玩家英雄）。幻刺：一直把恩赐解脱的伪随机计数拉满，每隔一刀必定暴击
+const ATTACK = {
+  sven: { fx: 'cleave' }, lina: { proj: 'hero:lina' }, crystal_maiden: { proj: 'hero:crystal_maiden' }, zeus: { proj: 'hero:zeus' }, drow_ranger: { proj: 'drow_frost_arrow' },
+  phantom_assassin: { fx: 'pa_crit', prep: "setInterval(() => { const m = me.modifiers.find((x) => x.def.id === 'pa_coup_de_grace'); if (m) m.data.prd = 100; }, 30)" },
+};
 
 (async () => {
   const browser = await chromium.launch({
@@ -198,10 +205,11 @@ const ATTACK = { sven: { fx: 'cleave' }, lina: { proj: 'hero:lina' }, crystal_ma
       }
       w.issue(me.id, { type: 'attack', mode: 'smart', targetId: t.id });
     }, setup.foes[0]);
+    const atk = ATTACK[HERO] ?? {};
+    if (atk.prep) await page.evaluate(([m, code]) => { const me = eval(m); void me; eval(code); }, [meU(), atk.prep]);
     scale = 0.2;
     await run(scale);
     await freezeWhen((m) => { const u = eval(m); return u.attack.windup > 0 && u.attack.windup < 0.05; }, meU(), 'attack-windup');
-    const atk = ATTACK[HERO] ?? {};
     if (atk.fx) {
       for (const n of [1, 3, 6]) {
         await page.evaluate(() => { window.__fx = []; });

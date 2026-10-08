@@ -11,6 +11,7 @@ import { LINA_SPEC, attackPose as linaAttack, runPose as linaRun, idlePose as li
 import { CM_SPEC } from '../src/render3d/models/crystal_maiden';
 import { ZEUS_SPEC, attackPose as zeusAttack, jumpPose as zeusJump, runPose as zeusRun, idlePose as zeusIdle } from '../src/render3d/models/zeus';
 import { DROW_SPEC, attackPose as drowAttack, multishotPose as drowMultishot, runPose as drowRun, idlePose as drowIdle } from '../src/render3d/models/drow_ranger';
+import { PA_SPEC, BLADE_LEN, attackPose as paAttack, idlePose as paIdle, runPose as paRun } from '../src/render3d/models/phantom_assassin';
 import { Fx3D } from '../src/render3d/fx3d';
 import { lookupAreaVisual as areaVisual, lookupFx as fxFor, lookupModifierVisual as modVisual, projectileStyle as projStyle } from '../src/render3d/fx/registry';
 import { getHeroDef } from '../src/sim/heroes';
@@ -688,5 +689,89 @@ describe('Drow Ranger model', () => {
     expect(projStyle('drow_gust')).toMatchObject({ mesh: 'wave', scaleWithWidth: true });
     for (const k of ['drow_gust', 'drow_multishot']) expect(fxFor(k)).toBeTypeOf('function');
     for (const k of ['drow_marksmanship', 'drow_precision_aura_buff']) expect(modVisual(k)).toBeDefined();
+  });
+});
+
+describe('Phantom Assassin model', () => {
+  const finite = (p: Record<string, number>) => Object.values(p).every(Number.isFinite);
+  it('phantom_assassin poses are finite for every state and ability', () => {
+    const actives = getHeroDef('phantom_assassin').abilities.filter((a) => a.targetType !== 'passive').map((a) => a.id);
+    expect(Object.keys(PA_SPEC.releaseDur).sort()).toEqual([...actives].sort());
+    const states: Partial<AnimInput>[] = [
+      {}, { speed: 300 }, { windup: 0.2 }, { channel: true }, { stunned: true }, { stunned: true, motion: 'knockback' }, { alive: false }, { taunted: true },
+    ];
+    for (const inp of states) {
+      const tr = new AnimTracker();
+      tr.update(input(inp), 0.05, 0.5);
+      tr.update(input(inp), 0.3, 0.5);
+      expect(finite(PA_SPEC.pose(tr, 1.7, null))).toBe(true);
+    }
+    for (const id of Object.keys(PA_SPEC.releaseDur)) {
+      for (const cp of [0, 0.5, 1]) {
+        const tr = new AnimTracker();
+        tr.update(input({ castAbility: id, castProgress: cp }), 0.05, 0);
+        expect(tr.state).toBe('cast');
+        expect(finite(PA_SPEC.pose(tr, 0.4, null))).toBe(true);
+      }
+    }
+    // 技能释放和暴击（fxTriggers）的一次性动作
+    const triggers: [string, number][] = [
+      ...Object.entries(PA_SPEC.releaseDur),
+      ...Object.values(PA_SPEC.fxTriggers ?? {}).map((t) => [t.kind, t.dur] as [string, number]),
+    ];
+    expect(PA_SPEC.fxTriggers?.pa_crit).toEqual({ kind: 'crit', dur: 0.4 });
+    for (const [kind, dur] of triggers) {
+      for (const k of [0, 0.5, 1]) {
+        const tr = new AnimTracker();
+        tr.trigger(kind, dur);
+        tr.update(input(), Math.max(1e-3, k * dur * 0.999), 0);
+        expect(tr.state).toBe('release');
+        expect(finite(PA_SPEC.pose(tr, 0.4, null))).toBe(true);
+      }
+    }
+    for (const p of [0, 0.3, 0.5, 0.8, 1]) {
+      expect(finite(paAttack(p))).toBe(true);
+      expect(finite(paAttack(p, true))).toBe(true);
+    }
+  });
+
+  /** 摆好姿势后，某根骨骼上一点在模型空间的位置 */
+  const pointOn = (pose: Record<string, number>, bone: string, local: [number, number, number]): Vector3 => {
+    const m = new SkinnedHeroModel(PA_SPEC, 0, new MeshBasicMaterial());
+    applyHumanoid(m.bones as Record<string, Bone>, pose, PA_SPEC.bindRotations);
+    m.root.updateMatrixWorld(true);
+    const inv = m.root.matrixWorld.clone().invert();
+    return new Vector3(...local).applyMatrix4(m.bones[bone].matrixWorld).applyMatrix4(inv);
+  };
+
+  it('holds the long blade in the right hand and the dagger in the left; the attack lunges the blade straight forward', () => {
+    expect(PA_SPEC.bones.find((b) => b[0] === 'blade')?.[1]).toBe('handR');
+    expect(PA_SPEC.bones.find((b) => b[0] === 'dagger')?.[1]).toBe('handL');
+    expect(PA_SPEC.bones.find((b) => b[0] === 'cloak1')?.[1]).toBe('torso');
+    expect(PA_SPEC.bones.find((b) => b[0] === 'cloak2')?.[1]).toBe('cloak1');
+    // 站立：刀尖在右前下方（模型 +X 是左手边），离地不远但不穿地
+    const tip = pointOn(paIdle(0), 'blade', [0, BLADE_LEN, 0]);
+    expect(tip.x).toBeLessThan(-40);
+    expect(tip.z).toBeGreaterThan(60);
+    expect(tip.y).toBeGreaterThan(5);
+    // 普攻出手：刀尖在正前方、齐胸高
+    const hand = pointOn(paAttack(1), 'blade', [0, 0, 0]);
+    const hit = pointOn(paAttack(1), 'blade', [0, BLADE_LEN, 0]);
+    expect(hit.z - hand.z).toBeGreaterThan(BLADE_LEN * 0.9);
+    expect(hit.y).toBeGreaterThan(55);
+    // 奔跑时长剑拖在身后
+    expect(pointOn(paRun(0, 0), 'blade', [0, BLADE_LEN, 0]).z).toBeLessThan(-60);
+    // 跑动时斗篷向后飘得更高
+    expect(paRun(1, 0).cloak1X).toBeGreaterThan(paIdle(0).cloak1X + 0.4);
+    expect(PA_SPEC.headHeight).toBeCloseTo(170, -1);
+    expect(PA_SPEC.scale).toBe(1.2);
+    expect(PA_SPEC.rim).toBeDefined();
+  });
+
+  it('registers the dagger projectile, fx events and modifier visuals', () => {
+    expect(projStyle('pa_dagger')?.mesh).toBe('dagger');
+    expect(projStyle('pa_dagger')?.spin).toBeGreaterThan(0);
+    for (const k of ['pa_stifling_dagger', 'pa_phantom_strike', 'pa_crit', 'pa_blur']) expect(fxFor(k)).toBeTypeOf('function');
+    for (const k of ['pa_deadly_focus', 'pa_blur']) expect(modVisual(k)).toBeDefined();
   });
 });

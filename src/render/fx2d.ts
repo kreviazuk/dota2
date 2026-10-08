@@ -344,3 +344,57 @@ registerModifier2D('drow_precision_aura_buff', (ctx, u, _m, x, y, t) => {
   ctx.ellipse(x, y, u.radius * 1.4, u.radius * 0.8, 0, 0, Math.PI * 2);
   ctx.stroke();
 });
+
+// ---------- 幻影刺客 ----------
+registerProjectile2D('pa_dagger', { color: '#e6def4', size: 9, shape: 'arrow' });
+
+/** 窒碍短匕出手：手边一点淡紫闪光 */
+registerFx2D('pa_stifling_dagger', (fx, e) => {
+  fx.burst(e.pos.x, e.pos.y - 20, 8, 'rgba(201,176,230,0.95)', 140, 4, 0.25);
+});
+
+/** 幻影突袭：起点和终点各一团紫色烟雾 + 圈 */
+registerFx2D('pa_phantom_strike', (fx, e, world) => {
+  const u = world.getUnit(e.unitId);
+  for (const p of u ? [e.pos, u.pos] : [e.pos]) {
+    fx.burst(p.x, p.y, 16, 'rgba(138,78,200,0.9)', 160, 8, 0.5, false);
+    fx.ring(p.x, p.y, 10, 70, 'rgba(138,78,200,', 0.4, 8);
+  }
+});
+
+/** 暴击：目标身上两道交叉的红色斩痕 + 血雾 */
+registerFx2D('pa_crit', (fx, e, world, cam) => {
+  const t = world.getUnit(e.targetId);
+  const p = t?.pos ?? e.pos;
+  fx.slash(p.x, p.y - 20, -0.8, 90, '#e81e1e', 0.35);
+  fx.slash(p.x, p.y - 20, 0.8, 90, '#e81e1e', 0.35);
+  fx.burst(p.x, p.y - 20, 18, 'rgba(170,10,20,0.95)', 200, 6, 0.5, false);
+  if (cam.visible(p)) cam.shake(6);
+});
+
+/** 魅影无形：紫色爆散 + 圈 */
+registerFx2D('pa_blur', (fx, e, world) => {
+  const p = world.getUnit(e.unitId)?.pos ?? e.pos;
+  fx.burst(p.x, p.y, 22, 'rgba(138,78,200,0.9)', 220, 7, 0.45, false);
+  fx.ring(p.x, p.y, 15, 130, 'rgba(201,176,230,', 0.4, 8);
+});
+
+/** 致命专注：脚下一圈跳动的红色虚线 */
+registerModifier2D('pa_deadly_focus', (ctx, u, _m, x, y, t) => {
+  ctx.strokeStyle = `rgba(230,30,30,${0.6 + 0.3 * Math.sin(t * 9)})`;
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash([6, 5]);
+  ctx.beginPath();
+  ctx.ellipse(x, y, u.radius * 1.5, u.radius * 0.85, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+});
+
+/** 魅影无形：脚下淡紫色的圈 */
+registerModifier2D('pa_blur', (ctx, u, _m, x, y, t) => {
+  ctx.strokeStyle = `rgba(201,176,230,${0.5 + 0.15 * Math.sin(t * 3)})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(x, y, u.radius * 1.7, u.radius * 1, 0, 0, Math.PI * 2);
+  ctx.stroke();
+});

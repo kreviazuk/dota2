@@ -193,6 +193,13 @@ describe('2D looks, shield bar and status markers', () => {
     expect(HERO_LOOKS.drow_ranger).toMatchObject({ body: '#5fb0d8', trim: '#e6f4ff', skin: '#a8c8e0', initial: '卓', weapon: 'bow' });
   });
 
+  it('Phantom Assassin has a 2D dagger, effects for every fx event, and Deadly Focus / Blur rings', () => {
+    for (const k of ['pa_stifling_dagger', 'pa_phantom_strike', 'pa_crit', 'pa_blur']) expect(lookupFx2D(k)).toBeTypeOf('function');
+    expect(lookupProjectile2D('pa_dagger')?.color).toBe('#e6def4');
+    for (const k of ['pa_deadly_focus', 'pa_blur']) expect(lookupModifier2D(k)).toBeTypeOf('function');
+    expect(HERO_LOOKS.phantom_assassin).toMatchObject({ body: '#6b3a8f', trim: '#c9b0e6', skin: '#d8c8e8', initial: '幻', weapon: 'blades' });
+  });
+
   it('Zeus has 2D effects for every fx event and his projectile, and Wrath flashes the 2D screen', () => {
     for (const k of ['zeus_arc', 'zeus_bolt', 'zeus_jump', 'zeus_jump_shock', 'zeus_wrath', 'zeus_wrath_hit', 'zeus_static']) expect(lookupFx2D(k)).toBeTypeOf('function');
     expect(lookupProjectile2D('hero:zeus')?.color).toBe('#a8dcff');

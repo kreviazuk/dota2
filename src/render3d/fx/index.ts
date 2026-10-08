@@ -14,3 +14,5 @@ import '../models/zeus';
 import './zeus';
 import '../models/drow_ranger';
 import './drow_ranger';
+import '../models/phantom_assassin';
+import './phantom_assassin';

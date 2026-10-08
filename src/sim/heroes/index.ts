@@ -5,6 +5,7 @@ import { LINA } from './lina';
 import { CRYSTAL_MAIDEN } from './crystal_maiden';
 import { ZEUS } from './zeus';
 import { DROW_RANGER } from './drow_ranger';
+import { PHANTOM_ASSASSIN } from './phantom_assassin';
 
 const REGISTRY = new Map<string, HeroDef>();
 
@@ -28,3 +29,4 @@ registerHero(LINA);
 registerHero(CRYSTAL_MAIDEN);
 registerHero(ZEUS);
 registerHero(DROW_RANGER);
+registerHero(PHANTOM_ASSASSIN);

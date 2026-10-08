@@ -5,6 +5,7 @@ import { LINA_RULES } from './lina';
 import { CM_RULES } from './crystal_maiden';
 import { ZEUS_RULES } from './zeus';
 import { DROW_RULES } from './drow_ranger';
+import { PA_RULES } from './phantom_assassin';
 
 export type { AiCtx, AiDecision, AiRule, HeroAiRules } from './types';
 
@@ -16,6 +17,7 @@ export const AI_RULES: HeroAiRules = {
   ...CM_RULES,
   ...ZEUS_RULES,
   ...DROW_RULES,
+  ...PA_RULES,
 };
 
 export const aiRuleFor = (abilityId: string): AiRule | undefined => AI_RULES[abilityId];

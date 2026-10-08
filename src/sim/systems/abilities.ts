@@ -88,8 +88,10 @@ export function canCast(world: World, caster: Unit, ab: AbilityInstance): boolea
   return isReady(ab, caster) && caster.mana + 1e-6 >= abilityManaCost(ab, caster);
 }
 
+/** 能否被这个单位技能选为目标；"敌我皆可"（'any'）的技能不能以施法者自己为目标（幻影突袭） */
 export const isValidUnitTarget = (caster: Unit, ab: AbilityInstance, t: Unit): boolean =>
-  isTargetableBy(caster, t, ab.def.targetTeam ?? 'enemy', !!ab.def.ignoresDebuffImmune) && (!ab.def.heroesOnly || t.kind === 'hero');
+  isTargetableBy(caster, t, ab.def.targetTeam ?? 'enemy', !!ab.def.ignoresDebuffImmune) && (!ab.def.heroesOnly || t.kind === 'hero') &&
+  !(ab.def.targetTeam === 'any' && t.id === caster.id);
 
 /** pointSnap：把"origin → 落点"的距离吸附到最近的一档（方向不变；距离为 0 时用 fallbackDir） */
 export function snapPoint(origin: Vec2, fallbackDir: Vec2, steps: readonly number[], p: Vec2): Vec2 {
