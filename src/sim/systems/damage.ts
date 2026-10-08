@@ -1,6 +1,7 @@
 import type { DamageType } from '../core/types';
 import type { Unit } from '../entities/unit';
 import type { World } from '../world';
+import type { AttackInfo } from './attack';
 import { armorMultiplier } from '../formulas';
 import { removeModifiersOnDeath } from '../modifiers';
 import { cancelCast } from './abilities';
@@ -20,6 +21,16 @@ export interface DamageInfo {
   ignoreImmunity?: boolean;
   /** 反弹伤害：不会再次触发反弹，也不触发技能吸血 */
   reflected?: boolean;
+  /** 物理伤害无视护甲（分裂） */
+  ignoreArmor?: boolean;
+  /** 物理伤害只按目标的 bonusArmor 计算（射手天赋） */
+  ignoreBaseArmor?: boolean;
+  /** 带 abilityId 但不受技能增强、不触发技能吸血（分裂、数箭齐发） */
+  noSpellAmp?: boolean;
+  /** 普攻（含技能发起的攻击）的攻击信息 */
+  attack?: AttackInfo;
+  /** applyDamage 写入：攻击类型系数和技能增强之后、护甲 / 魔抗之前的数值 */
+  preMitigation?: number;
 }
 
 /** 结算一次伤害，返回实际造成的伤害 */
@@ -29,27 +40,44 @@ export function applyDamage(world: World, info: DamageInfo): number {
   const src = info.source;
   let amt = info.amount;
   if (src && info.isAttack) amt *= world.balance.damageMatrix[src.attackClass][t.armorClass];
-  if (src && !info.isAttack && info.abilityId) amt *= 1 + src.stats.spellAmp;
+  if (src && !info.isAttack && info.abilityId && !info.noSpellAmp) amt *= 1 + src.stats.spellAmp;
+  info.preMitigation = amt;
+  if (src) {
+    for (const m of src.modifiers.slice()) {
+      m.def.onBeforeDealDamage?.(m, src, t, world, info);
+      if (!t.alive || t.removed) return 0;
+    }
+    if (t.hasState('invulnerable')) return 0;
+  }
   if (!info.isAttack && info.type === 'pure' && t.hasState('debuffImmune') && !info.ignoreImmunity && (!src || src.team !== t.team)) return 0;
-  if (info.type === 'physical') amt *= armorMultiplier(t.stats.armor);
+  if (info.type === 'physical' && !info.ignoreArmor) amt *= armorMultiplier(info.ignoreBaseArmor ? t.stats.bonusArmor : t.stats.armor);
   else if (info.type === 'magical') amt *= 1 - t.stats.magicResist;
   info.amount = Math.max(0, amt);
   for (const m of t.modifiers.slice()) m.def.onIncomingDamage?.(m, t, world, info);
   amt = Math.max(0, info.amount);
   if (amt <= 0) return 0;
   if (info.nonLethal && t.hp - amt < 1) amt = Math.max(0, t.hp - 1);
+  const hpLost = Math.min(amt, Math.max(0, t.hp));
   t.hp -= amt;
   if (t.hero) t.hero.lastDamagedTime = world.time;
   if (src && src.kind === 'hero' && src.team !== t.team) {
     t.lastHeroDamage = { heroId: src.id, time: world.time };
     t.heroDamageTimes.set(src.id, world.time);
+    if (src.hero) {
+      const dd = src.hero.damageDealt;
+      if (t.kind === 'hero') dd.heroes += hpLost;
+      else if (t.kind === 'building') dd.buildings += hpLost;
+      else dd.creeps += hpLost;
+    }
   }
   world.events.emit({
     type: 'damage', sourceId: src?.id ?? null, targetId: t.id, amount: amt, damageType: info.type,
     crit: !!info.crit, isAttack: info.isAttack,
   });
   if (src) for (const m of src.modifiers.slice()) m.def.onDealtDamage?.(m, src, t, world, info);
-  if (src && !info.isAttack && info.abilityId && !info.reflected && src.stats.spellLifesteal > 0 && src.alive) heal(world, src, amt * src.stats.spellLifesteal);
+  if (src && !info.isAttack && info.abilityId && !info.reflected && !info.noSpellAmp && src.stats.spellLifesteal > 0 && src.alive) {
+    heal(world, src, amt * src.stats.spellLifesteal);
+  }
   if (t.hp <= 0.0001 && t.alive) killUnit(world, t, src);
   return amt;
 }

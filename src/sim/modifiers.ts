@@ -64,6 +64,8 @@ export interface ModifierDef {
   stats?: StatBonus | ((m: ModifierInstance, owner: Unit, world: World) => StatBonus);
   /** 第二轮属性：可以读取第一轮算出的面板（例如斧王一人之军按护甲加力量） */
   lateStats?: (m: ModifierInstance, owner: Unit, world: World, s: ComputedStats) => { str?: number; agi?: number; int?: number };
+  /** 第三轮：面板全部算完后直接修改 s（神之愤怒按力量加攻击力）；改护甲时同时改 bonusArmor */
+  finalStats?: (m: ModifierInstance, owner: Unit, world: World, s: ComputedStats) => void;
   interval?: number;
   onInterval?: Hook<[owner: Unit, world: World]>;
   onTick?: Hook<[owner: Unit, world: World, dt: number]>;
@@ -71,12 +73,14 @@ export interface ModifierDef {
   onRemove?: Hook<[owner: Unit, world: World]>;
   /** owner 是攻击者：出手时（可以设置暴击） */
   onAttackStart?: Hook<[owner: Unit, target: Unit, world: World, atk: AttackInfo]>;
-  /** owner 是攻击者：攻击命中并结算伤害后 */
+  /** owner 是攻击者：攻击命中并结算伤害后（info.attack 一定存在；noProcs 的攻击不调用） */
   onAttackLanded?: Hook<[owner: Unit, target: Unit, world: World, info: DamageInfo]>;
   /** owner 是被攻击者：被攻击命中并结算伤害后 */
   onAttacked?: Hook<[owner: Unit, attacker: Unit, world: World, info: DamageInfo]>;
   /** owner 是受伤者：减免后、扣血前，可修改 info.amount（护盾、格挡） */
   onIncomingDamage?: Hook<[owner: Unit, world: World, info: DamageInfo]>;
+  /** owner 是伤害来源：减免之前调用（info.preMitigation 已写入）。可以自己再调用 applyDamage（注意用 abilityId 防止递归）；目标在钩子里死亡则这次伤害作废 */
+  onBeforeDealDamage?: Hook<[owner: Unit, target: Unit, world: World, info: DamageInfo]>;
   /** owner 是伤害来源：扣血后 */
   onDealtDamage?: Hook<[owner: Unit, target: Unit, world: World, info: DamageInfo]>;
   onKill?: Hook<[owner: Unit, victim: Unit, world: World]>;

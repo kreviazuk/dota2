@@ -6,7 +6,12 @@ import { attackInterval, clamp, combineMultiplicative, scaledAttackPoint } from 
 export interface ComputedStats {
   str: number; agi: number; int: number;
   maxHp: number; hpRegen: number; maxMana: number; manaRegen: number;
+  /** armor = baseArmor + bonusArmor */
   armor: number; magicResist: number;
+  /** 基础护甲 + 敏捷护甲 */
+  baseArmor: number;
+  /** Modifier 提供的护甲（可以为负） */
+  bonusArmor: number;
   damageMin: number; damageMax: number; bonusDamage: number;
   attackSpeed: number; attackInterval: number; attackPoint: number; attackRange: number;
   moveSpeed: number;
@@ -20,7 +25,7 @@ export interface ComputedStats {
 }
 
 export const emptyStats = (): ComputedStats => ({
-  str: 0, agi: 0, int: 0, maxHp: 0, hpRegen: 0, maxMana: 0, manaRegen: 0, armor: 0, magicResist: 0,
+  str: 0, agi: 0, int: 0, maxHp: 0, hpRegen: 0, maxMana: 0, manaRegen: 0, armor: 0, magicResist: 0, baseArmor: 0, bonusArmor: 0,
   damageMin: 0, damageMax: 0, bonusDamage: 0, attackSpeed: 100, attackInterval: 1, attackPoint: 0, attackRange: 0,
   moveSpeed: 0, evasion: 0, lifesteal: 0, spellAmp: 0, spellLifesteal: 0, castRangeBonus: 0, statusResist: 0,
   slowResist: 0, castSpeed: 0, states: new Set(), tauntedBy: null, fearedBy: null,
@@ -71,7 +76,9 @@ function derive(world: World, u: Unit, s: ComputedStats, acc: Acc, str: number, 
   s.hpRegen = (u.base.hpRegen + (h ? str * hb.hpRegenPerStr : 0) + f.hpRegen) * (1 + f.hpRegenAmp);
   s.maxMana = u.base.maxMana + (h ? int * hb.manaPerInt : 0) + f.maxMana;
   s.manaRegen = (u.base.manaRegen + (h ? int * hb.manaRegenPerInt : 0) + f.manaRegen) * (1 + f.manaRegenAmp);
-  s.armor = u.base.armor + (h ? agi * hb.armorPerAgi : 0) + f.armor;
+  s.baseArmor = u.base.armor + (h ? agi * hb.armorPerAgi : 0);
+  s.bonusArmor = f.armor;
+  s.armor = s.baseArmor + s.bonusArmor;
   const baseMr = h ? u.base.magicResist + int * hb.magicResistPerInt : u.base.magicResist;
   s.magicResist = combineMultiplicative([baseMr, ...acc.mr]);
   const primary = h ? (h.attrs.primary === 'str' ? str : h.attrs.primary === 'agi' ? agi : int) : 0;
@@ -137,6 +144,8 @@ export function recomputeStats(world: World, u: Unit): void {
   s.spellLifesteal = acc.flat.spellLifesteal;
   s.castRangeBonus = acc.flat.castRange;
   s.castSpeed = acc.flat.castSpeed;
+  // 第三轮：面板算完后直接修改（不再重算属性）
+  for (const m of u.modifiers) m.def.finalStats?.(m, u, world, s);
 
   if (oldMaxHp > 0 && s.maxHp !== oldMaxHp && u.alive) u.hp = (u.hp / oldMaxHp) * s.maxHp;
   if (oldMaxMana > 0 && s.maxMana !== oldMaxMana) u.mana = (u.mana / oldMaxMana) * s.maxMana;
