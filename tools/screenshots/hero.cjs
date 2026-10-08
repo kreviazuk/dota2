@@ -52,8 +52,8 @@ const PLAN = {
 const ATTACK = {
   sven: { fx: 'cleave' }, lina: { proj: 'hero:lina' }, crystal_maiden: { proj: 'hero:crystal_maiden' }, zeus: { proj: 'hero:zeus' }, drow_ranger: { proj: 'drow_frost_arrow' },
   phantom_assassin: { fx: 'pa_crit', prep: "setInterval(() => { const m = me.modifiers.find((x) => x.def.id === 'pa_coup_de_grace'); if (m) m.data.prd = 100; }, 30)" },
-  // 主宰：一直把剑舞的伪随机计数拉满（每一刀都暴击），截暴击飘字
   shadow_fiend: { proj: 'hero:shadow_fiend' },
+  // 主宰：一直把剑舞的伪随机计数拉满（每一刀都暴击），截暴击飘字
   juggernaut: { prep: "setInterval(() => { const m = me.modifiers.find((x) => x.def.id === 'jugg_blade_dance'); if (m) m.data.prd = 100; }, 30)" },
 };
 
