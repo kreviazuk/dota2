@@ -155,6 +155,7 @@ const OMNISLASH: ModifierDef = {
   stats: (m) => ({ attackSpeed: m.data.as ?? 0, bonusDamage: m.data.dmg ?? 0 }),
   onTick: (m: ModifierInstance, owner, world, dt) => {
     m.data.timer = (m.data.timer ?? 0) - dt;
+    // 攻速很高时一个逻辑帧里可以连斩好几刀；间隔 ≥ 100 / 700（攻速上限），所以循环次数有界
     while (m.data.timer <= 1e-6 && owner.modifiers.includes(m)) {
       const t = pickSlashTarget(world, owner, m.data.radius ?? 0);
       // 附近没有目标：提前结束

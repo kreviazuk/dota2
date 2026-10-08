@@ -171,6 +171,8 @@ describe('Juggernaut', () => {
     const enemy = foe(w, 1300, 4950, { hp: 2000 });
     ally.hp = 1000;
     farAlly.hp = 1000;
+    const allyCreep = spawnDummy(w, { kind: 'creep', team: Team.Radiant, pos: { x: 1300, y: 5050 }, base: { maxHp: 600, hpRegen: 0 } });
+    allyCreep.hp = 300;
     enemy.hp = 1000;
     w.events.drain();
     w.issue(j.id, { type: 'cast', slot: 'W' });
@@ -195,6 +197,7 @@ describe('Juggernaut', () => {
     runFor(w, 2);
     expect(ally.hp - h0).toBeCloseTo(2000 * 0.05 * 2, -1);
     expect(farAlly.hp).toBe(1000);
+    expect(allyCreep.hp - 300).toBeCloseTo(600 * 0.05 * 2, 0);
     expect(enemy.hp).toBe(1000);
     // 跟随主宰
     w.issue(j.id, { type: 'moveTo', point: { x: 1500, y: 4000 } });
@@ -207,6 +210,20 @@ describe('Juggernaut', () => {
     const e2 = foe(w, ward.pos.x + 60, ward.pos.y, { damage: 1 });
     performAttack(w, e2, ward);
     expect(ward.alive).toBe(false);
+
+    // 摧毁守卫没有赏金：敌方英雄一刀打掉，金钱和经验不变（D17）
+    const w3 = makeWorld();
+    const j3 = heroAt(w3, JUGG, { x: 1500, y: 5000 }, { levels: { W: 1 } });
+    w3.issue(j3.id, { type: 'cast', slot: 'W' });
+    runFor(w3, 0.35);
+    const ward3 = w3.units.find((u) => u.defId === 'jugg_healing_ward')!;
+    const killer = heroAt(w3, 'axe', { x: ward3.pos.x, y: ward3.pos.y - 100 }, { team: Team.Dire });
+    const gold0 = killer.hero!.gold;
+    const xp0 = killer.hero!.xp;
+    performAttack(w3, killer, ward3);
+    expect(ward3.alive).toBe(false);
+    expect(killer.hero!.gold).toBe(gold0);
+    expect(killer.hero!.xp).toBe(xp0);
 
     // 到期消失
     const w2 = makeWorld();
@@ -279,6 +296,34 @@ describe('Juggernaut', () => {
     const hits2 = damageEvents(w2).filter((d) => d.sourceId === j2.id && d.isAttack);
     expect(hits2.length).toBeGreaterThan(3);
     expect(hits2.every((d) => d.targetId === hero.id)).toBe(true);
+
+    // 斩击是攻击：100% 闪避的目标一刀都不掉血（发 miss 事件）
+    const w4 = makeWorld(2);
+    const j4 = heroAt(w4, JUGG, { x: 1500, y: 5000 }, { levels: { R: 3 } });
+    const dodger = foe(w4, 1500, 4700, { hp: 1e6 });
+    addModifier(w4, dodger, { id: 'test_evade', stats: { evasion: 1 } });
+    w4.events.drain();
+    w4.issue(j4.id, { type: 'cast', slot: 'R', target: { unitId: dodger.id } });
+    runFor(w4, 2);
+    const ev4 = w4.events.drain();
+    expect(ev4.filter((x) => x.type === 'miss' && x.attackerId === j4.id && x.targetId === dodger.id).length).toBeGreaterThan(2);
+    expect(dodger.hp).toBe(1e6);
+
+    // 学了剑舞时斩击会暴击（把伪随机计数拉满，下一刀必定暴击）
+    const w5 = makeWorld(4);
+    const j5 = heroAt(w5, JUGG, { x: 1500, y: 5000 }, { levels: { R: 3, E: 4 } });
+    const t5 = foe(w5, 1500, 4700, { hp: 1e6 });
+    findModifier(j5, 'jugg_blade_dance')!.data.prd = 1000;
+    w5.events.drain();
+    w5.issue(j5.id, { type: 'cast', slot: 'R', target: { unitId: t5.id } });
+    runFor(w5, 0.35);
+    const first = damageEvents(w5).filter((d) => d.sourceId === j5.id && d.isAttack);
+    expect(first.length).toBeGreaterThanOrEqual(1);
+    expect(first[0].crit).toBe(true);
+    runFor(w5, 3.5);
+    const all5 = damageEvents(w5).filter((d) => d.sourceId === j5.id && d.isAttack);
+    expect(all5.some((d) => d.crit)).toBe(true);
+    expect(all5.some((d) => !d.crit)).toBe(true);
 
     // 目标全部死亡后提前结束
     const w3 = makeWorld();
@@ -357,9 +402,45 @@ describe('Juggernaut', () => {
     applyControl(w, j, 'break', { source: null, duration: 5 });
     runFor(w, 4.5);
     expect(counter()).toBe(2);
-    // 死亡清零、复活后重新开始
     const def = getHeroDef(JUGG).abilities.find((a) => a.id === 'jugg_bladeform')!;
     expect(def.passive?.persistOnDeath).toBe(true);
+  });
+
+  it('Bladeform drops to 0 on death and restarts from the respawn (the lethal hit does not linger or grant stacks after revival)', () => {
+    const w = makeWorld();
+    const j = heroAt(w, JUGG, { x: 1500, y: 5000 }, { heroLevel: 10 });
+    const innate = j.ability('innate')!;
+    const counter = (): number | null => innate.def.counter!(j, innate);
+    const agi0 = j.stats.agi;
+    runFor(w, 21);
+    expect(counter()).toBe(10);
+    expect(j.stats.agi).toBeGreaterThan(agi0 + 15);
+    // 致死的一下（经过 applyDamage，会写 lastDamagedTime）
+    const e = heroAt(w, 'axe', { x: 1500, y: 4800 }, { team: Team.Dire });
+    applyDamage(w, { source: e, target: j, amount: 1e6, type: 'pure', isAttack: false, abilityId: 'x' });
+    expect(j.alive).toBe(false);
+    expect(counter()).toBe(0);
+    expect(findModifier(j, 'jugg_bladeform')).toBeDefined();
+    const deathTime = w.time;
+    // 真实的复活流程（updateHeroes → respawnHero）
+    let n = 0;
+    while (!j.alive && n++ < 30 * 200) w.step();
+    expect(j.alive).toBe(true);
+    const revive = w.time;
+    expect(revive - deathTime).toBeGreaterThan(2.5);
+    w.step();
+    expect(counter()).toBe(0);
+    expect(j.stats.agi).toBeCloseTo(agi0);
+    // 复活后 2 秒内没有新层（旧的致死伤害既不清零也不让计时从死亡时刻算起）
+    runFor(w, 1.85);
+    expect(counter()).toBe(0);
+    runFor(w, 0.3);
+    expect(counter()).toBe(1);
+    runFor(w, 1.6);
+    expect(counter()).toBe(1);
+    runFor(w, 0.5);
+    expect(counter()).toBe(2);
+    expect(j.stats.agi).toBeGreaterThan(agi0);
   });
 });
 
