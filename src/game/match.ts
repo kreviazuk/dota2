@@ -22,6 +22,8 @@ export class Match {
   readonly world: World;
   readonly playerUnitId: number | null;
   readonly ais: SimpleAI[] = [];
+  /** 暂停全部 AI（开发钩子 __game.debug.freezeAI，截图脚本用来摆场景） */
+  aiPaused = false;
 
   constructor(readonly cfg: MatchConfig) {
     const w = new World({ seed: cfg.seed, balance: cfg.balance, recordEvents: cfg.recordEvents ?? false });
@@ -52,7 +54,7 @@ export class Match {
 
   step(playerCommands: readonly Command[] = []): void {
     if (this.playerUnitId !== null) for (const c of playerCommands) this.world.issue(this.playerUnitId, c);
-    for (const ai of this.ais) ai.update(this.world);
+    if (!this.aiPaused) for (const ai of this.ais) ai.update(this.world);
     this.world.step();
   }
 }

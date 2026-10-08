@@ -6,7 +6,12 @@ import type { Hud } from '../ui/hud';
 import type { Vec2 } from '../sim/core/vec2';
 import { dist } from '../sim/core/vec2';
 import type { AbilitySlot } from '../sim/core/types';
+import type { Unit } from '../sim/entities/unit';
+import type { AbilityInstance } from '../sim/heroes/types';
 import { canLearn } from '../sim/systems/progress';
+import { pendingTalentTier } from '../sim/talents';
+import { nextSkillToLearn, TALENT_BUILDS } from '../ai/builds';
+import type { Prefs } from '../ui/settings';
 import { dirChanged, dragToAim, joystickVector } from './aimMath';
 import { aimAbility, pointCastTarget, type AimResult } from './aim';
 
@@ -18,6 +23,20 @@ const aimMaxDrag = (): number => Math.max(60, Math.min(130, window.innerHeight *
 const JOY_DIR_EPS = 0.08;
 /** 按住普攻键时重新下智能攻击指令的间隔（游戏秒） */
 const ATTACK_REPEAT = 0.5;
+
+/**
+ * 轻点技能键（或键盘施法）时下的指令：开关技能 → toggle；无目标技能在摇杆 / 方向键按着时带上当前方向
+ * （神圣一跳朝移动方向跳）；其他技能走智能施法。被动或没学会返回 null。
+ */
+export function castCommandFor(u: Unit, ab: AbilityInstance, heldDir: Vec2 | null): Command | null {
+  if (!u.alive) return null;
+  if (ab.level <= 0 || ab.def.targetType === 'passive') return null;
+  const slot = ab.def.slot;
+  if (slot === 'innate') return null;
+  if (ab.def.targetType === 'toggle') return { type: 'toggle', slot };
+  if (ab.def.targetType === 'none' && heldDir && (heldDir.x || heldDir.y)) return { type: 'cast', slot, target: { dir: { x: heldDir.x, y: heldDir.y } } };
+  return { type: 'cast', slot };
+}
 
 interface AimState {
   slot: AbilitySlot;
@@ -46,10 +65,11 @@ export class Controls {
   private attackHeld = false;
   private offs: (() => void)[] = [];
 
-  constructor(private readonly hud: Hud, private readonly match: Match, private readonly camera: ViewCamera) {
+  constructor(private readonly hud: Hud, private readonly match: Match, private readonly camera: ViewCamera, private readonly prefs: Prefs) {
     this.bindJoystick();
     this.bindButtons();
     this.bindSkills();
+    this.bindTalents();
     this.bindKeyboard();
   }
 
@@ -66,7 +86,27 @@ export class Controls {
     this.queue.push(c);
   }
 
+  /** 正在按着的移动方向（摇杆优先，其次方向键） */
+  private heldDir(): Vec2 | null {
+    return this.joyDir ?? this.keyDir;
+  }
+
+  /** 自动加点：有技能点就按 AI 的加点顺序学，有待选天赋就按 AI 的天赋预设选（每个逻辑帧最多各一条） */
+  private autoLevel(u: Unit): void {
+    const h = u.hero;
+    if (!h) return;
+    const slot = nextSkillToLearn(u);
+    if (slot) this.push({ type: 'learn', slot });
+    const tier = pendingTalentTier(this.match.world, u);
+    if (tier !== null) this.push({ type: 'pickTalent', tier, side: TALENT_BUILDS[u.defId]?.[tier] ?? 0 });
+  }
+
   drain(): Command[] {
+    const u = this.player();
+    if (u) {
+      u.autoAttack = this.prefs.autoAttack;
+      if (this.prefs.autoLevel) this.autoLevel(u);
+    }
     if (this.attackHeld && this.match.world.time >= this.attackHeldUntil) {
       this.push({ type: 'attack', mode: 'smart' });
       this.attackHeldUntil = this.match.world.time + ATTACK_REPEAT;
@@ -218,15 +258,32 @@ export class Controls {
         const aimed = st.dragging ? this.computeAim(st) : null;
         this.endAim();
         if (cancelled || overCancel) return;
-        if (!st.dragging) {
-          this.push({ type: 'cast', slot: st.slot });
+        const u = this.player();
+        const ab = u?.ability(st.slot);
+        if (!u || !ab) return;
+        // 轻点，或拖动瞄准的结果没有目标（无目标技能 / 没锁定到单位）：智能施法，无目标技能带上移动方向
+        if (!st.dragging || !aimed?.target) {
+          const cmd = castCommandFor(u, ab, this.heldDir());
+          if (cmd) this.push(cmd);
           return;
         }
-        this.push({ type: 'cast', slot: st.slot, target: aimed?.target });
+        this.push({ type: 'cast', slot: st.slot, target: aimed.target });
       };
       this.on(b.root, 'pointerup', (e) => finish(e, false));
       this.on(b.root, 'pointercancel', (e) => finish(e, true));
     }
+  }
+
+  // ---------- 天赋弹窗 ----------
+  private bindTalents(): void {
+    this.hud.talentOpts.forEach((el, side) => {
+      this.on(el, 'click', (e) => {
+        e.preventDefault();
+        const tier = this.hud.shownTalentTier;
+        if (tier < 0 || tier > 3 || !this.hud.talentTapAllowed()) return;
+        this.push({ type: 'pickTalent', tier: tier as 0 | 1 | 2 | 3, side: side as 0 | 1 });
+      });
+    });
   }
 
   private endAim(): void {
@@ -251,7 +308,8 @@ export class Controls {
 
   // ---------- 键盘鼠标（网页调试） ----------
   private bindKeyboard(): void {
-    const slotKeys: Record<string, AbilitySlot> = { KeyQ: 'Q', KeyW: 'W', KeyE: 'E', KeyR: 'R' };
+    // F / G = X1 / X2（额外技能键）
+    const slotKeys: Record<string, AbilitySlot> = { KeyQ: 'Q', KeyW: 'W', KeyE: 'E', KeyR: 'R', KeyF: 'X1', KeyG: 'X2' };
     // W 留给技能，所以向上只用方向键
     const moveKeys = ['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'KeyA', 'KeyD', 'KeyS'];
     const updateKeyDir = () => {
@@ -313,8 +371,9 @@ export class Controls {
     const u = this.player();
     const ab = u?.ability(slot);
     if (!u || !ab || ab.level === 0) return;
-    if (ab.def.targetType === 'toggle') {
-      this.push({ type: 'toggle', slot });
+    if (ab.def.targetType === 'toggle' || ab.def.targetType === 'none' || ab.def.targetType === 'passive') {
+      const cmd = castCommandFor(u, ab, this.heldDir());
+      if (cmd) this.push(cmd);
       return;
     }
     const target = this.mouse ? pointCastTarget(this.match.world, u, ab, this.camera.screenToWorld(this.mouse)) : undefined;

@@ -396,6 +396,8 @@ export const AXE_SPEC: HeroModelSpec = {
   },
   releaseDur: AXE_RELEASE_DUR,
   fxTriggers: { axe_helix: { kind: 'helix', dur: HELIX_DUR } },
+  // 选人预览：吼 → 饥渴 → 反击螺旋（fx 触发的旋转）→ 淘汰之刃
+  previewMoves: ['axe_berserkers_call', 'axe_battle_hunger', 'axe_helix', 'axe_culling_blade'],
   // 反击螺旋：整个身体转一圈
   spin: (tr) => (tr.release?.kind === 'helix' ? Math.PI * 2 * smooth01(tr.releaseK) : 0),
 };

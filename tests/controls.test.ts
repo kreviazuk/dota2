@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { joystickVector, dirChanged, dragToAim } from '../src/input/aimMath';
 import { aimAbility, pointCastTarget } from '../src/input/aim';
+import { castCommandFor } from '../src/input/controls';
 import { makeWorld, spawnDummy } from './helpers';
 import { createHero } from '../src/sim/systems/heroes';
 import { newAbilityInstance } from '../src/sim/systems/abilities';
@@ -103,5 +104,28 @@ describe('manual aiming', () => {
     pt.level = 1;
     expect(pointCastTarget(w, axe, pt, { x: 1600, y: 4900 })).toEqual({ point: { x: 1600, y: 4900 } });
     expect(pointCastTarget(w, axe, axe.ability('Q')!, { x: 1600, y: 4900 })).toBeUndefined();
+  });
+});
+
+describe('cast commands', () => {
+  it('none abilities carry the held movement direction', () => {
+    const w = makeWorld();
+    const axe = createHero(w, 'axe', Team.Radiant, true);
+    const q = axe.ability('Q')!;
+    expect(castCommandFor(axe, q, null)).toBeNull(); // 没学会
+    q.level = 1;
+    expect(castCommandFor(axe, q, null)).toEqual({ type: 'cast', slot: 'Q' });
+    expect(castCommandFor(axe, q, { x: 0, y: -1 })).toEqual({ type: 'cast', slot: 'Q', target: { dir: { x: 0, y: -1 } } });
+    // 单位技能不带方向（智能施法）
+    const wAb = axe.ability('W')!;
+    wAb.level = 1;
+    expect(castCommandFor(axe, wAb, { x: 1, y: 0 })).toEqual({ type: 'cast', slot: 'W' });
+    // 被动没有指令；开关技能 → toggle
+    const e = axe.ability('E')!;
+    e.level = 1;
+    expect(castCommandFor(axe, e, { x: 1, y: 0 })).toBeNull();
+    const tog = newAbilityInstance({ id: 'test_toggle', name: '开关', description: '', slot: 'X2', maxLevel: 1, targetType: 'toggle', values: {} });
+    tog.level = 1;
+    expect(castCommandFor(axe, tog, { x: 1, y: 0 })).toEqual({ type: 'toggle', slot: 'X2' });
   });
 });

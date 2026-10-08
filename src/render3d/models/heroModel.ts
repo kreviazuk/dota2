@@ -36,7 +36,7 @@ export interface HeroModelSpec {
   fxTriggers?: Record<string, { kind: string; dur: number }>;
   /** 不参与混合的整体旋转（反击螺旋、剑刃风暴），弧度 */
   spin?(tr: AnimTracker, t: number, u: Unit | null): number;
-  /** 选人预览里循环播放的动作（技能 id 列表，缺省 releaseDur 的键） */
+  /** 选人预览里循环播放的动作：技能 id（前摇 + 释放）或 fxTriggers 的键（一次性动作）；缺省 releaseDur 的键 */
   previewMoves?: string[];
 }
 
