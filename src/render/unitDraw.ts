@@ -3,6 +3,7 @@ import type { Projectile } from '../sim/entities/projectile';
 import type { AreaEffect } from '../sim/entities/effect';
 import { Team } from '../sim/core/types';
 import type { World } from '../sim/world';
+import type { Vec2 } from '../sim/core/vec2';
 import { abilityValue, canCast } from '../sim/systems/abilities';
 import { shieldTotal } from '../sim/shields';
 import { lookupModifier2D, lookupProjectile2D, lookupSummon2D } from './fx2d';
@@ -314,9 +315,11 @@ export function drawBars(ctx: CanvasRenderingContext2D, u: Unit, x: number, y: n
   }
 }
 
-export function drawProjectile(ctx: CanvasRenderingContext2D, p: Projectile, x: number, y: number, t: number): void {
+/** from：施法者的位置（带 chain 的外观从这里画链子到弹道） */
+export function drawProjectile(ctx: CanvasRenderingContext2D, p: Projectile, x: number, y: number, t: number, from?: Vec2): void {
   const st = lookupProjectile2D(p.visual);
   if (st) {
+    if (st.chain && from) drawChain2D(ctx, from.x, from.y - 24, x, y, st.chain);
     drawStyledProjectile(ctx, p, x, y, t, st.color, st.size, st.shape ?? 'orb', st.tip);
     return;
   }
@@ -355,13 +358,51 @@ export function drawAreaEffect(ctx: CanvasRenderingContext2D, e: AreaEffect, t: 
   ctx.fill();
 }
 
-/** 注册了 2D 外观的弹道：orb = 发光球，line = 沿飞行方向的短线，arrow = 箭头，wave = 宽度跟随碰撞半径的新月形波 */
+/** 链子：深色粗线 + 浅色的链节短划（肉钩） */
+function drawChain2D(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number, color: string): void {
+  ctx.save();
+  ctx.lineCap = 'round';
+  ctx.strokeStyle = 'rgba(30,26,24,0.85)';
+  ctx.lineWidth = 6;
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  ctx.lineTo(x1, y1);
+  ctx.stroke();
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 3.5;
+  ctx.setLineDash([7, 4]);
+  ctx.beginPath();
+  ctx.moveTo(x0, y0);
+  ctx.lineTo(x1, y1);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/** 注册了 2D 外观的弹道：orb = 发光球，line = 沿飞行方向的短线，arrow = 箭头，wave = 宽度跟随碰撞半径的新月形波，hook = 弯钩 */
 function drawStyledProjectile(
-  ctx: CanvasRenderingContext2D, p: Projectile, x: number, y: number, t: number, color: string, size: number, shape: 'orb' | 'line' | 'arrow' | 'wave', tip = '#fff3c0',
+  ctx: CanvasRenderingContext2D, p: Projectile, x: number, y: number, t: number, color: string, size: number, shape: 'orb' | 'line' | 'arrow' | 'wave' | 'hook', tip = '#fff3c0',
 ): void {
   const dx = p.dir?.x ?? p.pos.x - p.prevPos.x;
   const dy = p.dir?.y ?? p.pos.y - p.prevPos.y;
   const a = Math.atan2(dy, dx);
+  if (shape === 'hook') {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.rotate(a);
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = 'rgba(30,26,24,0.9)';
+    ctx.lineWidth = size * 0.42;
+    ctx.beginPath();
+    ctx.moveTo(-size * 0.6, 0);
+    ctx.lineTo(size * 0.2, 0);
+    ctx.arc(size * 0.2, -size * 0.55, size * 0.55, Math.PI / 2, -Math.PI * 0.75, true);
+    ctx.stroke();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = size * 0.24;
+    ctx.stroke();
+    ctx.restore();
+    return;
+  }
   if (shape === 'wave') {
     const half = Math.max(size, p.width);
     ctx.save();

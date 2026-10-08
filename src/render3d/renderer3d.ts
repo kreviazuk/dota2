@@ -648,12 +648,18 @@ function projectileGeometry(kind: ProjectileStyle['mesh']): BufferGeometry {
       b.box(18, 18, 4, 0xd0d8e0, { p: [0, 0, -9] });
       b.cyl(2.4, 2.4, 26, 5, 0x8a6a4a, { p: [0, -18, 0] });
       break;
-    case 'hook':
-      b.torus(11, 2.6, 4, 10, 0xffffff, { r: [0, Math.PI / 2, 0], p: [0, 0, 6] }, Math.PI * 1.3);
-      b.cone(3.5, 10, 4, 0xffffff, { p: [0, 10, 14], r: [0.6, 0, 0] });
-      b.cyl(2.2, 2.2, 14, 5, 0xc0c0c0, { r: [Math.PI / 2, 0, 0], p: [0, 0, -8] });
-      b.torus(3.5, 1.2, 3, 6, 0xc0c0c0, { p: [0, 0, -16] });
+    case 'hook': {
+      // 水平躺着的大钩（俯视能看出钩形）：钩柄沿 −Z，钩弯在 XZ 平面里向前再弯回来，尖端带倒刺朝后
+      const r = 9;
+      b.cyl(2.2, 2.2, 16, 5, 0xc0c0c0, { r: [Math.PI / 2, 0, 0], p: [0, 0, -8] });
+      b.torus(r, 2.6, 4, 12, 0xffffff, { r: [Math.PI / 2, 0, 0], p: [-r, 0, 0] }, Math.PI * 1.3);
+      const end = Math.PI * 1.3;
+      const ex = -r + r * Math.cos(end);
+      const ez = r * Math.sin(end);
+      b.cone(3.6, 10, 5, 0xffffff, { p: [ex + 0.81 * 4, 0, ez - 0.59 * 4], r: [0, Math.atan2(0.59, 0.81), -Math.PI / 2] });
+      b.torus(3.5, 1.2, 3, 6, 0x909090, { p: [0, 0, -17], r: [0, Math.PI / 2, 0] });
       break;
+    }
     case 'wave':
       // 竖起来的新月形波（宽 100 × 高 30），朝 +Z 推进
       b.extrude([[-50, 0], [-30, 22], [0, 30], [30, 22], [50, 0], [30, 10], [0, 16], [-30, 10]], 10, 0xffffff, { p: [0, -10, 0], jitter: 0.05 });
@@ -788,6 +794,7 @@ export class Renderer3D implements GameRenderer {
   };
   private readonly styleGeos = new Map<string, BufferGeometry>();
   private readonly chainGeo = new GeoBuilder(24).box(1, 1, 1, 0xffffff, { jitter: 0 }).build();
+  private readonly chainTmp = new Vector3();
   private readonly projMats = new Map<string, Material>();
 
   constructor(canvas: HTMLCanvasElement) {
@@ -1328,8 +1335,17 @@ export class Renderer3D implements GameRenderer {
       for (const l of links) l.visible = false;
       return;
     }
-    const sp = this.ipos(src, alpha);
-    const sh = groundHeight(sp.x, sp.y) + this.sourceHeight(world, pr);
+    let sp = this.ipos(src, alpha);
+    let sh = groundHeight(sp.x, sp.y) + this.sourceHeight(world, pr);
+    // 起点挂在英雄的骨骼上（肉钩：右手的钩子骨骼）；英雄模型已在本帧 syncUnits 里摆好姿势
+    const boneName = v.style!.chain!.bone;
+    const bone = boneName ? this.heroes.get(src.id)?.model.bones[boneName] : undefined;
+    if (bone) {
+      bone.updateWorldMatrix(true, false);
+      bone.getWorldPosition(this.chainTmp);
+      sp = { x: this.chainTmp.x, y: this.chainTmp.z };
+      sh = this.chainTmp.y;
+    }
     const width = v.style!.chain!.width;
     const len = Math.hypot(p.x - sp.x, p.y - sp.y, h - sh);
     const n = links.length;

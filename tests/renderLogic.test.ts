@@ -201,6 +201,13 @@ describe('2D looks, shield bar and status markers', () => {
     expect(HERO_LOOKS.juggernaut).toMatchObject({ body: '#d9772b', trim: '#e8d27a', skin: '#c08a5a', initial: '剑', weapon: 'katana' });
   });
 
+  it('Pudge has a 2D hook with a chain, effects for every fx event, and Rot / Meat Shield / Dismember rings', () => {
+    for (const k of ['pudge_meat_hook', 'pudge_hook_hit', 'pudge_rot', 'pudge_meat_shield', 'pudge_dismember', 'pudge_flesh_heap']) expect(lookupFx2D(k)).toBeTypeOf('function');
+    expect(lookupProjectile2D('pudge_hook')).toMatchObject({ shape: 'hook', chain: '#9a948a' });
+    for (const k of ['pudge_rot', 'pudge_meat_shield', 'pudge_dismembered']) expect(lookupModifier2D(k)).toBeTypeOf('function');
+    expect(HERO_LOOKS.pudge).toMatchObject({ body: '#c98a8a', trim: '#6b4a2a', skin: '#d9a3a3', initial: '屠', weapon: 'hook', size: 1.25 });
+  });
+
   it('Phantom Assassin has a 2D dagger, effects for every fx event, and Deadly Focus / Blur rings', () => {
     for (const k of ['pa_stifling_dagger', 'pa_phantom_strike', 'pa_crit', 'pa_blur']) expect(lookupFx2D(k)).toBeTypeOf('function');
     expect(lookupProjectile2D('pa_dagger')?.color).toBe('#e6def4');

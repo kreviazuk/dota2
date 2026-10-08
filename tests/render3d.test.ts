@@ -13,6 +13,7 @@ import { ZEUS_SPEC, attackPose as zeusAttack, jumpPose as zeusJump, runPose as z
 import { DROW_SPEC, attackPose as drowAttack, multishotPose as drowMultishot, runPose as drowRun, idlePose as drowIdle } from '../src/render3d/models/drow_ranger';
 import { PA_SPEC, BLADE_LEN, attackPose as paAttack, idlePose as paIdle, runPose as paRun } from '../src/render3d/models/phantom_assassin';
 import { JUGG_SPEC, KATANA_LEN, FURY_SPIN, WARD_HEIGHT, attackPose as juggAttack, furyPose as juggFury, idlePose as juggIdle, omnislashPose as juggOmni, runPose as juggRun } from '../src/render3d/models/juggernaut';
+import { PUDGE_SPEC, PUDGE_STANCE, HOOK_R, attackPose as pudgeAttack, dismemberPose as pudgeDismember, idlePose as pudgeIdle, runPose as pudgeRun } from '../src/render3d/models/pudge';
 import { summonModelSpec } from '../src/render3d/models/registry';
 import { cameraCalm, CALM_FOLLOW_RATE } from '../src/render/cameraHints';
 import { makeWorld, heroAt } from './helpers';
@@ -908,5 +909,110 @@ describe('Juggernaut model', () => {
     expect(() => ward.update!(obj, j, 1.3)).not.toThrow();
     for (const k of ['jugg_blade_fury', 'jugg_healing_ward', 'jugg_omnislash']) expect(fxFor(k)).toBeTypeOf('function');
     for (const k of ['jugg_blade_fury', 'jugg_healing_ward_heal', 'jugg_omnislash']) expect(modVisual(k)).toBeDefined();
+  });
+});
+
+describe('Pudge model', () => {
+  const finite = (p: Record<string, number>) => Object.values(p).every(Number.isFinite);
+  it('pudge poses are finite for every state and ability', () => {
+    const actives = getHeroDef('pudge').abilities.filter((a) => a.targetType !== 'passive').map((a) => a.id);
+    expect(Object.keys(PUDGE_SPEC.releaseDur).sort()).toEqual([...actives].sort());
+    const states: Partial<AnimInput>[] = [
+      {}, { speed: 280 }, { windup: 0.2 }, { channel: true }, { stunned: true }, { stunned: true, motion: 'hook' }, { alive: false }, { taunted: true },
+    ];
+    for (const inp of states) {
+      const tr = new AnimTracker();
+      tr.update(input(inp), 0.05, 0.5);
+      tr.update(input(inp), 0.3, 0.5);
+      expect(finite(PUDGE_SPEC.pose(tr, 1.7, null))).toBe(true);
+    }
+    for (const id of Object.keys(PUDGE_SPEC.releaseDur)) {
+      for (const cp of [0, 0.5, 1]) {
+        const tr = new AnimTracker();
+        tr.update(input({ castAbility: id, castProgress: cp }), 0.05, 0);
+        expect(tr.state).toBe('cast');
+        expect(finite(PUDGE_SPEC.pose(tr, 0.4, null))).toBe(true);
+      }
+      for (const k of [0, 0.5, 1]) {
+        const tr = new AnimTracker();
+        tr.trigger(id, PUDGE_SPEC.releaseDur[id]);
+        tr.update(input(), Math.max(1e-3, k * PUDGE_SPEC.releaseDur[id] * 0.999), 0);
+        expect(tr.state).toBe('release');
+        expect(finite(PUDGE_SPEC.pose(tr, 0.4, null))).toBe(true);
+      }
+    }
+    for (const p of [0, 0.3, 0.6, 0.8, 1]) expect(finite(pudgeAttack(p))).toBe(true);
+    expect(finite(pudgeRun(1.2, 0.5))).toBe(true);
+    expect(finite(pudgeDismember(0.3))).toBe(true);
+  });
+
+  /** 摆好姿势后，某根骨骼上一点在模型空间的位置 */
+  const pointOn = (pose: Record<string, number>, bone: string, local: [number, number, number]): Vector3 => {
+    const m = new SkinnedHeroModel(PUDGE_SPEC, 0, new MeshBasicMaterial());
+    applyHumanoid(m.bones as Record<string, Bone>, pose, PUDGE_SPEC.bindRotations);
+    m.root.updateMatrixWorld(true);
+    const inv = m.root.matrixWorld.clone().invert();
+    return new Vector3(...local).applyMatrix4(m.bones[bone].matrixWorld).applyMatrix4(inv);
+  };
+
+  it('is the biggest hero: a round belly in front, the cleaver in the left hand and the hook in the right', () => {
+    expect(PUDGE_SPEC.bones.find((b) => b[0] === 'cleaver')?.[1]).toBe('handL');
+    expect(PUDGE_SPEC.bones.find((b) => b[0] === 'hook')?.[1]).toBe('handR');
+    expect(PUDGE_SPEC.bones.find((b) => b[0] === 'belly')?.[1]).toBe('torso');
+    expect(PUDGE_SPEC.scale).toBe(1.5);
+    expect(PUDGE_SPEC.headHeight * PUDGE_SPEC.scale).toBeCloseTo(240, -1);
+    for (const id of heroModelIds()) if (id !== 'pudge') expect(heroModelSpec(id).scale).toBeLessThan(PUDGE_SPEC.scale);
+    // 站立：切肉刀在左（+X）、肉钩在右（−X），都在身前偏下
+    const rest = pudgeIdle(0);
+    const cleaver = pointOn(rest, 'cleaver', [8, 30, 0]);
+    const hook = pointOn(rest, 'hook', [-HOOK_R, 25, 0]);
+    expect(cleaver.x).toBeGreaterThan(30);
+    expect(hook.x).toBeLessThan(-30);
+    for (const v of [cleaver, hook]) {
+      expect(v.z).toBeGreaterThan(10);
+      expect(v.y).toBeGreaterThan(5);
+    }
+    // 肚子是最靠前的部位（俯视时鼓在身前）
+    expect(pointOn(rest, 'belly', [0, -10, 14 + 31 * 1.2]).z).toBeGreaterThan(50);
+    // 普攻：0.6 时切肉刀高举过头，命中瞬间劈到身前偏下
+    const up = pointOn(pudgeAttack(0.6), 'cleaver', [8, 30, 0]);
+    const down = pointOn(pudgeAttack(1), 'cleaver', [8, 30, 0]);
+    expect(up.y).toBeGreaterThan(150);
+    expect(down.y).toBeLessThan(up.y - 60);
+    expect(down.z).toBeGreaterThan(40);
+    expect(PUDGE_STANCE).toEqual({ weaponHand: 'both', hunch: 0.35, armSpread: 0.35, heavy: 1.0 });
+  });
+
+  it('hides the hand hook and holds the right arm out while a hook is flying; bites during Dismember but not while recalling', () => {
+    const w = makeWorld();
+    const p = heroAt(w, 'pudge', { x: 1500, y: 5000 }, { levels: { Q: 1, R: 1 } });
+    const tr = new AnimTracker();
+    tr.update(input(), 0.05, 0);
+    expect(PUDGE_SPEC.pose(tr, 1, p).hookHide).toBe(0);
+    w.issue(p.id, { type: 'cast', slot: 'Q', target: { dir: { x: 0, y: -1 } } });
+    for (let i = 0; i < 12; i++) w.step();
+    expect(p.ability('Q')!.data.hookOut).toBe(1);
+    const pose = PUDGE_SPEC.pose(tr, 1, p);
+    expect(pose.hookHide).toBe(1);
+    expect(pose.shRX).toBeLessThan(-1.2);
+    const m = new SkinnedHeroModel(PUDGE_SPEC, 0, new MeshBasicMaterial());
+    m.pose(tr, 1, 0, p);
+    expect(m.bones.hook.scale.x).toBeLessThan(0.01);
+    expect(projStyle('pudge_hook')?.chain?.bone).toBe('hook');
+    expect(projStyle('pudge_hook')?.mesh).toBe('hook');
+    // 肢解引导：头部 2 Hz 啃咬
+    const heads = [0, 0.125, 0.25].map((t) => pudgeDismember(t).headX);
+    expect(Math.max(...heads) - Math.min(...heads)).toBeGreaterThan(0.4);
+    // 回城也是引导状态，但用通用的引导姿势
+    const rc = new AnimTracker();
+    rc.update(input({ channel: true }), 0.05, 0);
+    rc.update(input({ channel: true }), 0.3, 0);
+    p.order = { kind: 'recall', remaining: 3, startedAt: 0 };
+    expect(PUDGE_SPEC.pose(rc, 1, p).shLX).toBeCloseTo(channelPose(1, PUDGE_STANCE).shLX);
+  });
+
+  it('registers fx events, the hook projectile and modifier visuals', () => {
+    for (const k of ['pudge_meat_hook', 'pudge_hook_hit', 'pudge_rot', 'pudge_meat_shield', 'pudge_dismember', 'pudge_flesh_heap']) expect(fxFor(k)).toBeTypeOf('function');
+    for (const k of ['pudge_rot', 'pudge_meat_shield', 'pudge_dismembered']) expect(modVisual(k)).toBeDefined();
   });
 });

@@ -1,7 +1,7 @@
 import type { World } from '../world';
 import { Projectile, type ProjectileInit } from '../entities/projectile';
 import { AreaEffect, type AreaEffectInit } from '../entities/effect';
-import { add, dist, distToSegment, scale } from '../core/vec2';
+import { add, dist, distToSegment, scale, type Vec2 } from '../core/vec2';
 import type { Unit } from '../entities/unit';
 
 export function spawnProjectile(world: World, init: Omit<ProjectileInit, 'id'>): Projectile {
@@ -26,6 +26,21 @@ export function disjointProjectiles(world: World, u: Unit): void {
     p.done = true;
     p.onEnd?.(world, p);
   }
+}
+
+/**
+ * 直线弹道这一步（from → to）扫到的单位，按离 from 的距离排序：存活、非建筑、非无敌、没被这个弹道打过，
+ * 通过 hitFilter（缺省 = 敌方），且到线段的距离 ≤ 碰撞半径 + 单位半径。自定义 update 的弹道（肉钩）也用它做碰撞
+ */
+export function linearSweep(world: World, p: Projectile, from: Vec2, to: Vec2): Unit[] {
+  const hits = world.units.filter(
+    (u) =>
+      u.alive && !u.removed && u.kind !== 'building' && !u.hasState('invulnerable') && !p.hit.has(u.id) &&
+      (p.hitFilter ? p.hitFilter(world, u) : u.team !== p.team) &&
+      distToSegment(u.pos, from, to) <= p.width + u.radius,
+  );
+  hits.sort((a, b) => dist(a.pos, from) - dist(b.pos, from));
+  return hits;
 }
 
 export function updateProjectiles(world: World, dt: number): void {
@@ -56,13 +71,7 @@ export function updateProjectiles(world: World, dt: number): void {
     const to = add(from, scale(dir, s));
     p.pos = to;
     p.traveled += s;
-    const hits = world.units.filter(
-      (u) =>
-        u.alive && !u.removed && u.kind !== 'building' && !u.hasState('invulnerable') && !p.hit.has(u.id) &&
-        (p.hitFilter ? p.hitFilter(world, u) : u.team !== p.team) &&
-        distToSegment(u.pos, from, to) <= p.width + u.radius,
-    );
-    hits.sort((a, b) => dist(a.pos, from) - dist(b.pos, from));
+    const hits = linearSweep(world, p, from, to);
     for (const u of hits) {
       p.hit.add(u.id);
       p.onHit(world, u, p);

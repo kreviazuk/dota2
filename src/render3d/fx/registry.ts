@@ -46,8 +46,8 @@ export interface ProjectileStyle {
   height?: number;
   /** 弧度 / 秒（绕横轴翻滚） */
   spin?: number;
-  /** 从施法者手部画一条链子到弹道（肉钩） */
-  chain?: { color: number; width: number };
+  /** 从施法者手部画一条链子到弹道（肉钩）；bone = 链子起点所在的英雄骨骼（缺省按 muzzleHeight 从施法者中心出发） */
+  chain?: { color: number; width: number; bone?: string };
   /** 直线波：宽度跟随 projectile.width 缩放（基准宽度 100） */
   scaleWithWidth?: boolean;
   /** 每帧调用的粒子发射器（贴地火墙之类网格做不出来的部分） */

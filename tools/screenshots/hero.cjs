@@ -39,6 +39,9 @@ const PLAN = {
   jugg_blade_fury: { fx: [['jugg_blade_fury', 3, 'release'], ['jugg_blade_fury', 40, 'spin']], afterMs: 1500 },
   jugg_healing_ward: { fx: [['jugg_healing_ward', 3, 'release'], ['jugg_healing_ward', 60, 'ward']] },
   jugg_omnislash: { fx: [['jugg_omnislash', 2, 'slash'], ['jugg_omnislash', 40, 'slash2']], afterMs: 2500 },
+  pudge_meat_hook: { proj: 'pudge_hook', fx: [['pudge_hook_hit', 3, 'hit'], ['pudge_hook_hit', 12, 'drag']], afterMs: 1500 },
+  pudge_meat_shield: { fx: [['pudge_meat_shield', 3, 'release'], ['pudge_meat_shield', 30, 'shield']] },
+  pudge_dismember: { fx: [['pudge_dismember', 3, 'bite'], ['pudge_dismember', 40, 'bite2']], afterMs: 2500 },
 };
 /** 普攻（被动）要截的时刻：分裂斩痕（fx）或普攻弹道（proj） */
 // prep：开始普攻前在页面里执行的代码（me = 玩家英雄）。幻刺：一直把恩赐解脱的伪随机计数拉满，每隔一刀必定暴击

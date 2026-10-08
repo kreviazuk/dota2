@@ -18,3 +18,5 @@ import '../models/phantom_assassin';
 import './phantom_assassin';
 import '../models/juggernaut';
 import './juggernaut';
+import '../models/pudge';
+import './pudge';

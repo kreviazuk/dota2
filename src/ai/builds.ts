@@ -11,6 +11,7 @@ export const SKILL_BUILDS: Record<string, AbilitySlot[]> = {
   drow_ranger: ['W', 'Q', 'E', 'Q', 'E', 'R', 'E', 'Q', 'E', 'Q', 'R', 'W', 'W', 'W', 'R'],
   phantom_assassin: ['Q', 'W', 'Q', 'E', 'Q', 'R', 'Q', 'E', 'E', 'E', 'R', 'W', 'W', 'W', 'R'],
   juggernaut: ['Q', 'E', 'Q', 'W', 'Q', 'R', 'Q', 'E', 'E', 'E', 'R', 'W', 'W', 'W', 'R'],
+  pudge: ['Q', 'W', 'Q', 'E', 'Q', 'R', 'Q', 'W', 'W', 'W', 'R', 'E', 'E', 'E', 'R'],
 };
 
 /** 天赋预设：下标 = 天赋层（10/15/20/25 级），0 = 左 / 1 = 右 */
@@ -31,6 +32,8 @@ export const TALENT_BUILDS: Record<string, (0 | 1)[]> = {
   phantom_assassin: [1, 0, 1, 0],
   // −1 秒剑心间隔、−15 秒无敌斩冷却、+120 剑刃风暴每秒伤害、+1 秒无敌斩
   juggernaut: [1, 0, 1, 0],
+  // +5 护甲、+150 肉钩伤害、+0.75 秒肢解、肢解伤害和治疗 ×1.5
+  pudge: [0, 1, 0, 0],
 };
 
 const DEFAULT_BUILD: AbilitySlot[] = ['Q', 'W', 'E', 'Q', 'W', 'R', 'E', 'Q', 'W', 'E', 'R', 'Q', 'W', 'E', 'R'];

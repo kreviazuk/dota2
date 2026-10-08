@@ -5,6 +5,7 @@ import type { ModifierInstance } from '../sim/modifiers';
 import type { FxSystem } from './fx';
 import type { ViewCamera } from './view';
 import { registerCalmCamera } from './cameraHints';
+import { abilityValue } from '../sim/systems/abilities';
 
 /**
  * 2D 后备渲染器的特效注册表：sim 的 fx 事件和弹道外观。各英雄任务在这里注册自己的 2D 表现（简单的圈 / 粒子 / 颜色）；
@@ -23,9 +24,11 @@ export function registerFx2D(kind: string, h: Fx2DHandler): void {
 export const lookupFx2D = (kind: string): Fx2DHandler | undefined => FX.get(kind);
 
 export interface Projectile2DStyle {
-  color: string; size: number; shape?: 'orb' | 'line' | 'arrow' | 'wave';
+  color: string; size: number; shape?: 'orb' | 'line' | 'arrow' | 'wave' | 'hook';
   /** wave 的前缘颜色（缺省淡黄色，龙破斩的火焰波） */
   tip?: string;
+  /** 从施法者画一条这种颜色的链子到弹道（肉钩） */
+  chain?: string;
 }
 
 const PROJ = new Map<string, Projectile2DStyle>();
@@ -512,4 +515,104 @@ registerModifier2D('jugg_omnislash', (ctx, u, _m, x, y, t) => {
   ctx.beginPath();
   ctx.ellipse(x, y, u.radius * 1.8, u.radius * 1.05, 0, 0, Math.PI * 2);
   ctx.stroke();
+});
+
+// ---------- 帕吉 ----------
+/** 肉钩：灰色的弯钩，链子从帕吉连到钩子（drawProjectile 画） */
+registerProjectile2D('pudge_hook', { color: '#c8ccd2', size: 20, shape: 'hook', chain: '#9a948a' });
+
+/** 出钩：手边一点灰尘 */
+registerFx2D('pudge_meat_hook', (fx, e) => {
+  const d = e.dir ?? { x: 0, y: -1 };
+  fx.burst(e.pos.x + d.x * 40, e.pos.y + d.y * 40 - 20, 6, 'rgba(154,140,120,0.9)', 120, 5, 0.3, false);
+});
+
+/** 钩中：血雾 + 金属火花；涉及玩家时震屏 */
+registerFx2D('pudge_hook_hit', (fx, e, world, cam) => {
+  const t = world.getUnit(e.targetId ?? -1);
+  const p = t?.pos ?? e.pos;
+  const enemy = !!t && t.team !== world.getUnit(e.unitId ?? -1)?.team;
+  if (enemy) fx.burst(p.x, p.y - 20, 18, 'rgba(154,16,16,0.95)', 180, 6, 0.5, false);
+  fx.burst(p.x, p.y - 20, 8, 'rgba(255,240,176,0.95)', 260, 3, 0.2, true);
+  fx.ring(p.x, p.y, 10, 60, 'rgba(216,208,192,', 0.25, 5);
+  const pc = world.getUnit(e.unitId ?? -1)?.hero?.playerControlled || t?.hero?.playerControlled;
+  if (cam.visible(p) && pc) cam.shake(4);
+});
+
+/** 打开腐烂：一团绿色毒气 */
+registerFx2D('pudge_rot', (fx, e, world) => {
+  const p = world.getUnit(e.unitId ?? -1)?.pos ?? e.pos;
+  fx.burst(p.x, p.y - 20, 14, 'rgba(79,143,34,0.85)', 150, 8, 0.6, false);
+});
+
+/** 腐烂：250 的绿色毒雾（半透明填充 + 脉动的外沿） */
+registerModifier2D('pudge_rot', (ctx, u, _m, x, y, t) => {
+  const ab = u.ability('W');
+  const r = ab ? abilityValue(u, ab, 'radius') : 250;
+  const k = 0.5 + 0.5 * Math.sin(t * 3.2 + u.id);
+  ctx.save();
+  const g = ctx.createRadialGradient(x, y, r * 0.2, x, y, r);
+  g.addColorStop(0, `rgba(79,143,34,${0.22 + 0.06 * k})`);
+  g.addColorStop(0.8, `rgba(79,143,34,${0.3 + 0.08 * k})`);
+  g.addColorStop(1, 'rgba(47,95,18,0)');
+  ctx.fillStyle = g;
+  ctx.beginPath();
+  ctx.ellipse(x, y, r, r * 0.62, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(47,95,18,0.6)';
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash([14, 10]);
+  ctx.lineDashOffset = -t * 30;
+  ctx.stroke();
+  ctx.restore();
+});
+
+/** 肉盾施放：一圈棕红色 */
+registerFx2D('pudge_meat_shield', (fx, e, world) => {
+  const p = world.getUnit(e.unitId ?? -1)?.pos ?? e.pos;
+  fx.ring(p.x, p.y, 20, 90, 'rgba(168,72,58,', 0.3, 8);
+  fx.burst(p.x, p.y - 30, 10, 'rgba(168,72,58,0.95)', 150, 5, 0.4, false);
+});
+
+/** 肉盾：身边棕红色的肉质圈 + 几块绕着转的肉 */
+registerModifier2D('pudge_meat_shield', (ctx, u, _m, x, y, t) => {
+  const r = u.radius * 2.2;
+  ctx.save();
+  ctx.strokeStyle = `rgba(154,58,40,${0.7 + 0.15 * Math.sin(t * 4)})`;
+  ctx.lineWidth = 5;
+  ctx.beginPath();
+  ctx.ellipse(x, y - 10, r, r * 0.7, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.fillStyle = '#a8483a';
+  for (let i = 0; i < 4; i++) {
+    const a = t * 2.2 + (i * Math.PI) / 2;
+    ctx.beginPath();
+    ctx.arc(x + Math.cos(a) * r, y - 10 + Math.sin(a) * r * 0.7, 5, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+});
+
+/** 肢解每一跳：目标身上一团血雾 */
+registerFx2D('pudge_dismember', (fx, e, world) => {
+  const p = world.getUnit(e.targetId ?? -1)?.pos ?? e.pos;
+  fx.burst(p.x, p.y - 30, 14, 'rgba(154,16,16,0.95)', 140, 6, 0.5, false);
+});
+
+/** 被肢解：脚下一摊暗红 */
+registerModifier2D('pudge_dismembered', (ctx, u, _m, x, y) => {
+  ctx.fillStyle = 'rgba(94,8,8,0.5)';
+  ctx.beginPath();
+  ctx.ellipse(x, y, u.radius * 1.9, u.radius * 1.1, 0, 0, Math.PI * 2);
+  ctx.fill();
+});
+
+/** 腐肉堆积：头顶绿色的"+2 力量" */
+registerFx2D('pudge_flesh_heap', (fx, e, world) => {
+  const u = world.getUnit(e.unitId ?? -1);
+  if (!u) return;
+  const inn = u.ability('innate');
+  const n = inn ? abilityValue(u, inn, 'strPerStack') : 2;
+  fx.text(u.pos.x, u.pos.y - 110, `+${Number.isInteger(n) ? n : n.toFixed(1)} 力量`, '#7dff4a', 26);
+  fx.burst(u.pos.x, u.pos.y - 40, 10, 'rgba(140,196,60,0.9)', 120, 5, 0.6, false);
 });

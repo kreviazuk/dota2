@@ -13,6 +13,7 @@ import {
 } from './unitDraw';
 import { motionHeight } from '../sim/systems/motion';
 import { cameraCalm, CALM_FOLLOW_RATE } from './cameraHints';
+import { lookupProjectile2D } from './fx2d';
 
 export type { AimIndicator } from './view';
 
@@ -114,7 +115,10 @@ export class Renderer implements GameRenderer {
     }
     for (const pr of world.projectiles) {
       const p = this.ipos(pr, alpha);
-      if (cam.visible(p)) drawProjectile(ctx, pr, p.x, p.y, this.time);
+      // 带链子的弹道（肉钩）：链子从施法者连到弹道
+      const src = lookupProjectile2D(pr.visual)?.chain ? world.getUnit(pr.sourceId) : undefined;
+      const from = src && src.alive ? this.ipos(src, alpha) : undefined;
+      if (cam.visible(p) || (from && cam.visible(from))) drawProjectile(ctx, pr, p.x, p.y, this.time, from);
     }
     this.fx.update(dt);
     this.fx.drawWorld(ctx);
