@@ -41,6 +41,8 @@ const SUN_DIST = 3000;
 const HERO_CORPSE_TIME = 3.4;
 const CREEP_CORPSE_TIME = 1.5;
 const DEG = Math.PI / 180;
+/** 技能 / 持续伤害的受击闪光强度（普攻 = 1） */
+const HIT_FLASH_SPELL = 0.4;
 /** 建筑挡住身后英雄时的不透明度 */
 const FADE_OPACITY = 0.38;
 
@@ -937,8 +939,9 @@ export class Renderer3D implements GameRenderer {
     if (world !== this.world) this.reset(world);
     for (const e of events) {
       if (e.type === 'damage') {
-        this.heroes.get(e.targetId)?.tracker.hit();
-        this.creeps.get(e.targetId)?.tracker.hit();
+        const k = e.isAttack || e.crit ? 1 : HIT_FLASH_SPELL;
+        this.heroes.get(e.targetId)?.tracker.hit(k);
+        this.creeps.get(e.targetId)?.tracker.hit(k);
       } else if (e.type === 'cast') {
         const v = this.heroes.get(e.unitId);
         v?.tracker.trigger(e.abilityId, v.spec.releaseDur[e.abilityId] ?? 0.4);

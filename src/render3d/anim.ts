@@ -118,8 +118,12 @@ export class AnimTracker {
     this.release = { kind, t: 0, dur };
   }
 
-  hit(): void {
-    this.flash = 1;
+  /**
+   * 受击闪光：普攻打满（1），技能 / 持续伤害只闪一半（极寒领域、腐烂、剑刃风暴这类每 0.1–0.25 秒一跳的伤害
+   * 原来每跳都闪满，目标在整个持续期间一直是一团粉红色，看不出是谁）。
+   */
+  hit(strength = 1): void {
+    this.flash = Math.max(this.flash, strength);
   }
 
   /**

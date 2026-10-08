@@ -115,14 +115,17 @@ registerFx('sven_gods_strength', (e, c) => {
   if (c.cam.visible(p)) c.cam.shake(9);
 });
 
-/** 神之力量持续期间：模型红色描边和自发光脉动、整体放大 1.08 倍、两肩冒红色火焰，脚下一圈暗红光环 */
+/**
+ * 神之力量持续期间：模型淡红色描边和很弱的红色调脉动、整体放大 1.08 倍、两肩冒红色火焰，脚下一圈暗红光环。
+ * 描边和红色调要克制（P2 Task 18：原来描边 0.75–1.0、红色调 0.04–0.12，整个模型变成一团红，看不出盔甲和剑）。
+ */
 registerModifierVisual('sven_gods_strength', (c) => {
   if (!c.u.alive) return;
   const pulse = 0.5 + 0.5 * Math.sin(c.time * 6);
-  c.view?.tint(0xff1a00, 0.04 + 0.08 * pulse);
-  c.view?.rim(0xff2a10, 0.75 + 0.25 * pulse);
+  c.view?.tint(0xff1a00, 0.015 + 0.02 * pulse);
+  c.view?.rim(0xff3a1a, 0.05 + 0.05 * pulse);
   c.view?.scale(1.08);
-  c.decal('sven_gods').set(c.x, c.gy + 1.7, c.y, 66, { color: RAGE, opacity: 0.45 + 0.25 * pulse, width: 10, soft: 6 });
+  c.decal('sven_gods').set(c.x, c.gy + 1.7, c.y, 66, { color: RAGE, opacity: 0.3 + 0.15 * pulse, width: 8, soft: 6 });
   if (c.dt <= 0) return;
   const f = c.u.facing;
   const side = { x: -Math.sin(f), y: Math.cos(f) };
@@ -130,7 +133,7 @@ registerModifierVisual('sven_gods_strength', (c) => {
   const off = c.height * 0.22;
   const h = c.gy + c.lift + c.height * 0.64;
   for (const s of [1, -1]) {
-    if (Math.random() > c.dt * 40) continue;
+    if (Math.random() > c.dt * 24) continue;
     const px = c.x + side.x * off * s + back.x + (Math.random() - 0.5) * 10;
     const py = c.y + side.y * off * s + back.y + (Math.random() - 0.5) * 10;
     c.fx.emit(px, h, py, (Math.random() - 0.5) * 30, 110 + Math.random() * 70, (Math.random() - 0.5) * 30, Math.random() < 0.3 ? 0xffc060 : 0xff3a14, 13, 0.42, true, -14);

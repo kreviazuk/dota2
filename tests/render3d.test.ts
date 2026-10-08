@@ -208,6 +208,15 @@ describe('animation state selection and timing', () => {
     expect(tr.deadTime).toBe(-1);
   });
 
+  it('weak hit flashes never lower a stronger one', () => {
+    const tr = new AnimTracker();
+    tr.hit(0.4);
+    expect(tr.flash).toBeCloseTo(0.4);
+    tr.hit();
+    tr.hit(0.4);
+    expect(tr.flash).toBe(1);
+  });
+
   it('blends poses and turns along the shortest arc', () => {
     expect(blendPose({ a: 1, b: 2 }, { a: 3, c: 4 }, 0.5)).toEqual({ a: 2, b: 1, c: 2 });
     expect(turnToward(3, -3, 1, 0.1)).toBeCloseTo(3.1);

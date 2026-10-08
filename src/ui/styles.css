@@ -136,6 +136,7 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f0a; col
 .talent-pill { position: absolute; right: calc(env(safe-area-inset-right) + 23rem); bottom: 51rem; display: none; pointer-events: auto; cursor: pointer;
   font-size: max(2.4rem, 13px); font-weight: bold; color: #1a1200; background: #e2b04a; border-radius: 2rem; padding: 0.8rem 2.4rem; box-shadow: 0 0 1.2rem #ffd24a; }
 .talent-pill.show { display: block; animation: learn-pulse 0.7s ease-in-out infinite alternate; }
+.hud.paused .talent-pop, .hud.paused .talent-pill { display: none; }
 
 .death-overlay { position: absolute; inset: 0; background: rgba(20,20,20,0.45); display: none; flex-direction: column; align-items: center;
   justify-content: center; pointer-events: none; }

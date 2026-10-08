@@ -163,11 +163,14 @@ function pause(): void {
   if (!s || s.demo || s.frozen || paused || s.match.over) return;
   paused = true;
   s.controls?.reset();
+  // 暂停菜单有自己的天赋树：收起 HUD 的天赋弹窗（否则半透明遮罩下会透出来、压在开关上）
+  s.hud?.root.classList.add('paused');
   pauseMenu = showPauseMenu(uiRoot, { match: s.match, prefs, onPrefsChange }, resume, showMenu);
 }
 
 function resume(): void {
   closePause();
+  session?.hud?.root.classList.remove('paused');
   session?.controls?.reset();
   last = performance.now();
 }
