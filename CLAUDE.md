@@ -10,9 +10,9 @@
 
 ## 现在做到哪里（2026-10-08 从云端会话交接，之后在本地继续）
 - 分支 `claude/kind-ritchie-jz5131`，对应 PR kreviazuk/dota2#1（目标 `main`，还没合并）。
-- P1 全部完成；3D 渲染器完成；P2 完成 Task 1–13（引擎扩展、渲染 / AI 框架、选英雄界面和天赋弹窗、斯温、莉娜、水晶室女、宙斯、卓尔游侠、幻影刺客）。可选英雄：斧王、斯温、莉娜、水晶室女、宙斯、卓尔游侠、幻影刺客。
-- **下一步：P2 Task 14（主宰）**，然后按计划顺序做 Task 15–18（帕吉、影魔、混合阵容模拟、全面验证）。
-- 参考英雄：斯温（近战，模型带武器）；莉娜（远程法师：`src/render3d/models/lina.ts` 的链式头发骨骼，`src/render3d/fx/lina.ts` 的弹道逐帧发射器 `emitter` 和区域效果双圈 `extra()`）；水晶室女（引导大招、光环、护盾：`src/render3d/models/crystal_maiden.ts` 的法杖骨骼 `holdStaff()` 和自定义 `channel` 姿势，`src/render3d/fx/crystal_maiden.ts` 的冰块 Modifier 外观和普通混合粒子叠成的冰锥）；宙斯（自己的跳跃位移、先天伤害钩子：`src/render3d/models/zeus.ts` 的胡子链式骨骼和按 `u.motion` 进度播放的跳跃姿势，`src/render3d/fx/zeus.ts` 的三层闪电（`line` 的 `normal` 普通混合外层）和带闪烁的全屏闪光）；卓尔游侠（开关技能、可移动的引导、攻击特效被动、光环：`src/render3d/models/drow_ranger.ts` 的弓骨骼 `holdBow()`、数值求解的拉弓关键帧和按引导时间循环的拉弓姿势，`src/render3d/fx/drow_ranger.ts` 的三种箭和普通混合弧线做的风刃；深色衣服用 `HeroModelSpec.rim` 调低边缘光）；幻影刺客（第二个近战、先天主动 X1、对敌隐藏、敌我皆可的位移技能、PRD 暴击：`src/render3d/models/phantom_assassin.ts` 的双手武器骨骼和两节斗篷、按 Modifier 换普攻动作（致命专注），`src/render3d/fx/phantom_assassin.ts` 的普通混合红色斩痕和紫色烟团）。
+- P1 全部完成；3D 渲染器完成；P2 完成 Task 1–14（引擎扩展、渲染 / AI 框架、选英雄界面和天赋弹窗、斯温、莉娜、水晶室女、宙斯、卓尔游侠、幻影刺客、主宰）。可选英雄：斧王、斯温、莉娜、水晶室女、宙斯、卓尔游侠、幻影刺客、主宰。
+- **下一步：P2 Task 15（帕吉）**，然后按计划顺序做 Task 16–18（影魔、混合阵容模拟、全面验证）。
+- 参考英雄：斯温（近战，模型带武器）；莉娜（远程法师：`src/render3d/models/lina.ts` 的链式头发骨骼，`src/render3d/fx/lina.ts` 的弹道逐帧发射器 `emitter` 和区域效果双圈 `extra()`）；水晶室女（引导大招、光环、护盾：`src/render3d/models/crystal_maiden.ts` 的法杖骨骼 `holdStaff()` 和自定义 `channel` 姿势，`src/render3d/fx/crystal_maiden.ts` 的冰块 Modifier 外观和普通混合粒子叠成的冰锥）；宙斯（自己的跳跃位移、先天伤害钩子：`src/render3d/models/zeus.ts` 的胡子链式骨骼和按 `u.motion` 进度播放的跳跃姿势，`src/render3d/fx/zeus.ts` 的三层闪电（`line` 的 `normal` 普通混合外层）和带闪烁的全屏闪光）；卓尔游侠（开关技能、可移动的引导、攻击特效被动、光环：`src/render3d/models/drow_ranger.ts` 的弓骨骼 `holdBow()`、数值求解的拉弓关键帧和按引导时间循环的拉弓姿势，`src/render3d/fx/drow_ranger.ts` 的三种箭和普通混合弧线做的风刃；深色衣服用 `HeroModelSpec.rim` 调低边缘光）；幻影刺客（第二个近战、先天主动 X1、对敌隐藏、敌我皆可的位移技能、PRD 暴击：`src/render3d/models/phantom_assassin.ts` 的双手武器骨骼和两节斗篷、按 Modifier 换普攻动作（致命专注），`src/render3d/fx/phantom_assassin.ts` 的普通混合红色斩痕和紫色烟团）；主宰（召唤物、整体旋转、连续闪烁的大招：`src/render3d/models/juggernaut.ts` 的 `spin()` 剑刃风暴和 `registerSummonModel` 的治疗守卫图腾，`src/render3d/fx/juggernaut.ts` 的贴地虚线旋风圈和 `registerCalmCamera`（无敌斩期间镜头松跟随，见 `src/render/cameraHints.ts`））。
 
 ## 每个任务的做法
 每个任务都按同一个流程走（云端会话就是这么做的）：
