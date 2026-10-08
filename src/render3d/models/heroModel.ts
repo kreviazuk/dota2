@@ -38,6 +38,11 @@ export interface HeroModelSpec {
   spin?(tr: AnimTracker, t: number, u: Unit | null): number;
   /** 选人预览里循环播放的动作：技能 id（前摇 + 释放）或 fxTriggers 的键（一次性动作）；缺省 releaseDur 的键 */
   previewMoves?: string[];
+  /**
+   * 轮廓边缘光（缺省奶白色 0xfff0dc、强度 0.3）。俯视镜头下大片竖直的深色衣服（斗篷）处在掠射角，
+   * 缺省的边缘光会把它洗成灰白色，深色英雄可以调低强度 / 换成自己的颜色
+   */
+  rim?: { color?: number; strength?: number };
 }
 
 /**

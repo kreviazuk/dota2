@@ -137,6 +137,8 @@ export class HeroPreview {
       this.model.dispose();
     }
     const spec = heroModelSpec(heroId);
+    // 每个英雄的边缘光（缺省奶白 0.35，与对局里的比例一致）
+    this.mat.rimU.value.set(spec.rim?.color ?? 0xfff0dc).multiplyScalar((spec.rim?.strength ?? 0.3) * (0.35 / 0.3));
     this.model = new SkinnedHeroModel(spec, 0, this.mat);
     this.scene.add(this.model.root);
     this.moves = buildMoves(spec, heroId);

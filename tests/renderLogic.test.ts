@@ -183,6 +183,16 @@ describe('2D looks, shield bar and status markers', () => {
     expect(HERO_LOOKS.crystal_maiden).toMatchObject({ body: '#9ad4f5', trim: '#ffffff', skin: '#f0dcd0', initial: '冰', weapon: 'staff' });
   });
 
+  it('Drow Ranger has 2D arrows in three colours, a Gust wave and her fx events', () => {
+    for (const k of ['drow_gust', 'drow_multishot']) expect(lookupFx2D(k)).toBeTypeOf('function');
+    const colors = ['hero:drow_ranger', 'drow_frost_arrow', 'drow_marksman_arrow'].map((k) => lookupProjectile2D(k)?.color);
+    expect(new Set(colors).size).toBe(3);
+    expect(lookupProjectile2D('drow_gust')?.shape).toBe('wave');
+    expect(lookupProjectile2D('drow_multishot')?.shape).toBe('arrow');
+    expect(lookupModifier2D('drow_precision_aura_buff')).toBeTypeOf('function');
+    expect(HERO_LOOKS.drow_ranger).toMatchObject({ body: '#5fb0d8', trim: '#e6f4ff', skin: '#a8c8e0', initial: '卓', weapon: 'bow' });
+  });
+
   it('Zeus has 2D effects for every fx event and his projectile, and Wrath flashes the 2D screen', () => {
     for (const k of ['zeus_arc', 'zeus_bolt', 'zeus_jump', 'zeus_jump_shock', 'zeus_wrath', 'zeus_wrath_hit', 'zeus_static']) expect(lookupFx2D(k)).toBeTypeOf('function');
     expect(lookupProjectile2D('hero:zeus')?.color).toBe('#a8dcff');

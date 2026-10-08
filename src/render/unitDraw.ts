@@ -317,7 +317,7 @@ export function drawBars(ctx: CanvasRenderingContext2D, u: Unit, x: number, y: n
 export function drawProjectile(ctx: CanvasRenderingContext2D, p: Projectile, x: number, y: number, t: number): void {
   const st = lookupProjectile2D(p.visual);
   if (st) {
-    drawStyledProjectile(ctx, p, x, y, t, st.color, st.size, st.shape ?? 'orb');
+    drawStyledProjectile(ctx, p, x, y, t, st.color, st.size, st.shape ?? 'orb', st.tip);
     return;
   }
   const c = TEAM_COLORS[p.team];
@@ -356,7 +356,9 @@ export function drawAreaEffect(ctx: CanvasRenderingContext2D, e: AreaEffect, t: 
 }
 
 /** 注册了 2D 外观的弹道：orb = 发光球，line = 沿飞行方向的短线，arrow = 箭头，wave = 宽度跟随碰撞半径的新月形波 */
-function drawStyledProjectile(ctx: CanvasRenderingContext2D, p: Projectile, x: number, y: number, t: number, color: string, size: number, shape: 'orb' | 'line' | 'arrow' | 'wave'): void {
+function drawStyledProjectile(
+  ctx: CanvasRenderingContext2D, p: Projectile, x: number, y: number, t: number, color: string, size: number, shape: 'orb' | 'line' | 'arrow' | 'wave', tip = '#fff3c0',
+): void {
   const dx = p.dir?.x ?? p.pos.x - p.prevPos.x;
   const dy = p.dir?.y ?? p.pos.y - p.prevPos.y;
   const a = Math.atan2(dy, dx);
@@ -368,7 +370,7 @@ function drawStyledProjectile(ctx: CanvasRenderingContext2D, p: Projectile, x: n
     const g = ctx.createLinearGradient(-size * 1.5, 0, size * 0.6, 0);
     g.addColorStop(0, 'rgba(0,0,0,0)');
     g.addColorStop(0.6, color);
-    g.addColorStop(1, '#fff3c0');
+    g.addColorStop(1, tip);
     ctx.fillStyle = g;
     ctx.globalAlpha = 0.85 + 0.15 * Math.sin(t * 25);
     ctx.beginPath();

@@ -122,10 +122,12 @@ export function showHeroSelect(parent: HTMLElement, o: HeroSelectOpts, onStart: 
     if (!selected) return;
     const def = getHeroDef(selected);
     q<HTMLDivElement>('.hs-name').innerHTML = `${esc(def.name)}<span class="hs-title">${esc(def.title)}</span>`;
+    const range = def.projectileSpeed > 0 ? '远程' : '近战';
+    // 定位里已经写了"远程 / 近战"（卓尔）时不再重复
     q<HTMLDivElement>('.hs-tags').innerHTML =
       `<span class="attr" style="background:${PRIMARY_COLORS[def.primary]}">${PRIMARY_NAMES[def.primary]}</span>` +
-      `<span class="range">${def.projectileSpeed > 0 ? '远程' : '近战'}</span>` +
-      def.roles.map((r) => `<span class="role">${esc(r)}</span>`).join('');
+      `<span class="range">${range}</span>` +
+      def.roles.filter((r) => r !== range).map((r) => `<span class="role">${esc(r)}</span>`).join('');
     q<HTMLDivElement>('.hs-stats').innerHTML = statsHtml(def);
     const list = q<HTMLDivElement>('.hs-abilities');
     list.innerHTML = abilitiesHtml(def);

@@ -31,9 +31,11 @@ const PLAN = {
   zeus_lightning_bolt: { fx: [['zeus_bolt', 2, 'hit'], ['zeus_bolt', 8, 'hit2']] },
   zeus_heavenly_jump: { fx: [['zeus_jump_shock', 2, 'shock'], ['zeus_jump', 14, 'air']] },
   zeus_thundergods_wrath: { fx: [['zeus_wrath', 1, 'flash'], ['zeus_wrath_hit', 5, 'hit']], afterMs: 2500 },
+  drow_gust: { proj: 'drow_gust', fx: [['drow_gust', 10, 'push']] },
+  drow_multishot: { proj: 'drow_multishot', fx: [['drow_multishot', 3, 'start'], ['drow_multishot', 150, 'wave2']], afterMs: 1500 },
 };
 /** 普攻（被动）要截的时刻：分裂斩痕（fx）或普攻弹道（proj） */
-const ATTACK = { sven: { fx: 'cleave' }, lina: { proj: 'hero:lina' }, crystal_maiden: { proj: 'hero:crystal_maiden' }, zeus: { proj: 'hero:zeus' } };
+const ATTACK = { sven: { fx: 'cleave' }, lina: { proj: 'hero:lina' }, crystal_maiden: { proj: 'hero:crystal_maiden' }, zeus: { proj: 'hero:zeus' }, drow_ranger: { proj: 'drow_frost_arrow' } };
 
 (async () => {
   const browser = await chromium.launch({
@@ -153,7 +155,9 @@ const ATTACK = { sven: { fx: 'cleave' }, lina: { proj: 'hero:lina' }, crystal_ma
     scale = 0.25;
     await run(scale);
     if (tt === 'toggle') {
-      await page.evaluate((s) => window.__game.session.match.world.issue(window.__game.session.match.playerUnitId, { type: 'toggle', slot: s }), slot);
+      // 默认开启的开关（霜冻之箭）已经开着：直接截 HUD 上高亮的开关键，不要把它关掉
+      const on = await page.evaluate(([m, s]) => eval(m).ability(s).toggled, [meU(), slot]);
+      if (!on) await page.evaluate((s) => window.__game.session.match.world.issue(window.__game.session.match.playerUnitId, { type: 'toggle', slot: s }), slot);
       await wait(1500);
       await shot(`${slot}-on`);
       continue;

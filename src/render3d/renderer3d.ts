@@ -107,9 +107,9 @@ class HeroView {
   };
 
   constructor(readonly u: Unit, parent: Group) {
-    this.mat = makeToon({ rim: 0xfff0dc, rimStrength: 0.3, key: 'hero' });
-    this.baseRim = this.mat.rimU.value.clone();
     this.spec = heroModelSpec(u.defId);
+    this.mat = makeToon({ rim: this.spec.rim?.color ?? 0xfff0dc, rimStrength: this.spec.rim?.strength ?? 0.3, key: 'hero' });
+    this.baseRim = this.mat.rimU.value.clone();
     this.model = new SkinnedHeroModel(this.spec, u.team, this.mat);
     this.facing = u.facing;
     parent.add(this.model.root, this.ring.mesh, this.meRing.mesh, this.channel.mesh);

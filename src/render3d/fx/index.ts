@@ -12,3 +12,5 @@ import '../models/crystal_maiden';
 import './crystal_maiden';
 import '../models/zeus';
 import './zeus';
+import '../models/drow_ranger';
+import './drow_ranger';

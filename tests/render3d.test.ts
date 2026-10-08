@@ -10,6 +10,7 @@ import { SVEN_SPEC, attackPose as svenAttack } from '../src/render3d/models/sven
 import { LINA_SPEC, attackPose as linaAttack, runPose as linaRun, idlePose as linaIdle } from '../src/render3d/models/lina';
 import { CM_SPEC } from '../src/render3d/models/crystal_maiden';
 import { ZEUS_SPEC, attackPose as zeusAttack, jumpPose as zeusJump, runPose as zeusRun, idlePose as zeusIdle } from '../src/render3d/models/zeus';
+import { DROW_SPEC, attackPose as drowAttack, multishotPose as drowMultishot, runPose as drowRun, idlePose as drowIdle } from '../src/render3d/models/drow_ranger';
 import { Fx3D } from '../src/render3d/fx3d';
 import { lookupAreaVisual as areaVisual, lookupFx as fxFor, lookupModifierVisual as modVisual, projectileStyle as projStyle } from '../src/render3d/fx/registry';
 import { getHeroDef } from '../src/sim/heroes';
@@ -608,5 +609,84 @@ describe('Zeus model', () => {
     fx.screenFlash('255,40,30', 0.3);
     fx.update(0.15, 720, 1);
     expect(fx.flashAlpha()).toBeCloseTo(0.175);
+  });
+});
+
+describe('Drow Ranger model', () => {
+  const finite = (p: Record<string, number>) => Object.values(p).every(Number.isFinite);
+  it('drow_ranger poses are finite for every state and ability', () => {
+    const actives = getHeroDef('drow_ranger').abilities.filter((a) => a.targetType !== 'passive' && a.targetType !== 'toggle').map((a) => a.id);
+    expect(Object.keys(DROW_SPEC.releaseDur).sort()).toEqual([...actives].sort());
+    const states: Partial<AnimInput>[] = [
+      {}, { speed: 300 }, { windup: 0.4 }, { channel: true }, { channel: true, speed: 200 }, { stunned: true }, { stunned: true, motion: 'knockback' },
+      { alive: false }, { taunted: true },
+    ];
+    for (const inp of states) {
+      const tr = new AnimTracker();
+      tr.update(input(inp), 0.05, 0.5);
+      tr.update(input(inp), 0.3, 0.5);
+      expect(finite(DROW_SPEC.pose(tr, 1.7, null))).toBe(true);
+    }
+    for (const id of Object.keys(DROW_SPEC.releaseDur)) {
+      for (const cp of [0, 0.5, 1]) {
+        const tr = new AnimTracker();
+        tr.update(input({ castAbility: id, castProgress: cp }), 0.05, 0);
+        expect(tr.state).toBe('cast');
+        expect(finite(DROW_SPEC.pose(tr, 0.4, null))).toBe(true);
+      }
+      for (const k of [0, 0.5, 1]) {
+        const tr = new AnimTracker();
+        const dur = DROW_SPEC.releaseDur[id];
+        tr.trigger(id, dur);
+        tr.update(input(), Math.max(1e-3, k * dur * 0.999), 0);
+        expect(tr.state).toBe('release');
+        expect(finite(DROW_SPEC.pose(tr, 0.4, null))).toBe(true);
+      }
+    }
+    for (const k of [0, 0.1, 0.2, 0.5, 0.99]) expect(finite(drowMultishot(k))).toBe(true);
+  });
+
+  /** 摆好姿势后，弓的某个本地轴在模型空间里的方向 */
+  const bowAxis = (inp: Partial<AnimInput>, axis: Vector3): Vector3 => {
+    const m = new SkinnedHeroModel(DROW_SPEC, 0, new MeshBasicMaterial());
+    const tr = new AnimTracker();
+    for (let i = 0; i < 4; i++) tr.update(input(inp), 0.2, 0);
+    m.pose(tr, 1, 0, null);
+    m.root.updateMatrixWorld(true);
+    const q = new Quaternion();
+    m.bones.bow.getWorldQuaternion(q);
+    const rootQ = new Quaternion();
+    m.root.getWorldQuaternion(rootQ);
+    return axis.clone().applyQuaternion(rootQ.invert().multiply(q));
+  };
+
+  it('holds the bow in the left hand, draws to the jaw with the bow upright, and the ponytail swings', () => {
+    // 站立：弓大体竖着（上弓梢略向前倒）
+    expect(bowAxis({}, new Vector3(0, 1, 0)).y).toBeGreaterThan(0.85);
+    // 普攻出手前（满弓）：弓竖直、弓背朝前
+    const draw = { windup: 0.04, attackPoint: 0.4 };
+    expect(bowAxis(draw, new Vector3(0, 1, 0)).y).toBeGreaterThan(0.95);
+    expect(bowAxis(draw, new Vector3(0, 0, 1)).z).toBeGreaterThan(0.9);
+    // 拉弓：右手从弦上（小臂伸开）拉到脸旁（肘部折起）
+    expect(drowAttack(0).elR).toBeGreaterThan(-1.2);
+    expect(drowAttack(0.85).elR).toBeLessThan(-2.2);
+    expect(DROW_SPEC.bones.find((b) => b[0] === 'bow')?.[1]).toBe('handL');
+    expect(DROW_SPEC.bones.find((b) => b[0] === 'hairTail1')?.[1]).toBe('head');
+    expect(DROW_SPEC.bones.find((b) => b[0] === 'hairTail2')?.[1]).toBe('hairTail1');
+    expect(DROW_SPEC.bones.map((b) => b[0])).toEqual(expect.arrayContaining(['cape', 'quiver']));
+    // 跑动时马尾向后飘得更平
+    const tail = (p: Record<string, number>) => p.hairTail1X + p.hairTail2X;
+    expect(tail(drowRun(1, 0))).toBeGreaterThan(tail(drowIdle(0)) + 0.3);
+    expect(DROW_SPEC.headHeight).toBeCloseTo(172, -1);
+    expect(DROW_SPEC.scale).toBe(1.2);
+  });
+
+  it('registers its arrows, Gust, fx events and modifier visuals', () => {
+    for (const k of ['hero:drow_ranger', 'drow_frost_arrow', 'drow_marksman_arrow', 'drow_multishot']) expect(projStyle(k)?.mesh).toBe('arrow');
+    expect(projStyle('drow_frost_arrow')?.emitter).toBeTypeOf('function');
+    expect(projStyle('drow_marksman_arrow')!.halo!).toBeGreaterThan(projStyle('drow_frost_arrow')!.halo!);
+    expect(projStyle('drow_gust')).toMatchObject({ mesh: 'wave', scaleWithWidth: true });
+    for (const k of ['drow_gust', 'drow_multishot']) expect(fxFor(k)).toBeTypeOf('function');
+    for (const k of ['drow_marksmanship', 'drow_precision_aura_buff']) expect(modVisual(k)).toBeDefined();
   });
 });

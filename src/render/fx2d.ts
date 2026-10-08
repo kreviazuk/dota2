@@ -21,7 +21,11 @@ export function registerFx2D(kind: string, h: Fx2DHandler): void {
 /** 查不到时返回 undefined（调用方走默认分支） */
 export const lookupFx2D = (kind: string): Fx2DHandler | undefined => FX.get(kind);
 
-export interface Projectile2DStyle { color: string; size: number; shape?: 'orb' | 'line' | 'arrow' | 'wave' }
+export interface Projectile2DStyle {
+  color: string; size: number; shape?: 'orb' | 'line' | 'arrow' | 'wave';
+  /** wave 的前缘颜色（缺省淡黄色，龙破斩的火焰波） */
+  tip?: string;
+}
 
 const PROJ = new Map<string, Projectile2DStyle>();
 
@@ -308,4 +312,35 @@ registerFx2D('zeus_static', (fx, e, world) => {
   const t = world.getUnit(e.targetId);
   const p = t?.pos ?? e.pos;
   fx.burst(p.x, p.y - 30, 5, 'rgba(120,190,255,0.95)', 120, 3.5, 0.22);
+});
+
+// ---------- 卓尔游侠 ----------
+// 三种普攻箭三种颜色：普通（浅灰蓝）、霜冻之箭（冰蓝）、射手天赋（金色、更粗）
+registerProjectile2D('hero:drow_ranger', { color: '#d8e4f0', size: 7, shape: 'arrow' });
+registerProjectile2D('drow_frost_arrow', { color: '#4fb8f0', size: 8, shape: 'arrow' });
+registerProjectile2D('drow_marksman_arrow', { color: '#ffc83a', size: 10, shape: 'arrow' });
+registerProjectile2D('drow_multishot', { color: '#6ab8f0', size: 6, shape: 'arrow' });
+registerProjectile2D('drow_gust', { color: '#5fd0ec', size: 30, shape: 'wave', tip: '#e8fbff' });
+
+/** 狂风出手：卓尔身前一团青色风 + 小圈 */
+registerFx2D('drow_gust', (fx, e) => {
+  const d = e.dir ?? { x: 0, y: -1 };
+  fx.burst(e.pos.x + d.x * 50, e.pos.y + d.y * 50, 16, 'rgba(150,230,250,0.95)', 300, 6, 0.4);
+  fx.ring(e.pos.x, e.pos.y, 10, 100, 'rgba(95,208,236,', 0.3, 6);
+});
+
+/** 数箭齐发开始：沿射击方向的蓝色扇形 */
+registerFx2D('drow_multishot', (fx, e) => {
+  const d = e.dir ?? { x: 0, y: -1 };
+  fx.arc(e.pos.x, e.pos.y, Math.atan2(d.y, d.x), 0.44, 260, 'rgba(110,190,245,', 0.35, 10);
+  fx.burst(e.pos.x + d.x * 40, e.pos.y + d.y * 40, 10, 'rgba(180,230,255,0.95)', 200, 5, 0.3);
+});
+
+/** 精准光环：友方远程英雄脚下的淡蓝小圈 */
+registerModifier2D('drow_precision_aura_buff', (ctx, u, _m, x, y, t) => {
+  ctx.strokeStyle = `rgba(143,208,238,${0.4 + 0.1 * Math.sin(t * 2.5)})`;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.ellipse(x, y, u.radius * 1.4, u.radius * 0.8, 0, 0, Math.PI * 2);
+  ctx.stroke();
 });
