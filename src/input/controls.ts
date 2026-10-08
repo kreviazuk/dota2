@@ -38,6 +38,15 @@ export function castCommandFor(u: Unit, ab: AbilityInstance, heldDir: Vec2 | nul
   return { type: 'cast', slot };
 }
 
+/**
+ * 摇杆 / 方向键一直按着、英雄却停下来了（施法前摇结束后指令变回 idle、攻击目标死亡、回城结束……）时，
+ * 重新按按住的方向走；否则拇指还推着摇杆，英雄却站着不动，要松开再推一次。施法中（含引导）不发。
+ */
+export function heldMoveCommand(u: Unit, heldDir: Vec2 | null): Command | null {
+  if (!heldDir || (!heldDir.x && !heldDir.y) || !u.alive || u.cast || u.order.kind !== 'idle') return null;
+  return { type: 'move', dir: { x: heldDir.x, y: heldDir.y } };
+}
+
 interface AimState {
   slot: AbilitySlot;
   pointerId: number;
@@ -106,6 +115,9 @@ export class Controls {
     if (u) {
       u.autoAttack = this.prefs.autoAttack;
       if (this.prefs.autoLevel) this.autoLevel(u);
+      // 这一帧没有别的指令时才补发（同一帧刚点的技能不能被移动指令顶掉）
+      const move = this.queue.length === 0 ? heldMoveCommand(u, this.heldDir()) : null;
+      if (move) this.push(move);
     }
     if (this.attackHeld && this.match.world.time >= this.attackHeldUntil) {
       this.push({ type: 'attack', mode: 'smart' });

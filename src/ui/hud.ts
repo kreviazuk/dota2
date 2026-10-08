@@ -222,13 +222,14 @@ export class Hud {
         counter: root.querySelector('.counter')!,
       });
     }
-    // 稍后 / 重新展开：纯界面状态，不产生指令
-    this.q<HTMLSpanElement>('.talent-later').addEventListener('pointerdown', (e) => {
+    // 稍后 / 重新展开：纯界面状态，不产生指令。用 click 而不是 pointerdown：小按钮和弹窗的右侧天赋在同一个位置，
+    // 按下时就展开的话，松手后浏览器补发的 click 会落到刚出现的天赋上（按住超过保护期就会误选）
+    this.q<HTMLSpanElement>('.talent-later').addEventListener('click', (e) => {
       e.preventDefault();
       this.talentCollapsed = true;
       this.refreshTalent();
     });
-    this.els.talentPill.addEventListener('pointerdown', (e) => {
+    this.els.talentPill.addEventListener('click', (e) => {
       e.preventDefault();
       this.talentCollapsed = false;
       this.talentShownAt = performance.now();

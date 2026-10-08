@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { joystickVector, dirChanged, dragToAim } from '../src/input/aimMath';
 import { aimAbility, pointCastTarget } from '../src/input/aim';
-import { castCommandFor } from '../src/input/controls';
+import { castCommandFor, heldMoveCommand } from '../src/input/controls';
 import { makeWorld, spawnDummy } from './helpers';
 import { createHero } from '../src/sim/systems/heroes';
 import { newAbilityInstance } from '../src/sim/systems/abilities';
@@ -127,5 +127,28 @@ describe('cast commands', () => {
     const tog = newAbilityInstance({ id: 'test_toggle', name: '开关', description: '', slot: 'X2', maxLevel: 1, targetType: 'toggle', values: {} });
     tog.level = 1;
     expect(castCommandFor(axe, tog, { x: 1, y: 0 })).toEqual({ type: 'toggle', slot: 'X2' });
+  });
+});
+
+describe('held joystick', () => {
+  it('resumes walking in the held direction once a cast has finished', () => {
+    const w = makeWorld();
+    const axe = createHero(w, 'axe', Team.Radiant, true);
+    axe.pos = { x: 1500, y: 5000 };
+    axe.ability('Q')!.level = 1;
+    axe.mana = axe.stats.maxMana;
+    const up = { x: 0, y: -1 };
+    w.issue(axe.id, { type: 'move', dir: up });
+    w.step();
+    expect(heldMoveCommand(axe, up)).toBeNull(); // 正在按摇杆走：不重复发
+    w.issue(axe.id, { type: 'cast', slot: 'Q' });
+    w.step();
+    expect(axe.cast).not.toBeNull();
+    expect(heldMoveCommand(axe, up)).toBeNull(); // 前摇中不发（不打断施法）
+    for (let i = 0; i < 30 && axe.cast; i++) w.step();
+    expect(axe.cast).toBeNull();
+    expect(axe.order.kind).toBe('idle');
+    expect(heldMoveCommand(axe, up)).toEqual({ type: 'move', dir: up });
+    expect(heldMoveCommand(axe, null)).toBeNull(); // 松开摇杆后不动
   });
 });
