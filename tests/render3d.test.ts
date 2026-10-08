@@ -12,6 +12,11 @@ import { CM_SPEC } from '../src/render3d/models/crystal_maiden';
 import { ZEUS_SPEC, attackPose as zeusAttack, jumpPose as zeusJump, runPose as zeusRun, idlePose as zeusIdle } from '../src/render3d/models/zeus';
 import { DROW_SPEC, attackPose as drowAttack, multishotPose as drowMultishot, runPose as drowRun, idlePose as drowIdle } from '../src/render3d/models/drow_ranger';
 import { PA_SPEC, BLADE_LEN, attackPose as paAttack, idlePose as paIdle, runPose as paRun } from '../src/render3d/models/phantom_assassin';
+import { JUGG_SPEC, KATANA_LEN, FURY_SPIN, WARD_HEIGHT, attackPose as juggAttack, furyPose as juggFury, idlePose as juggIdle, omnislashPose as juggOmni, runPose as juggRun } from '../src/render3d/models/juggernaut';
+import { summonModelSpec } from '../src/render3d/models/registry';
+import { cameraCalm, CALM_FOLLOW_RATE } from '../src/render/cameraHints';
+import { makeWorld, heroAt } from './helpers';
+import { findModifier } from '../src/sim/modifiers';
 import { Fx3D } from '../src/render3d/fx3d';
 import { lookupAreaVisual as areaVisual, lookupFx as fxFor, lookupModifierVisual as modVisual, projectileStyle as projStyle } from '../src/render3d/fx/registry';
 import { getHeroDef } from '../src/sim/heroes';
@@ -773,5 +778,135 @@ describe('Phantom Assassin model', () => {
     expect(projStyle('pa_dagger')?.spin).toBeGreaterThan(0);
     for (const k of ['pa_stifling_dagger', 'pa_phantom_strike', 'pa_crit', 'pa_blur']) expect(fxFor(k)).toBeTypeOf('function');
     for (const k of ['pa_deadly_focus', 'pa_blur']) expect(modVisual(k)).toBeDefined();
+  });
+});
+
+describe('Juggernaut model', () => {
+  const finite = (p: Record<string, number>) => Object.values(p).every(Number.isFinite);
+  it('juggernaut poses are finite for every state and ability', () => {
+    const actives = getHeroDef('juggernaut').abilities.filter((a) => a.targetType !== 'passive').map((a) => a.id);
+    expect(Object.keys(JUGG_SPEC.releaseDur).sort()).toEqual([...actives].sort());
+    const states: Partial<AnimInput>[] = [
+      {}, { speed: 300 }, { windup: 0.2 }, { channel: true }, { stunned: true }, { stunned: true, motion: 'knockback' }, { alive: false }, { taunted: true },
+    ];
+    for (const inp of states) {
+      const tr = new AnimTracker();
+      tr.update(input(inp), 0.05, 0.5);
+      tr.update(input(inp), 0.3, 0.5);
+      expect(finite(JUGG_SPEC.pose(tr, 1.7, null))).toBe(true);
+    }
+    for (const id of Object.keys(JUGG_SPEC.releaseDur)) {
+      for (const cp of [0, 0.5, 1]) {
+        const tr = new AnimTracker();
+        tr.update(input({ castAbility: id, castProgress: cp }), 0.05, 0);
+        expect(tr.state).toBe('cast');
+        expect(finite(JUGG_SPEC.pose(tr, 0.4, null))).toBe(true);
+      }
+      for (const k of [0, 0.5, 1]) {
+        const tr = new AnimTracker();
+        tr.trigger(id, JUGG_SPEC.releaseDur[id]);
+        tr.update(input(), Math.max(1e-3, k * JUGG_SPEC.releaseDur[id] * 0.999), 0);
+        expect(tr.state).toBe('release');
+        expect(finite(JUGG_SPEC.pose(tr, 0.4, null))).toBe(true);
+      }
+    }
+    for (const p of [0, 0.3, 0.5, 0.8, 1]) expect(finite(juggAttack(p))).toBe(true);
+    expect(finite(juggFury(0.3, true, 1.2))).toBe(true);
+    expect(finite(juggOmni(0.3))).toBe(true);
+  });
+
+  /** 摆好姿势后，某根骨骼上一点在模型空间的位置 */
+  const pointOn = (pose: Record<string, number>, bone: string, local: [number, number, number]): Vector3 => {
+    const m = new SkinnedHeroModel(JUGG_SPEC, 0, new MeshBasicMaterial());
+    applyHumanoid(m.bones as Record<string, Bone>, pose, JUGG_SPEC.bindRotations);
+    m.root.updateMatrixWorld(true);
+    const inv = m.root.matrixWorld.clone().invert();
+    return new Vector3(...local).applyMatrix4(m.bones[bone].matrixWorld).applyMatrix4(inv);
+  };
+
+  it('holds the katana in the right hand: low at rest, drawn back at the left hip, slashing up to the right, held out flat in Blade Fury', () => {
+    expect(JUGG_SPEC.bones.find((b) => b[0] === 'sword')?.[1]).toBe('handR');
+    expect(JUGG_SPEC.bones.find((b) => b[0] === 'skirt')?.[1]).toBe('pelvis');
+    const tip = (p: Record<string, number>) => pointOn(p, 'sword', [0, KATANA_LEN, 0]);
+    const hand = (p: Record<string, number>) => pointOn(p, 'sword', [0, 0, 0]);
+    // 站立：刀尖在右前下方（模型 +X 是左手边），不穿地
+    const t0 = tip(juggIdle(0));
+    expect(t0.x).toBeLessThan(-20);
+    expect(t0.z).toBeGreaterThan(40);
+    expect(t0.y).toBeGreaterThan(5);
+    // 居合收刀：手在身体中线左侧，刀尖朝后
+    const wind = juggAttack(0.4);
+    expect(hand(wind).x).toBeGreaterThan(-5);
+    expect(tip(wind).z).toBeLessThan(hand(wind).z - 50);
+    // 斩出：刀尖在右上前方、高过头
+    const hit = juggAttack(1);
+    expect(tip(hit).x).toBeLessThan(hand(hit).x - 20);
+    expect(tip(hit).y).toBeGreaterThan(140);
+    expect(tip(hit).z).toBeGreaterThan(hand(hit).z);
+    // 剑刃风暴：刀沿手臂方向向右水平伸出
+    const fury = juggFury(0, false, 0);
+    expect(tip(fury).x).toBeLessThan(-130);
+    expect(Math.abs(tip(fury).y - hand(fury).y)).toBeLessThan(15);
+    // 无敌斩：刀尖指向正前方
+    expect(tip(juggOmni(0)).z - hand(juggOmni(0)).z).toBeGreaterThan(KATANA_LEN * 0.9);
+    // 奔跑：刀拖在身后
+    expect(tip(juggRun(0, 0)).z).toBeLessThan(-50);
+    expect(JUGG_SPEC.scale).toBe(1.25);
+    expect(JUGG_SPEC.headHeight * JUGG_SPEC.scale).toBeCloseTo(186, -1);
+    expect(JUGG_SPEC.rim).toBeDefined();
+  });
+
+  it('spins 14 rad/s while Blade Fury is on and in the preview release; poses follow Blade Fury / Omnislash modifiers', () => {
+    const w = makeWorld();
+    const j = heroAt(w, 'juggernaut', { x: 1500, y: 5000 }, { levels: { Q: 1, R: 1 } });
+    const tr = new AnimTracker();
+    tr.update(input(), 0.05, 0);
+    expect(JUGG_SPEC.spin!(tr, 2, j)).toBe(0);
+    w.issue(j.id, { type: 'cast', slot: 'Q' });
+    w.step();
+    expect(findModifier(j, 'jugg_blade_fury')).toBeDefined();
+    expect(JUGG_SPEC.spin!(tr, 2, j)).toBeCloseTo(2 * FURY_SPIN);
+    expect(FURY_SPIN).toBe(14);
+    // 风暴中站立 / 跑步都是双臂平伸
+    expect(JUGG_SPEC.pose(tr, 1, j).shRZ).toBeCloseTo(juggFury(1, false, 0).shRZ);
+    // 选人预览（没有单位）：释放动作期间转圈
+    const pv = new AnimTracker();
+    pv.trigger('jugg_blade_fury', JUGG_SPEC.releaseDur.jugg_blade_fury);
+    pv.update(input(), 0.3, 0);
+    expect(JUGG_SPEC.spin!(pv, 0, null)).toBeGreaterThan(3);
+    // 无敌斩中：冲刺姿势，镜头松跟随
+    expect(cameraCalm(j)).toBe(false);
+    const foe = heroAt(w, 'axe', { x: 1500, y: 4700 }, { team: Team.Dire });
+    j.ability('Q')!.cooldown = 0;
+    w.issue(j.id, { type: 'cast', slot: 'R', target: { unitId: foe.id } });
+    for (let i = 0; i < 12; i++) w.step();
+    expect(findModifier(j, 'jugg_omnislash')).toBeDefined();
+    expect(cameraCalm(j)).toBe(true);
+    expect(CALM_FOLLOW_RATE).toBeLessThan(3);
+    expect(JUGG_SPEC.pose(tr, 1, j).torsoX).toBeCloseTo(juggOmni(1).torsoX);
+  });
+
+  it('a slower follow rate moves the camera less per frame', () => {
+    const a = new Camera3D();
+    const b = new Camera3D();
+    for (const c of [a, b]) c.resize(844, 390, 2);
+    for (const c of [a, b]) c.follow({ x: MAP.laneX, y: 6000 }, Team.Radiant, 0, true);
+    a.follow({ x: MAP.laneX + 300, y: 6000 }, Team.Radiant, 1 / 60);
+    b.follow({ x: MAP.laneX + 300, y: 6000 }, Team.Radiant, 1 / 60, false, CALM_FOLLOW_RATE);
+    expect(b.x - MAP.laneX).toBeGreaterThan(0);
+    expect(b.x - MAP.laneX).toBeLessThan((a.x - MAP.laneX) * 0.5);
+  });
+
+  it('registers the Healing Ward summon model, fx events and modifier visuals', () => {
+    const ward = summonModelSpec('jugg_healing_ward')!;
+    expect(ward).toBeDefined();
+    expect(ward.height).toBe(WARD_HEIGHT);
+    const obj = ward.build(0);
+    expect(obj.getObjectByName('flame')).toBeDefined();
+    const w = makeWorld();
+    const j = heroAt(w, 'juggernaut', { x: 1500, y: 5000 }, { levels: { W: 1 } });
+    expect(() => ward.update!(obj, j, 1.3)).not.toThrow();
+    for (const k of ['jugg_blade_fury', 'jugg_healing_ward', 'jugg_omnislash']) expect(fxFor(k)).toBeTypeOf('function');
+    for (const k of ['jugg_blade_fury', 'jugg_healing_ward_heal', 'jugg_omnislash']) expect(modVisual(k)).toBeDefined();
   });
 });

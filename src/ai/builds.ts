@@ -10,6 +10,7 @@ export const SKILL_BUILDS: Record<string, AbilitySlot[]> = {
   zeus: ['Q', 'W', 'Q', 'E', 'Q', 'R', 'Q', 'W', 'W', 'W', 'R', 'E', 'E', 'E', 'R'],
   drow_ranger: ['W', 'Q', 'E', 'Q', 'E', 'R', 'E', 'Q', 'E', 'Q', 'R', 'W', 'W', 'W', 'R'],
   phantom_assassin: ['Q', 'W', 'Q', 'E', 'Q', 'R', 'Q', 'E', 'E', 'E', 'R', 'W', 'W', 'W', 'R'],
+  juggernaut: ['Q', 'E', 'Q', 'W', 'Q', 'R', 'Q', 'E', 'E', 'E', 'R', 'W', 'W', 'W', 'R'],
 };
 
 /** 天赋预设：下标 = 天赋层（10/15/20/25 级），0 = 左 / 1 = 右 */
@@ -28,6 +29,8 @@ export const TALENT_BUILDS: Record<string, (0 | 1)[]> = {
   drow_ranger: [0, 0, 1, 0],
   // −2 秒窒碍短匕冷却、+20% 飘忽不定闪避、+60 幻影突袭攻速、+10% 恩赐解脱几率
   phantom_assassin: [1, 0, 1, 0],
+  // −1 秒剑心间隔、−15 秒无敌斩冷却、+120 剑刃风暴每秒伤害、+1 秒无敌斩
+  juggernaut: [1, 0, 1, 0],
 };
 
 const DEFAULT_BUILD: AbilitySlot[] = ['Q', 'W', 'E', 'Q', 'W', 'R', 'E', 'Q', 'W', 'E', 'R', 'Q', 'W', 'E', 'R'];

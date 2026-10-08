@@ -45,10 +45,10 @@ export class Camera implements ViewCamera {
     return Math.max(1, Math.min(MAX_UI_SCALE, UI_REF_VIEW_HEIGHT / this.viewH));
   }
 
-  /** 跟随目标，并向敌方基地方向偏移 20% 屏高；snap = 立即到位 */
-  follow(target: Vec2, team: Team, dt: number, snap = false): void {
+  /** 跟随目标，并向敌方基地方向偏移 20% 屏高；snap = 立即到位；rate = 跟随速率（每秒，缺省 8；无敌斩这类连续闪烁时更慢，见 cameraHints） */
+  follow(target: Vec2, team: Team, dt: number, snap = false, rate = 8): void {
     const look = this.worldH * 0.2 * (team === Team.Radiant ? -1 : 1);
-    const k = snap ? 1 : 1 - Math.exp(-dt * 8);
+    const k = snap ? 1 : 1 - Math.exp(-dt * rate);
     this.x += (target.x - this.x) * k;
     this.y += (target.y + look - this.y) * k;
     const hw = this.worldW / 2;

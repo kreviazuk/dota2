@@ -4,6 +4,7 @@ import type { Unit } from '../sim/entities/unit';
 import type { ModifierInstance } from '../sim/modifiers';
 import type { FxSystem } from './fx';
 import type { ViewCamera } from './view';
+import { registerCalmCamera } from './cameraHints';
 
 /**
  * 2D 后备渲染器的特效注册表：sim 的 fx 事件和弹道外观。各英雄任务在这里注册自己的 2D 表现（简单的圈 / 粒子 / 颜色）；
@@ -46,6 +47,17 @@ export function registerModifier2D(modifierId: string, v: Modifier2D): void {
 }
 
 export const lookupModifier2D = (modifierId: string): Modifier2D | undefined => MODS.get(modifierId);
+
+/** 召唤物的 2D 外观（替换通用的小图腾）；(x, y) 是召唤物位置（脚下） */
+export type Summon2D = (ctx: CanvasRenderingContext2D, u: Unit, x: number, y: number, t: number) => void;
+
+const SUMMONS = new Map<string, Summon2D>();
+
+export function registerSummon2D(defId: string, v: Summon2D): void {
+  SUMMONS.set(defId, v);
+}
+
+export const lookupSummon2D = (defId: string): Summon2D | undefined => SUMMONS.get(defId);
 
 // ---------- 通用 ----------
 /** 闪烁：起点和终点各一团粒子 + 圈 */
@@ -396,5 +408,108 @@ registerModifier2D('pa_blur', (ctx, u, _m, x, y, t) => {
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.ellipse(x, y, u.radius * 1.7, u.radius * 1, 0, 0, Math.PI * 2);
+  ctx.stroke();
+});
+
+// ---------- 主宰 ----------
+/** 剑刃风暴施放：橙金色的冲击圈 + 甩出的刀光 */
+registerFx2D('jugg_blade_fury', (fx, e, world) => {
+  const p = world.getUnit(e.unitId ?? -1)?.pos ?? e.pos;
+  fx.ring(p.x, p.y, 20, 260, 'rgba(232,106,16,', 0.35, 10);
+  fx.burst(p.x, p.y, 18, 'rgba(240,160,32,0.95)', 280, 5, 0.35, false);
+});
+
+/** 剑刃风暴：260 的橙金色旋转虚线圈 + 中间转动的刀光弧 */
+registerModifier2D('jugg_blade_fury', (ctx, _u, m, x, y, t) => {
+  const r = m.data.radius || 260;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(232,106,16,0.75)';
+  ctx.lineWidth = 4;
+  ctx.setLineDash([22, 14]);
+  ctx.lineDashOffset = -t * 220;
+  ctx.beginPath();
+  ctx.ellipse(x, y, r, r * 0.62, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.strokeStyle = 'rgba(240,170,40,0.85)';
+  ctx.lineWidth = 3;
+  for (let i = 0; i < 3; i++) {
+    const a = t * 14 + (i * Math.PI * 2) / 3;
+    ctx.beginPath();
+    ctx.ellipse(x, y - 18, r * 0.55, r * 0.34, 0, a, a + 0.9);
+    ctx.stroke();
+  }
+  ctx.restore();
+});
+
+/** 治疗守卫放下：绿色光爆 */
+registerFx2D('jugg_healing_ward', (fx, e) => {
+  fx.burst(e.pos.x, e.pos.y - 20, 16, 'rgba(47,194,62,0.95)', 150, 6, 0.5, false);
+  fx.ring(e.pos.x, e.pos.y, 10, 90, 'rgba(47,194,62,', 0.4, 6);
+});
+
+/** 守卫脚下 400 的淡绿色回复范围圈 */
+registerModifier2D('jugg_healing_ward_heal', (ctx, _u, m, x, y, t) => {
+  const r = m.data.radius || 400;
+  ctx.save();
+  ctx.strokeStyle = `rgba(47,194,62,${0.35 + 0.1 * Math.sin(t * 2.5)})`;
+  ctx.fillStyle = 'rgba(47,194,62,0.06)';
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash([16, 10]);
+  ctx.beginPath();
+  ctx.ellipse(x, y, r, r * 0.62, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+  ctx.restore();
+});
+
+/** 治疗守卫：木制图腾 + 顶上跳动的绿色火焰 */
+registerSummon2D('jugg_healing_ward', (ctx, u, x, y, t) => {
+  const r = Math.max(14, u.radius * 1.1);
+  ctx.fillStyle = 'rgba(0,0,0,0.25)';
+  ctx.beginPath();
+  ctx.ellipse(x, y + r * 0.3, r * 1.1, r * 0.6, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#5a3818';
+  ctx.fillRect(x - r * 0.42, y - r * 2.1, r * 0.84, r * 2.3);
+  ctx.fillStyle = '#8a5a2a';
+  ctx.fillRect(x - r * 0.32, y - r * 2.0, r * 0.64, r * 2.1);
+  ctx.fillStyle = '#2fc23e';
+  ctx.fillRect(x - r * 0.22, y - r * 1.35, r * 0.14, r * 0.12);
+  ctx.fillRect(x + r * 0.08, y - r * 1.35, r * 0.14, r * 0.12);
+  ctx.fillStyle = '#5a3818';
+  ctx.fillRect(x - r * 0.6, y - r * 2.3, r * 1.2, r * 0.3);
+  const f = 1 + 0.15 * Math.sin(t * 11 + u.id);
+  const fy = y - r * 2.3;
+  for (const [w, h, c] of [[0.55, 1.5, '#128a20'], [0.4, 1.15, '#2fc23e'], [0.22, 0.7, '#c8ffc0']] as [number, number, string][]) {
+    ctx.fillStyle = c;
+    ctx.beginPath();
+    ctx.moveTo(x - r * w, fy);
+    ctx.quadraticCurveTo(x - r * w * 0.9, fy - r * h * f * 0.6, x, fy - r * h * f);
+    ctx.quadraticCurveTo(x + r * w * 0.9, fy - r * h * f * 0.6, x + r * w, fy);
+    ctx.closePath();
+    ctx.fill();
+  }
+});
+
+/** 无敌斩一斩：目标身上一道橙色斩痕 + 起点到终点的橙色残影线 */
+registerFx2D('jugg_omnislash', (fx, e, world, cam) => {
+  const t = world.getUnit(e.targetId ?? -1);
+  const j = world.getUnit(e.unitId ?? -1);
+  const p = t?.pos ?? e.pos;
+  fx.slash(p.x, p.y - 20, (Math.random() - 0.5) * 2, 90, '#f08a18', 0.3);
+  fx.burst(p.x, p.y - 20, 10, 'rgba(240,160,32,0.95)', 180, 5, 0.3, false);
+  if (j) fx.bolt(e.pos.x, e.pos.y - 25, j.pos.x, j.pos.y - 25, 'rgba(232,106,16,0.7)', 6, 0.25, 0, 1);
+  if (cam.visible(p) && (j?.hero?.playerControlled || t?.hero?.playerControlled)) cam.shake(3);
+});
+
+registerCalmCamera('jugg_omnislash');
+
+/** 无敌斩中：脚下一圈橙色 */
+registerModifier2D('jugg_omnislash', (ctx, u, _m, x, y, t) => {
+  ctx.strokeStyle = `rgba(232,106,16,${0.7 + 0.2 * Math.sin(t * 20)})`;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.ellipse(x, y, u.radius * 1.8, u.radius * 1.05, 0, 0, Math.PI * 2);
   ctx.stroke();
 });

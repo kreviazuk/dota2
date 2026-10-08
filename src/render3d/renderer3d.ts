@@ -19,6 +19,7 @@ import { Fx3D } from './fx3d';
 import { AnimTracker, animInput, turnToward, type AnimInput } from './anim';
 import { SkinnedHeroModel, type HeroModelSpec } from './models/heroModel';
 import { heroModelSpec, summonModelSpec, type SummonModelSpec } from './models/registry';
+import { cameraCalm, CALM_FOLLOW_RATE } from '../render/cameraHints';
 import './fx/index';
 import {
   lookupAreaVisual, lookupModifierVisual, projectileStyle, unitVisuals, type ModVisualCtx, type ProjectileStyle, type StatusMark, type UnitVisualCtx, type ViewFx,
@@ -957,7 +958,7 @@ export class Renderer3D implements GameRenderer {
       return;
     }
     const focus = world.getUnit(followId);
-    if (focus) this.camera.follow(this.ipos(focus, alpha), focus.team, dt);
+    if (focus) this.camera.follow(this.ipos(focus, alpha), focus.team, dt, false, cameraCalm(focus) ? CALM_FOLLOW_RATE : undefined);
     else this.camera.follow({ x: this.camera.x, y: this.camera.y }, Team.Radiant, 0);
     const viewerTeam = focus?.team ?? Team.Radiant;
     this.placeSun();

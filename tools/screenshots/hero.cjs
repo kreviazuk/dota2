@@ -36,12 +36,17 @@ const PLAN = {
   pa_stifling_dagger: { proj: 'pa_dagger', fx: [['pa_stifling_dagger', 3, 'release']] },
   pa_phantom_strike: { fx: [['pa_phantom_strike', 2, 'strike'], ['pa_phantom_strike', 10, 'strike2']] },
   pa_blur: { fx: [['pa_blur', 3, 'release'], ['pa_blur', 40, 'blur']], afterMs: 2500 },
+  jugg_blade_fury: { fx: [['jugg_blade_fury', 3, 'release'], ['jugg_blade_fury', 40, 'spin']], afterMs: 1500 },
+  jugg_healing_ward: { fx: [['jugg_healing_ward', 3, 'release'], ['jugg_healing_ward', 60, 'ward']] },
+  jugg_omnislash: { fx: [['jugg_omnislash', 2, 'slash'], ['jugg_omnislash', 40, 'slash2']], afterMs: 2500 },
 };
 /** 普攻（被动）要截的时刻：分裂斩痕（fx）或普攻弹道（proj） */
 // prep：开始普攻前在页面里执行的代码（me = 玩家英雄）。幻刺：一直把恩赐解脱的伪随机计数拉满，每隔一刀必定暴击
 const ATTACK = {
   sven: { fx: 'cleave' }, lina: { proj: 'hero:lina' }, crystal_maiden: { proj: 'hero:crystal_maiden' }, zeus: { proj: 'hero:zeus' }, drow_ranger: { proj: 'drow_frost_arrow' },
   phantom_assassin: { fx: 'pa_crit', prep: "setInterval(() => { const m = me.modifiers.find((x) => x.def.id === 'pa_coup_de_grace'); if (m) m.data.prd = 100; }, 30)" },
+  // 主宰：一直把剑舞的伪随机计数拉满（每一刀都暴击），截暴击飘字
+  juggernaut: { prep: "setInterval(() => { const m = me.modifiers.find((x) => x.def.id === 'jugg_blade_dance'); if (m) m.data.prd = 100; }, 30)" },
 };
 
 (async () => {
@@ -219,6 +224,11 @@ const ATTACK = {
     if (atk.proj) {
       await freezeWhen((v) => window.__game.session.match.world.projectiles.some((p) => p.visual === v && (p.__seen = (p.__seen ?? 0) + 1) > 4), atk.proj, 'attack-flight');
       await wait(2500);
+      await shot('attack-after');
+    }
+    if (!atk.fx && !atk.proj) {
+      // 近战没有专门特效（主宰的剑舞暴击只有伤害飘字）：普攻一会儿后截图
+      await wait(1200);
       await shot('attack-after');
     }
   }

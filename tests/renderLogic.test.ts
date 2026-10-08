@@ -9,7 +9,7 @@ import type { ViewCamera } from '../src/render/view';
 import { allHeroIds } from '../src/sim/heroes';
 import { lookupFx, registerFx, lookupModifierVisual, projectileStyle, registerProjectileStyle } from '../src/render3d/fx/registry';
 import '../src/render3d/fx/common';
-import { lookupFx2D, lookupModifier2D, lookupProjectile2D, registerFx2D, registerProjectile2D } from '../src/render/fx2d';
+import { lookupFx2D, lookupModifier2D, lookupProjectile2D, lookupSummon2D, registerFx2D, registerProjectile2D } from '../src/render/fx2d';
 import { applyControl, applyFear, applySlow } from '../src/sim/status';
 import { LruCache, MAP_TILE, tileRect, visibleTiles } from '../src/render/mapLayer';
 
@@ -191,6 +191,14 @@ describe('2D looks, shield bar and status markers', () => {
     expect(lookupProjectile2D('drow_multishot')?.shape).toBe('arrow');
     expect(lookupModifier2D('drow_precision_aura_buff')).toBeTypeOf('function');
     expect(HERO_LOOKS.drow_ranger).toMatchObject({ body: '#5fb0d8', trim: '#e6f4ff', skin: '#a8c8e0', initial: '卓', weapon: 'bow' });
+  });
+
+  it('Juggernaut has 2D effects for every fx event, Blade Fury / Omnislash / ward rings and a ward totem with a green flame', () => {
+    for (const k of ['jugg_blade_fury', 'jugg_healing_ward', 'jugg_omnislash']) expect(lookupFx2D(k)).toBeTypeOf('function');
+    for (const k of ['jugg_blade_fury', 'jugg_healing_ward_heal', 'jugg_omnislash']) expect(lookupModifier2D(k)).toBeTypeOf('function');
+    expect(lookupSummon2D('jugg_healing_ward')).toBeTypeOf('function');
+    expect(lookupSummon2D('unknown_summon')).toBeUndefined();
+    expect(HERO_LOOKS.juggernaut).toMatchObject({ body: '#d9772b', trim: '#e8d27a', skin: '#c08a5a', initial: '剑', weapon: 'katana' });
   });
 
   it('Phantom Assassin has a 2D dagger, effects for every fx event, and Deadly Focus / Blur rings', () => {

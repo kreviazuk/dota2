@@ -12,6 +12,7 @@ import {
   drawAreaEffect, drawBars, drawBuilding, drawCreep, drawProjectile, drawShadow, drawStatusGround2D, drawStatusIcons2D, drawSummon, killMarkerFor,
 } from './unitDraw';
 import { motionHeight } from '../sim/systems/motion';
+import { cameraCalm, CALM_FOLLOW_RATE } from './cameraHints';
 
 export type { AimIndicator } from './view';
 
@@ -72,7 +73,7 @@ export class Renderer implements GameRenderer {
     ctx.fillRect(0, 0, this.canvas.width, this.canvas.height);
     if (!world) return;
     const focus = world.getUnit(followId);
-    if (focus) cam.follow(this.ipos(focus, alpha), focus.team, dt);
+    if (focus) cam.follow(this.ipos(focus, alpha), focus.team, dt, false, cameraCalm(focus) ? CALM_FOLLOW_RATE : undefined);
     const viewerTeam = focus?.team ?? Team.Radiant;
     cam.apply(ctx);
     this.map.draw(ctx, this.time);

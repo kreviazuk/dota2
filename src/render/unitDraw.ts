@@ -5,7 +5,7 @@ import { Team } from '../sim/core/types';
 import type { World } from '../sim/world';
 import { abilityValue, canCast } from '../sim/systems/abilities';
 import { shieldTotal } from '../sim/shields';
-import { lookupModifier2D, lookupProjectile2D } from './fx2d';
+import { lookupModifier2D, lookupProjectile2D, lookupSummon2D } from './fx2d';
 
 export const TEAM_COLORS: Record<Team, { main: string; light: string; dark: string; rgb: string }> = {
   [Team.Radiant]: { main: '#4caf50', light: '#a8f0a0', dark: '#1f5e25', rgb: '120,255,140' },
@@ -416,6 +416,11 @@ function drawStyledProjectile(
 
 /** 召唤物（2D）：阵营色底圈 + 木柱 + 发光的宝石（小图腾） */
 export function drawSummon(ctx: CanvasRenderingContext2D, u: Unit, x: number, y: number, t: number): void {
+  const own = lookupSummon2D(u.defId);
+  if (own) {
+    own(ctx, u, x, y, t);
+    return;
+  }
   const c = TEAM_COLORS[u.team];
   const r = Math.max(14, u.radius * 1.1);
   ctx.strokeStyle = c.main;

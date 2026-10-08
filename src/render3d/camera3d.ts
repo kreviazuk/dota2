@@ -105,10 +105,10 @@ export class Camera3D implements ViewCamera {
     return uiScaleFor(this.viewH);
   }
 
-  /** 跟随目标，并向敌方基地方向偏移；snap = 立即到位 */
-  follow(target: Vec2, team: Team, dt: number, snap = false): void {
+  /** 跟随目标，并向敌方基地方向偏移；snap = 立即到位；rate = 跟随速率（每秒，缺省 7；无敌斩这类连续闪烁时更慢，见 cameraHints） */
+  follow(target: Vec2, team: Team, dt: number, snap = false, rate = 7): void {
     const look = CAM3D.lookAhead * (team === Team.Radiant ? -1 : 1);
-    const k = snap ? 1 : 1 - Math.exp(-dt * 7);
+    const k = snap ? 1 : 1 - Math.exp(-dt * rate);
     this.x += (target.x - this.x) * k;
     this.y += (target.y + look - this.y) * k;
     this.x = clamp(this.x, MAP.laneX - CAM3D.xRange, MAP.laneX + CAM3D.xRange);
