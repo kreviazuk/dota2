@@ -7,7 +7,9 @@ import { recomputeStats } from './stats';
 
 export type UnitState =
   | 'stunned' | 'silenced' | 'rooted' | 'disarmed' | 'muted' | 'invulnerable' | 'debuffImmune'
-  | 'untargetable' | 'hidden' | 'phased' | 'breakPassives';
+  | 'untargetable' | 'hidden' | 'phased' | 'breakPassives'
+  /** 自身技能占用（无敌斩、出钩）：移动 / 攻击 / 施法 / 回城指令无效，不出手、不移动 */
+  | 'busy';
 
 export interface StatBonus {
   str?: number; agi?: number; int?: number; allStats?: number;
@@ -51,6 +53,8 @@ export interface ModifierDef {
   /** refresh/stacks 时按来源区分 */
   perSource?: boolean;
   maxStacks?: number;
+  /** 刷新时取剩余时间和新时长中更长的一个（控制状态：同类不叠加，长的生效） */
+  keepLonger?: boolean;
   persistOnDeath?: boolean;
   hidden?: boolean;
   states?: UnitState[];
@@ -103,6 +107,11 @@ export function addModifier(world: World, target: Unit, def: ModifierDef, opts: 
   if (stacking !== 'independent') {
     const existing = target.modifiers.find((m) => m.def.id === def.id && (!def.perSource || m.sourceId === sourceId));
     if (existing) {
+      if (def.keepLonger && existing.duration >= duration) {
+        if (stacking === 'stacks') existing.stacks = Math.min(def.maxStacks ?? Infinity, existing.stacks + (opts.stacks ?? 1));
+        recomputeStats(world, target);
+        return existing;
+      }
       if (stacking === 'stacks') existing.stacks = Math.min(def.maxStacks ?? Infinity, existing.stacks + (opts.stacks ?? 1));
       existing.duration = duration;
       existing.total = duration;

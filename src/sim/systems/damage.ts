@@ -4,6 +4,7 @@ import type { World } from '../world';
 import { armorMultiplier } from '../formulas';
 import { removeModifiersOnDeath } from '../modifiers';
 import { cancelCast } from './abilities';
+import { endMotion } from './motion';
 
 export interface DamageInfo {
   source: Unit | null;
@@ -70,6 +71,7 @@ export function killUnit(world: World, victim: Unit, killer: Unit | null): void 
   victim.order = { kind: 'idle' };
   if (victim.cast) cancelCast(world, victim, true);
   victim.cast = null;
+  if (victim.motion) endMotion(world, victim, true);
   victim.attack.targetId = null;
   victim.attack.windup = -1;
   for (const m of victim.modifiers.slice()) m.def.onDeath?.(m, victim, killer, world);

@@ -1,7 +1,7 @@
 import type { World } from '../world';
 import type { Unit } from '../entities/unit';
 import { add, angleOf, normalize, scale, sub } from '../core/vec2';
-import { canAttack, edgeDist, enemiesInRadius, nearestOf } from '../query';
+import { canAttack, edgeDist, enemiesInRadius, isDisabled, nearestOf } from '../query';
 import { applyDamage, heal, type DamageInfo } from './damage';
 import { spawnProjectile } from './projectiles';
 
@@ -65,7 +65,7 @@ export function updateAttacks(world: World, dt: number): void {
     if (!u.alive || !canUnitAttack(u)) continue;
     const a = u.attack;
     if (a.cooldown > 0) a.cooldown = Math.max(0, a.cooldown - dt);
-    if (u.cast || u.hasState('stunned') || u.hasState('disarmed')) {
+    if (u.cast || isDisabled(u) || u.hasState('disarmed') || u.hasState('busy')) {
       a.windup = -1;
       continue;
     }

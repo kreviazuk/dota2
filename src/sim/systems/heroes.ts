@@ -9,6 +9,7 @@ import { recomputeStats } from '../stats';
 import { newAbilityInstance, syncPassives } from './abilities';
 import { giveGold } from './progress';
 import { disjointProjectiles } from './projectiles';
+import { isDisabled } from '../query';
 
 export function heroSpawnPoint(world: World, team: Team, index: number): Vec2 {
   void world;
@@ -44,6 +45,7 @@ export function respawnHero(world: World, u: Unit): void {
   u.deathTime = -1;
   u.order = { kind: 'idle' };
   u.cast = null;
+  u.motion = null;
   u.attack = { targetId: null, windup: -1, cooldown: 0 };
   const idx = world.heroes(u.team).indexOf(u);
   u.pos = heroSpawnPoint(world, u.team, idx);
@@ -68,7 +70,8 @@ export function updateHeroes(world: World, dt: number): void {
     }
     if (u.order.kind === 'recall') {
       const o = u.order;
-      if (h.lastDamagedTime >= o.startedAt || u.hasState('stunned')) {
+      // 受到伤害、眩晕或被强制位移都会打断回城
+      if (h.lastDamagedTime >= o.startedAt || isDisabled(u)) {
         u.order = { kind: 'idle' };
         continue;
       }

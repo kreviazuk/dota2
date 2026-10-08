@@ -6,6 +6,7 @@ import type { ModifierInstance, UnitState } from '../modifiers';
 import type { ComputedStats } from '../stats';
 import { emptyStats } from '../stats';
 import type { AbilityInstance, CastState, ResolvedTarget } from '../heroes/types';
+import type { ForcedMotion } from '../systems/motion';
 
 export interface UnitBase {
   maxHp: number;
@@ -133,6 +134,8 @@ export class Unit {
   order: Order = { kind: 'idle' };
   attack: { targetId: number | null; windup: number; cooldown: number } = { targetId: null, windup: -1, cooldown: 0 };
   cast: CastState | null = null;
+  /** 强制位移（击退、拖拽、跳跃……）；不为 null 时不按指令移动 */
+  motion: ForcedMotion | null = null;
   abilities: AbilityInstance[] = [];
   bounty: { gold: number; xp: number };
   baseStates = new Set<UnitState>();

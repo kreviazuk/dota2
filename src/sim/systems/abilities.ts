@@ -3,7 +3,7 @@ import type { Unit } from '../entities/unit';
 import type { AbilityDef, AbilityInstance, CastContext, CastState, CastTarget, ResolvedTarget } from '../heroes/types';
 import type { Vec2 } from '../core/vec2';
 import { add, angleOf, dist, fromAngle, normalize, scale, sub } from '../core/vec2';
-import { edgeDist, enemiesInRadius, isTargetableBy, nearestOf } from '../query';
+import { edgeDist, enemiesInRadius, isDisabled, isTargetableBy, nearestOf } from '../query';
 import { addModifier, findModifier, removeModifier } from '../modifiers';
 import { recomputeStats } from '../stats';
 
@@ -82,7 +82,7 @@ export function canCast(world: World, caster: Unit, ab: AbilityInstance): boolea
   if (!caster.alive || ab.level <= 0) return false;
   const tt = ab.def.targetType;
   if (tt === 'passive') return false;
-  if (caster.hasState('stunned') || caster.hasState('silenced')) return false;
+  if (isDisabled(caster) || caster.hasState('silenced')) return false;
   if (tt === 'toggle') return true;
   return isReady(ab, caster) && caster.mana + 1e-6 >= abilityManaCost(ab, caster);
 }
@@ -297,7 +297,7 @@ export function updateAbilities(world: World, dt: number): void {
     if (!u.alive) continue;
     const c = u.cast;
     if (c) {
-      if (u.hasState('stunned') || u.hasState('silenced')) {
+      if (isDisabled(u) || u.hasState('silenced')) {
         cancelCast(world, u, true);
         continue;
       }
@@ -321,7 +321,7 @@ export function updateAbilities(world: World, dt: number): void {
       u.order = { kind: 'idle' };
       continue;
     }
-    if (u.hasState('stunned') || u.hasState('silenced')) continue;
+    if (isDisabled(u) || u.hasState('silenced') || u.hasState('busy')) continue;
     if (!canCast(world, u, ability)) {
       u.order = { kind: 'idle' };
       continue;
