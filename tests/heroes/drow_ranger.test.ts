@@ -5,6 +5,7 @@ import { createHero } from '../../src/sim/systems/heroes';
 import { addModifier, findModifier } from '../../src/sim/modifiers';
 import { abilityCooldown, abilityManaCost, abilityValue } from '../../src/sim/systems/abilities';
 import { learnAbility } from '../../src/sim/systems/progress';
+import { syncPassives } from '../../src/sim/systems/abilities';
 import { applyControl } from '../../src/sim/status';
 import { armorMultiplier } from '../../src/sim/formulas';
 import { pickTalent, type TalentTier } from '../../src/sim/talents';
@@ -282,6 +283,27 @@ describe('Drow Ranger', () => {
     expect(d3.cast).toBeNull();
     runFor(w3, 0.3);
     expect(d3.stats.moveSpeed).toBeCloseTo(d3.base.moveSpeed);
+  });
+
+  it('Marksmanship arrows keep their gold look even when Frost Arrows was learned after it', () => {
+    const w = makeWorld(3);
+    const d = heroAt(w, D, { x: 1500, y: 5000 }, { levels: { R: 3 } });
+    // 后学 Q：霜冻之箭的 Modifier 挂在射手天赋后面，出手钩子后执行
+    d.ability('Q')!.level = 4;
+    d.ability('Q')!.toggled = true;
+    syncPassives(w, d);
+    const t = foe(w, 1500, 4500, { hp: 1e7 });
+    w.step();
+    const visuals = new Set<string>();
+    w.issue(d.id, { type: 'attack', mode: 'smart', targetId: t.id });
+    for (let i = 0; i < 40 * 30; i++) {
+      w.step();
+      d.mana = d.stats.maxMana;
+      for (const p of w.projectiles) if (!p.done && p.sourceId === d.id) visuals.add(p.visual);
+      w.events.drain();
+    }
+    expect(visuals.has('drow_marksman_arrow')).toBe(true);
+    expect(visuals.has('drow_frost_arrow')).toBe(true);
   });
 
   it('Marksmanship pierces base armor with true strike and turns off with an enemy hero within 150', () => {

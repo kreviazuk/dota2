@@ -35,7 +35,8 @@ const FROST_ARROWS: ModifierDef = {
     owner.mana -= cost;
     atk.bonusDamage += abilityValue(owner, q, 'damage');
     atk.flags.frost = 1;
-    atk.visual = 'drow_frost_arrow';
+    // 射手天赋的金箭优先（先学 R 后学 Q 时霜冻之箭的 Modifier 挂在后面，不能盖掉）
+    if (atk.visual !== 'drow_marksman_arrow') atk.visual = 'drow_frost_arrow';
   },
   onAttackLanded: (_m, owner, target, world, info) => {
     const q = owner.ability('Q');
