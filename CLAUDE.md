@@ -8,16 +8,16 @@
 3. 设计文档：`docs/superpowers/specs/2026-09-29-dota-lane-design.md`。
 4. 数值资料（Dota 2 7.41f）：`docs/research/dota2-heroes.md`、`docs/research/dota2-reference.md`。
 
-## 现在做到哪里（2026-10-08 从云端会话交接）
+## 现在做到哪里（2026-10-08 从云端会话交接，之后在本地继续）
 - 分支 `claude/kind-ritchie-jz5131`，对应 PR kreviazuk/dota2#1（目标 `main`，还没合并）。
-- P1 全部完成；3D 渲染器完成；P2 完成 Task 1–8（引擎扩展、渲染 / AI 框架、选英雄界面和天赋弹窗、斯温）。可选英雄：斧王、斯温。
-- **下一步：P2 Task 9（莉娜）**，然后按计划顺序做 Task 10–18（水晶室女、宙斯、卓尔游侠、幻影刺客、主宰、帕吉、影魔、混合阵容模拟、全面验证）。
-- 交接时工作区是干净的，莉娜还没有动工。
+- P1 全部完成；3D 渲染器完成；P2 完成 Task 1–9（引擎扩展、渲染 / AI 框架、选英雄界面和天赋弹窗、斯温、莉娜）。可选英雄：斧王、斯温、莉娜。
+- **下一步：P2 Task 10（水晶室女）**，然后按计划顺序做 Task 11–18（宙斯、卓尔游侠、幻影刺客、主宰、帕吉、影魔、混合阵容模拟、全面验证）。
+- 参考英雄：斯温（近战，模型带武器）；莉娜（远程法师：`src/render3d/models/lina.ts` 的链式头发骨骼，`src/render3d/fx/lina.ts` 的弹道逐帧发射器 `emitter` 和区域效果双圈 `extra()`）。
 
 ## 每个任务的做法
 每个任务都按同一个流程走（云端会话就是这么做的）：
 1. 读计划里该任务的整节，以及计划开头的 Global Constraints / Decisions / File Structure；读 `docs/PROGRESS.md` 的"P2 英雄：进行中"一节。
-2. 读这个任务要接入的真实代码。英雄任务以**最近做完的英雄（斯温）**为参考：`src/sim/heroes/sven.ts`、`src/ai/usage/sven.ts`、`src/render3d/models/sven.ts`、`src/render3d/fx/sven.ts`、`tests/heroes/sven.test.ts`、`tests/heroAi.ts`。计划和代码不一致时按真实代码调整，保持计划想要的行为。
+2. 读这个任务要接入的真实代码。英雄任务以**最近做完的英雄（斯温、莉娜）**为参考：`src/sim/heroes/sven.ts`、`src/ai/usage/sven.ts`、`src/render3d/models/sven.ts`、`src/render3d/fx/sven.ts`、`tests/heroes/sven.test.ts`、`tests/heroAi.ts`。计划和代码不一致时按真实代码调整，保持计划想要的行为。
 3. 实现该任务的每一步，包括测试。不要顺手做后面的任务。
 4. 英雄任务包括：全部技能、先天技能和 8 个天赋（带测试），AI 使用规则、加点和天赋顺序，`src/game/roster.ts` 里设为可选，3D 模型、动作和特效，2D 后备外观和特效。
 5. 验证（全部通过才算完成）：

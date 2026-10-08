@@ -93,7 +93,7 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
 - 对局偏长的原因（留给 P4 团队策略和 P5 调参）：双方完全对称；没有物品，金钱优势不会转化成战斗力；防守方在自家遗迹旁复活，进攻方要走 9000 码；遗迹每秒回 5 血。
 
 ## P2 英雄：进行中
-> **交接（2026-10-08）：** 云端会话在 Task 8 完成后暂停，改在本地继续。下一步是 Task 9（莉娜）。每个任务的做法、验证命令和本地截图方法见仓库根目录的 `CLAUDE.md`。
+> **交接（2026-10-08）：** 云端会话在 Task 8 完成后暂停，改在本地继续；Task 9（莉娜）已在本地完成。下一步是 Task 10（水晶室女）。每个任务的做法、验证命令和本地截图方法见仓库根目录的 `CLAUDE.md`。
 
 实施计划：`docs/superpowers/plans/2026-10-08-p2-heroes.md`（18 个任务，完成一个勾选一个）。
 
@@ -107,7 +107,7 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
 | 6 | AI 框架（技能使用表）、选人补位、调试工具 | ✅ |
 | 7 | 选英雄界面、天赋弹窗、X1/X2 技能键、角标、自动加点 | ✅ |
 | 8 | 斯温 | ✅ |
-| 9 | 莉娜 | |
+| 9 | 莉娜 | ✅ |
 | 10 | 水晶室女 | |
 | 11 | 宙斯 | |
 | 12 | 卓尔游侠 | |
@@ -128,6 +128,7 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
 - Task 6（2026-10-08）：AI 技能使用表 `src/ai/usage/`（`types.ts` 的 `AiCtx` / `AiDecision` / `AiRule` / `HeroAiRules`，`index.ts` 的 `AI_RULES` / `aiRuleFor`，`axe.ts` 斧王三条规则原样迁移），`AbilityDef.aiCast` 删除；`SimpleAI` 按优先级试规则（`canCast` 为真才调用 `decide`），撤退时先试 `escape` 规则，施法中只试 `whileCasting` 规则，开关决定下 `toggle` 指令；`src/ai/aiHelpers.ts`（`unitVelocity` / `predictPos` / `bestCirclePoint` / `unitsInLine` / `firstInLine` / `magicDamageTo` / `physicalDamageTo` / `towardHome` / `nearestEnemyHero` / `lowestHpEnemyHero` / `enemyCreepsNear` / `underAttack` / `keepsUltMana`）；`BALANCE.ai`（`easyAimError` 150、`heroWeight` 3、`conserveUltMana`）；`src/game/roster.ts`（`HERO_ROSTER` 10 名、`availableHeroes`）、`src/game/draft.ts`（`draftTeams` 电脑补位）、`src/game/debug.ts`（`setHeroLevel` / `refreshHero`，开发钩子 `__game.debug`）；`hasHero`；演示局和开局都用 `draftTeams`（现在只有斧王，仍是 3 斧王对 3 斧王）。新增 `tests/draft.test.ts`（6 个）、`tests/aiHelpers.test.ts`（6 个），`tests/ai.test.ts` 追加 7 个，共 290 个测试；`npm run sim -- --games 10 --seed 1` 迁移前后输出逐行相同（天辉 4 胜、夜魇 4 胜、2 局超时，结束的局 18:21–34:11），另用记录事件的脚本统计 10 局里三个主动技能的施放次数（吼 2279、饥渴 2756、淘汰 767，斩杀 753）、螺旋触发 9075 次、英雄阵亡 920 次，前后完全一致。
 - Task 7（2026-10-08）：选英雄界面 `src/ui/heroSelect.ts`（横屏两栏：5 × 2 卡片 + 详情；未实现的英雄"开发中"不能选；3D 预览 `src/render3d/heroPreview.ts` 用独立的小 WebGL 画布循环播放站立 / 跑 / 普攻 ×2 / 各技能动作，离开界面时 `dispose()` + `forceContextLoss()`；`?renderer=2d` 时显示大头像）；`src/ui/abilityText.ts`（`PRIMARY_NAMES` / `SLOT_LABELS` / `abilityTags` / `abilityNumbers` / `heroBaseLine` / `orderedAbilities`）；`src/ui/settings.ts`（`loadPrefs` / `savePrefs`，`dota-lane.prefs`；`loadLastHero` / `saveLastHero`，`dota-lane.lastHero`）；HUD：按 `skillSlotsFor` 生成技能键（X1 / X2 小圆键在 R 上方）、充能角标和"下一层恢复"的冷却遮罩、`counter` 角标、`inactive` 变灰、`drawPortrait` 头像（自己和双方 6 个小头像）、先天计数标签、天赋弹窗（`talentChoices`）和"稍后"小按钮；暂停菜单加"自动加点""站立自动攻击"开关和天赋树；操作：F / G = X1 / X2，`castCommandFor`（无目标技能带上按住的移动方向），自动加点（`Controls.drain()` 按 `nextSkillToLearn` / `TALENT_BUILDS` 发指令）；主流程：开始界面"选择英雄"→ 选英雄 → `draftTeams(…, heroId)` 开局，"再来一局"沿用英雄和难度；`Match.aiPaused`；开发钩子 `__game.start({ hero, radiant?, dire?, difficulty? })`、`__game.debug = { level, refresh, lineup, freezeAI, place, cast, setHeroLevel, refreshHero }`。新增 `tests/abilityText.test.ts`（4 个），`tests/hud.test.ts` 追加 4 个、`tests/controls.test.ts` 追加 1 个，共 299 个测试；`npm run build` 的产物里没有 `__game`。
 - Task 8（2026-10-08）：斯温（`src/sim/heroes/sven.ts`）：风暴之拳（追踪锤 `sven_hammer`，命中时以目标为圆心范围魔法伤害 + 眩晕）、巨力挥舞（`onAttackLanded` → `applyCleave`，护甲前伤害 × 比例）、战吼（即时，700 内友方英雄 +护甲 / +移速）、神之力量（`baseDamagePct` + 减速抗性）、先天神之愤怒（`finalStats` 按最终力量 × (0.08 + 0.02 × 等级) 加攻击力，破坏时失效），8 个天赋全部生效；AI 规则 `src/ai/usage/sven.ts`（锤：引导中的英雄最优先，其次锤子落点周围敌方英雄最多的；战吼 `escape` + `whileCasting`；神之力量贴身打英雄时开），`SKILL_BUILDS.sven` / `TALENT_BUILDS.sven = [0, 1, 0, 0]`；注册后选人界面的斯温卡片自动可选，电脑补位和演示局也会选到斯温。3D：`models/sven.ts`（深蓝板甲骑士、桶形头盔 + 后掠短角 + 发蓝光的 T 形面甲、阵营色罩袍和披风、右肩扛着约 1.1 倍身高的流放之刃；普攻从右肩后上方斜向左下横扫，命中瞬间 = sim 出手；锤：左手过肩投掷；战吼：举剑仰头怒吼，只叠加在上半身，普攻 / 跑步不中断；神之力量：半蹲蓄力 → 张臂咆哮），`fx/sven.ts`（锤的弹道和命中冲击环 / 电弧 / 光柱 / 震屏，战吼金蓝扩散环和绕胸旋转的盾徽，神之力量光柱、红色描边 + 脉动自发光、放大 1.08 倍、肩头火焰、脚下红圈）；2D：锤弹道、三种特效圈、战吼 / 神之力量的脚下光圈。新增 `tests/helpers.ts` 的 `heroAt`、`tests/heroAi.ts`（`abilitiesCastInSkirmish`）、`tests/heroes/sven.test.ts`（14 个），`render3d` / `renderLogic` 追加 4 个，共 317 个测试。`npm run sim -- --radiant sven,axe,axe --dire sven,axe,axe --games 2 --seed 1` 正常结束（1 局超时判定夜魇、1 局夜魇 22:42 推掉遗迹）；另用记录事件的脚本跑了 10 局混合阵容（斯温在一方 / 双方 / 三斯温对三斧王，简单 / 普通 / 困难），9 局推掉遗迹、1 局超时，没有报错，斯温的锤 1165 次（命中 1160）、战吼 729 次、神之力量 297 次、分裂 4619 次。
+- Task 9（2026-10-08，本地）：莉娜（`src/sim/heroes/lina.ts`）：龙破斩（直线穿透火焰波 `lina_dragon_slave`，碰撞半径随飞行距离从 275/2 收窄到 200/2）、光击阵（落点 0.5 秒预警的区域效果 `lina_lsa`，结束时范围魔法伤害 + 眩晕）、炽魂（技能每对敌方单位造成一次伤害叠 1 层，上限 7、16 秒刷新，每层攻速 / 移速 / 魔抗读当前技能数值，HUD 角标 = 层数）、神灭斩（施放后 `world.after(0.25)` 结算，智能施法优先能击杀的英雄，`lagunaKills()` 供 AI 共用）、先天慢热（同一个莉娜对同一目标一个烧灼池，按减免前伤害 × 64% 加池并重置为满时长，每 0.5 秒按剩余跳数平分结算）、8 个天赋全部生效（25 级右是自定义 Modifier：普攻出手时目标带自己的烧灼 → 150% 暴击）；AI 规则 `src/ai/usage/lina.ts`（龙破斩朝预判后的最近英雄、没有英雄时一线 ≥ 3 个小兵且魔法 > 50% 也放；光击阵先找被眩晕 / 缠绕 / 引导中的英雄脚下，否则落在 0.95 秒后的预判位置；神灭斩收人头或打正在交战的残血英雄），`SKILL_BUILDS.lina` / `TALENT_BUILDS.lina = [1, 1, 0, 0]`；选人界面莉娜卡片可选。3D：`models/lina.ts`（纤细女法师，高高扎起、向后扫出的火焰状马尾 `hair1–hair3`，发梢和头顶发尖发光；深红 + 橙色分层长袍、前开衩下摆、金边、阵营色腰带和两条短饰带、金色护腕、额前头饰和小火焰、掌心发光火球；普攻右手从腰侧向前甩；龙破斩双手收到右腰后再前推；光击阵左手高举再下压；神灭斩双臂前伸、释放时后仰颤抖），`fx/lina.ts`（橙色火球普攻弹道；龙破斩贴地推进的火墙；光击阵符文虚线预警圈 + 从圆心扩开的内圈、命中火墙 / 火柱 / 焦痕烟尘 / 震屏；神灭斩红白折线闪电、命中光柱 + 震屏 + 涉及玩家时全屏红闪；炽魂层数 = 肩部高度环绕的火球个数；慢热烧灼 = 目标身上冒火苗；马尾持续飘火星、普攻蓄力时掌心冒火星）；2D：火球、新月形波（新增弹道外观 `wave`）、四个 fx 事件、炽魂火点和烧灼圈。新增 `tests/heroes/lina.test.ts`（14 个），`render3d` / `renderLogic` 追加 4 个，共 335 个测试。`npm run sim -- --radiant lina,axe,axe --dire lina,sven,axe --games 4 --seed 1` 正常结束（天辉 3 胜 + 1 局超时判天辉，29:43–35:49）；另用记录事件的脚本跑了 4 局（简单 / 普通 / 困难 / 普通），龙破斩 818 次、光击阵 364 次、神灭斩 160 次（命中 153 次，其余目标在 0.25 秒延迟内死亡或无敌）、炽魂最多叠到 7 层，没有报错。
 
 ## 后续阶段（尚未写实施计划）
 （P2 进行中，见上面）P3 物品与商店 → P4 完整 AI、精英怪、选人、难度 → P5 平衡调参 → P6 特效音效和 Capacitor 打包 APK。详见设计文档 §14。
@@ -296,6 +297,20 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
   - 浏览器验证（Playwright + SwiftShader，844×390@2 触屏和 1280×720，3D 和 `?renderer=2d`；脚本 `hero.cjs` 和截图在会话 scratchpad，没有提交）：选人界面斯温卡片可选、右侧 3D 预览在动（站立扛剑 / 普攻 / 举剑怒吼 / 张臂咆哮）；对局里斯温和斧王一眼可分（蓝甲大剑 vs 红皮大斧）、两边阵营的披风颜色正确、血条在头顶上方；风暴之拳的前摇、飞行、命中（冲击环、电弧、眩晕金星）；战吼的扩散环和三名友方英雄身上的盾徽；神之力量的蓄力、光柱、红色描边、肩头火焰；普攻横扫和分裂斩痕同时打到主目标身后的英雄和小兵；2D 后备下的锤弹道和各种圈。为了截到很短的特效，脚本在指定的 fx 事件之后第 N 帧把 `__game.timeScale` 设为 0 再截图。控制台 0 报错。
   - 计划要求 PROGRESS 和代码一起提交；实际按任务分派的要求单独提交 `docs: progress (P2 task 8)`。
 
+- P2 Task 9（莉娜）：
+  - 炽魂：被破坏时不叠新层，已有层数的加成也失效（与神之愤怒一致；计划没写）。层数 Buff 不可驱散。没有层数时 HUD 不显示角标（`counter` 返回 null；计划写的是"= 层数"，0 层时显示"0"太吵）。
+  - 慢热：不受破坏影响（先天技能，资料没写）；烧灼池用的"减免前伤害"已经含技能增强，所以每跳烧灼设 `noSpellAmp`（否则技能增强算两次），也因此不触发技能吸血。减益免疫的目标不会被点燃（`addModifier` 拒绝减益）。烧灼时长被状态抗性缩短时，池子在更短的时间内结算完，总伤害不变。
+  - 炽魂和慢热都只认莉娜技能的非普攻伤害（`!info.isAttack`）；目前莉娜没有技能发起的攻击，只是防御性的判断。
+  - 神灭斩的伤害在施放时确定；目标在 0.25 秒内死亡、被移除或变成无敌时不结算、不发 `lina_laguna_hit`。智能施法和 AI 都不对减益免疫的敌方英雄放（与 `ignoresDebuffImmune: false` 一致）。
+  - AI：光击阵在目标没有被定住时也要 `keepsUltMana`（留大招的魔法），打被定住的英雄不计较；龙破斩两种情况都要 `keepsUltMana`。斯温规则里的 `attackedEnemyHero` 挪到 `src/ai/aiHelpers.ts` 共用（行为不变）。
+  - 渲染框架的小扩展（通用，不是莉娜特例）：`FxCtx.playerId`（神灭斩打到玩家或玩家放的才全屏红闪）；`AreaVisualCtx.extra()`（区域效果的第二个贴地圈，光击阵的"外圈虚线 + 从圆心填满的内圈"需要两个圈）；`ProjectileStyle.height`（固定离地高度，跟着地形起伏，龙破斩的波贴地推进）和 `ProjectileStyle.emitter`（弹道每帧的粒子发射器）；2D 弹道外观新增 `shape: 'wave'`（宽度跟随碰撞半径的新月形）。
+  - 特效相对计划的调整（截图检查后）：龙破斩只用 `wave` 网格时，在浅色地面上只看得到一条发白的细弧，而且飘在手的高度，改成贴地飞行 + 每帧在波前整个宽度上喷出普通混合的深红 / 橙色火焰（加少量叠加混合的亮黄火芯），拖出约 300 长的火带；光击阵命中按计划用 250 半径、400 高的 `pillar` 会把范围内的单位整个照成白色，改成和范围一样大、100 高的矮火墙 + 中间 100 半径的火柱 + 细的亮黄火芯（不用 `pillar` 的白色光芯）；炽魂火球用普通混合的橙色（叠加混合在浅色地面上看起来是白点）。
+  - 模型相对计划的调整：马尾不是垂在背后（俯视镜头下被身体挡住，只看到背上一根红柱子），而是高高扎起、向后扫出、末端下垂的扁平火焰状发片（每节两侧翘起发光的发尖）；额前用一整片刘海 + 三个小发尖（最初的四根锥形刘海从正面看像一排牙齿）。`headHeight` 162（× 1.15 = 186），计划写"≈ 170"。
+  - 截图：`tools/screenshots/hero.cjs` 的 `PLAN` 加了莉娜，新增 `area`（区域效果进行到一半时截图）和按英雄区分的普攻截图 `ATTACK`（斯温截分裂斩痕，莉娜截普攻弹道）。脚本按 `cast.timer` 冻结前摇的截图在本机偶尔超时（渲染慢时一帧跑了好几个逻辑帧，跳过了判断窗口），另用临时脚本冻结时间、手动推进逻辑帧截了三个技能的前摇。
+  - 测试：`tests/render3d.test.ts` 的"SkinnedHeroModel 绑定到每根骨骼"原来每个顶点调用 3 次 `expect`，3 个英雄就要 2 秒（10 个英雄会超过 5 秒的缺省超时），改成先计数再断言一次（0.27 秒）；`tests/match.test.ts` 的"同种子结果相同"（3000 帧 × 2 局，只有斧王）在本机有负载时要 5–6 秒，给它显式 30 秒超时（改动前的代码同样超时，与莉娜无关）。
+  - 本地验证（Playwright 1.64 + 自带 Chromium，844×390@2 触屏、1280×720，3D 和 `?renderer=2d`）：选人界面莉娜可选、3D 预览在动；对局里莉娜（红衣、火焰马尾、细长身形）和斧王 / 斯温一眼可分；龙破斩火墙、光击阵预警圈和命中火柱、神灭斩闪电和命中、炽魂火球、烧灼火苗、普攻火球；2D 后备的波、圈、火花线。控制台 0 报错。
+  - 计划要求 PROGRESS 和代码一起提交；实际按 CLAUDE.md 的流程单独提交 `docs: progress (P2 task 9)`。
+
 ## 已知的小问题（推迟处理，不影响功能）
 主要是测试覆盖不足，例如嘲讽/引导期间不能移动、塔的强制目标 3 秒后失效、队伍金钱倍率等没有测试；另有少量写死的常量（小兵攻速 100、伤害 ±2 浮动、出兵阵型偏移）尚未移入 `BALANCE`。
 斧王 10 级天赋 A 已在 P2 Task 1 实现；玩家英雄从 P2 Task 7 起用天赋弹窗选天赋。淘汰之刃直接斩杀时不经过 `applyDamage`，所以不会更新目标的 `lastHeroDamage`（斧王本身就是击杀者，不影响记功）。
@@ -304,7 +319,7 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
 
 AI：1 级时双方血量相当，`pickHeroTarget` 总是出手换血，三个斧王常常同时开吼，第一波兵交汇（约 0:25）时会打成 3v3 团战，几个英雄几秒内掉到 30% 以下、0:40 左右回城到泉水，损失前几波兵的经验和金钱（双方对称，不是 bug）。P4 的对线 AI 应该在前几级以补刀为主，换血按决策掷骰，并避免多人同时交同一个控制技能。`moveTo` 到达目的地后指令仍然是 `moveTo`，英雄会站着不自动攻击（只影响 AI，玩家操作不用 `moveTo`；AI 会显式下攻击指令，影响不大）。计划里 `pickHeroTarget` 的 `focus` 在每次思考时都掷骰（每秒约 4 次），实际效果是"经常在劣势时也上去打"；P4 重写 AI 时应该改成按决策掷骰。
 
-3D 渲染器：只在 SwiftShader 软件 GPU 上测过，真机 GPU 帧率未测（CPU 端开销见上）；手机上首次出现新材质（第一波兵、第一个弹道、第一次技能特效）时会编译着色器，可能卡一帧（开始界面的演示局会提前编译大部分）；目前有斧王、斯温两个英雄模型（P2 Task 5 之后每个英雄任务只需新增 `models/<id>.ts` 和 `fx/<id>.ts`）；WebGL 上下文丢失只做了 `preventDefault`，依赖 Three.js 自动恢复，没有专门测试。
+3D 渲染器：只在 SwiftShader 软件 GPU 上测过，真机 GPU 帧率未测（CPU 端开销见上）；手机上首次出现新材质（第一波兵、第一个弹道、第一次技能特效）时会编译着色器，可能卡一帧（开始界面的演示局会提前编译大部分）；目前有斧王、斯温、莉娜三个英雄模型（P2 Task 5 之后每个英雄任务只需新增 `models/<id>.ts` 和 `fx/<id>.ts`）；WebGL 上下文丢失只做了 `preventDefault`，依赖 Three.js 自动恢复，没有专门测试。
 
 ## 安卓 APK
 - Capacitor 8 工程在 `android/`：横屏、沉浸式全屏、对局中屏幕常亮；包名 `com.kreviazuk.dotalane`。
