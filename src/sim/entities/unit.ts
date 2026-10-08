@@ -70,12 +70,15 @@ export interface HeroState {
   itemValue: number;
   /** 对敌方实际造成的伤害（含技能，按扣掉的生命计，不含溢出） */
   damageDealt: { heroes: number; creeps: number; buildings: number };
+  /** 技能 id → 施放次数（发 cast 事件的地方都 +1，开关只计打开；批量模拟统计用） */
+  abilityCasts: Record<string, number>;
 }
 
 export const newHeroState = (heroId: string, attrs: HeroAttrs, playerControlled: boolean, gold: number): HeroState => ({
   heroId, attrs, level: 1, xp: 0, gold, skillPoints: 1, attributeBonusLevel: 0, talents: [null, null, null, null],
   talentValueBonus: {}, talentValueMult: {}, respawnTimer: 0, kills: 0, deaths: 0, assists: 0, lastHits: 0, streak: 0, playerControlled,
   lastDamagedTime: -999, creepAggroCd: 0, itemValue: 0, damageDealt: { heroes: 0, creeps: 0, buildings: 0 },
+  abilityCasts: {},
 });
 
 export type CreepType = 'melee' | 'ranged' | 'siege' | 'superMelee' | 'superRanged';

@@ -201,7 +201,13 @@ export function toggleAbility(world: World, caster: Unit, ab: AbilityInstance): 
   if (ab.level <= 0) return;
   ab.toggled = !ab.toggled;
   ab.def.onToggle?.(makeCastContext(world, caster, ab, {}), ab.toggled);
+  if (ab.toggled) countCast(caster, ab);
   world.events.emit({ type: 'cast', unitId: caster.id, abilityId: ab.def.id });
+}
+
+/** 英雄的技能施放计数（HeroState.abilityCasts） */
+function countCast(u: Unit, ab: AbilityInstance): void {
+  if (u.hero) u.hero.abilityCasts[ab.def.id] = (u.hero.abilityCasts[ab.def.id] ?? 0) + 1;
 }
 
 /** 扣蓝、进冷却或消耗一层充能 */
@@ -234,6 +240,7 @@ export function issueCast(world: World, caster: Unit, ab: AbilityInstance, given
   if (ab.def.instant) {
     // 即时技能：不打断前摇、引导和普攻，也不改变当前指令
     spendCast(caster, ab);
+    countCast(caster, ab);
     world.events.emit({ type: 'cast', unitId: caster.id, abilityId: ab.def.id });
     fireCast(world, caster, ab, t);
     return true;
@@ -280,6 +287,7 @@ function executeCast(world: World, u: Unit, c: CastState): void {
     return;
   }
   spendCast(u, ab);
+  countCast(u, ab);
   world.events.emit({ type: 'cast', unitId: u.id, abilityId: ab.def.id });
   const channel = abilityChannelTime(u, ab);
   if (channel > 0) {
