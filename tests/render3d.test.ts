@@ -14,6 +14,7 @@ import { DROW_SPEC, attackPose as drowAttack, multishotPose as drowMultishot, ru
 import { PA_SPEC, BLADE_LEN, attackPose as paAttack, idlePose as paIdle, runPose as paRun } from '../src/render3d/models/phantom_assassin';
 import { JUGG_SPEC, KATANA_LEN, FURY_SPIN, WARD_HEIGHT, attackPose as juggAttack, furyPose as juggFury, idlePose as juggIdle, omnislashPose as juggOmni, runPose as juggRun } from '../src/render3d/models/juggernaut';
 import { PUDGE_SPEC, PUDGE_STANCE, HOOK_R, attackPose as pudgeAttack, dismemberPose as pudgeDismember, idlePose as pudgeIdle, runPose as pudgeRun } from '../src/render3d/models/pudge';
+import { SF_SPEC, SF_STANCE, WING_SPAN, attackPose as sfAttack, idlePose as sfIdle, runPose as sfRun, wingPose as sfWings } from '../src/render3d/models/shadow_fiend';
 import { summonModelSpec } from '../src/render3d/models/registry';
 import { cameraCalm, CALM_FOLLOW_RATE } from '../src/render/cameraHints';
 import { makeWorld, heroAt } from './helpers';
@@ -1014,5 +1015,80 @@ describe('Pudge model', () => {
   it('registers fx events, the hook projectile and modifier visuals', () => {
     for (const k of ['pudge_meat_hook', 'pudge_hook_hit', 'pudge_rot', 'pudge_meat_shield', 'pudge_dismember', 'pudge_flesh_heap']) expect(fxFor(k)).toBeTypeOf('function');
     for (const k of ['pudge_rot', 'pudge_meat_shield', 'pudge_dismembered']) expect(modVisual(k)).toBeDefined();
+  });
+});
+
+describe('Shadow Fiend model', () => {
+  const finite = (p: Record<string, number>) => Object.values(p).every(Number.isFinite);
+  it('shadow_fiend poses are finite for every state and ability', () => {
+    const actives = getHeroDef('shadow_fiend').abilities.filter((a) => a.targetType !== 'passive').map((a) => a.id);
+    expect(Object.keys(SF_SPEC.releaseDur).sort()).toEqual([...actives].sort());
+    const states: Partial<AnimInput>[] = [
+      {}, { speed: 305 }, { windup: 0.2 }, { channel: true }, { stunned: true }, { stunned: true, motion: 'hook' }, { alive: false }, { taunted: true },
+    ];
+    for (const inp of states) {
+      const tr = new AnimTracker();
+      tr.update(input(inp), 0.05, 0.5);
+      tr.update(input(inp), 0.3, 0.5);
+      expect(finite(SF_SPEC.pose(tr, 1.7, null))).toBe(true);
+    }
+    for (const id of Object.keys(SF_SPEC.releaseDur)) {
+      for (const cp of [0, 0.5, 1]) {
+        const tr = new AnimTracker();
+        tr.update(input({ castAbility: id, castProgress: cp }), 0.05, 0);
+        expect(tr.state).toBe('cast');
+        expect(finite(SF_SPEC.pose(tr, 0.4, null))).toBe(true);
+      }
+      for (const k of [0, 0.5, 1]) {
+        const tr = new AnimTracker();
+        tr.trigger(id, SF_SPEC.releaseDur[id]);
+        tr.update(input(), Math.max(1e-3, k * SF_SPEC.releaseDur[id] * 0.999), 0);
+        expect(tr.state).toBe('release');
+        expect(finite(SF_SPEC.pose(tr, 0.4, null))).toBe(true);
+      }
+    }
+    for (const p of [0, 0.35, 0.7, 0.85, 1]) expect(finite(sfAttack(p))).toBe(true);
+    expect(finite(sfRun(1.2, 0.5))).toBe(true);
+    expect(SF_STANCE).toEqual({ weaponHand: 'none', hunch: 0.25, armSpread: 0.3, heavy: 0.2 });
+  });
+
+  /** 摆好姿势后，某根骨骼上一点在模型空间的位置 */
+  const pointOn = (pose: Record<string, number>, bone: string, local: [number, number, number]): Vector3 => {
+    const m = new SkinnedHeroModel(SF_SPEC, 0, new MeshBasicMaterial());
+    applyHumanoid(m.bones as Record<string, Bone>, pose, SF_SPEC.bindRotations);
+    m.root.updateMatrixWorld(true);
+    const inv = m.root.matrixWorld.clone().invert();
+    return new Vector3(...local).applyMatrix4(m.bones[bone].matrixWorld).applyMatrix4(inv);
+  };
+
+  it('has two shadow wings on the torso: folded behind the back at rest, wrapped in front while charging Requiem, fully spread on release', () => {
+    expect(SF_SPEC.bones.find((b) => b[0] === 'wingL')?.[1]).toBe('torso');
+    expect(SF_SPEC.bones.find((b) => b[0] === 'wingR')?.[1]).toBe('torso');
+    expect(SF_SPEC.scale).toBe(1.3);
+    expect(SF_SPEC.headHeight * SF_SPEC.scale).toBeCloseTo(185, -1);
+    const tipL = (p: Record<string, number>) => pointOn(p, 'wingL', [WING_SPAN, 34, 0]);
+    const tipR = (p: Record<string, number>) => pointOn(p, 'wingR', [-WING_SPAN, 34, 0]);
+    // 站立：翼尖在背后（−Z）、低于肩膀，左右对称
+    const rest = sfIdle(0);
+    const l0 = tipL(rest), r0 = tipR(rest);
+    expect(l0.z).toBeLessThan(-30);
+    expect(l0.x).toBeGreaterThan(20);
+    expect(r0.x).toBeCloseTo(-l0.x, 3);
+    expect(r0.z).toBeCloseTo(l0.z, 3);
+    // 展开：上翼尖高高举起，下翼尖向外张开（站立时收在腿边），整只翼比站立时宽得多
+    const open = { ...rest, ...sfWings(1) };
+    const low = (p: Record<string, number>) => pointOn(p, 'wingL', [50, -42, 0]);
+    expect(tipL(open).y).toBeGreaterThan(l0.y + 40);
+    expect(low(open).x).toBeGreaterThan(low(rest).x + 30);
+    // 蓄力包裹：翼尖转到身前（+Z）
+    expect(tipL({ ...rest, ...sfWings(0.15, 1) }).z).toBeGreaterThan(20);
+  });
+
+  it('registers fx events, projectiles and modifier visuals', () => {
+    for (const k of ['sf_raze', 'sf_feast_cast', 'sf_feast', 'sf_requiem']) expect(fxFor(k)).toBeTypeOf('function');
+    for (const k of ['sf_feast', 'sf_presence', 'sf_necromastery']) expect(modVisual(k)).toBeDefined();
+    expect(projStyle('hero:shadow_fiend')?.mesh).toBe('orb');
+    expect(projStyle('sf_requiem_line')?.mesh).toBe('wave');
+    expect(projStyle('sf_requiem_line')?.emitter).toBeTypeOf('function');
   });
 });

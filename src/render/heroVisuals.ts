@@ -12,6 +12,8 @@ export interface HeroLook {
   weapon: HeroWeapon;
   /** 2D 体型缩放（帕吉 1.25） */
   size?: number;
+  /** 背后一对翅膀的颜色（影魔的暗影翼）；没有时不画 */
+  wings?: string;
 }
 
 /** 10 名英雄的 2D 外观（颜色、首字、武器；数值来自 P2 计划的各英雄任务）。选人界面的头像也用它，所以未实现的英雄也有 */
@@ -25,7 +27,7 @@ export const HERO_LOOKS: Record<string, HeroLook> = {
   phantom_assassin: { body: '#6b3a8f', trim: '#c9b0e6', skin: '#d8c8e8', initial: '幻', weapon: 'blades' },
   juggernaut: { body: '#d9772b', trim: '#e8d27a', skin: '#c08a5a', initial: '剑', weapon: 'katana' },
   pudge: { body: '#c98a8a', trim: '#6b4a2a', skin: '#d9a3a3', initial: '屠', weapon: 'hook', size: 1.25 },
-  shadow_fiend: { body: '#2a1418', trim: '#c8282a', skin: '#4a1a1e', initial: '影', weapon: 'claws' },
+  shadow_fiend: { body: '#2a1418', trim: '#c8282a', skin: '#4a1a1e', initial: '影', weapon: 'claws', wings: '#2a0a10' },
 };
 
 const DEFAULT_LOOK: HeroLook = { body: '#6b6b7a', trim: '#cccccc', skin: '#c9a27e', initial: '英', weapon: 'greatsword' };
@@ -195,6 +197,37 @@ function drawWeapon(ctx: CanvasRenderingContext2D, look: HeroLook, r: number, t:
   }
 }
 
+/** 背后一对翅膀（身体朝 +x）：从肩后向两侧、向后张开的扇形翼面，3 根骨 + 镶边色的边，轻轻扇动 */
+function drawWings(ctx: CanvasRenderingContext2D, look: HeroLook, r: number, t: number): void {
+  const flap = 0.08 * Math.sin(t * 1.9);
+  for (const s of [-1, 1]) {
+    ctx.save();
+    ctx.translate(-r * 0.35, s * r * 0.45);
+    ctx.rotate(s * (0.5 + flap));
+    const tips: [number, number][] = [[-r * 0.5, s * r * 1.9], [-r * 1.45, s * r * 1.45], [-r * 1.8, s * r * 0.55]];
+    ctx.fillStyle = look.wings!;
+    ctx.strokeStyle = look.trim;
+    ctx.lineWidth = Math.max(1.5, r * 0.07);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(tips[0][0], tips[0][1]);
+    ctx.quadraticCurveTo(-r * 0.75, s * r * 1.2, tips[1][0], tips[1][1]);
+    ctx.quadraticCurveTo(-r * 1.15, s * r * 0.75, tips[2][0], tips[2][1]);
+    ctx.quadraticCurveTo(-r * 0.9, s * r * 0.15, 0, 0);
+    ctx.fill();
+    ctx.stroke();
+    ctx.strokeStyle = '#5a3a3e';
+    ctx.lineWidth = Math.max(1, r * 0.05);
+    for (const [x, y] of tips) {
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(x * 0.92, y * 0.92);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+}
+
 /** swing：攻击前摇进度 0..1；lift：位移抬高（世界单位，画面上按一半向上偏移） */
 export function drawHero(ctx: CanvasRenderingContext2D, u: Unit, x: number, y: number, t: number, swing: number, isPlayer: boolean, lift = 0): void {
   const look = heroLook(u.defId);
@@ -217,6 +250,7 @@ export function drawHero(ctx: CanvasRenderingContext2D, u: Unit, x: number, y: n
   if (lift > 0) ctx.translate(0, -lift * 0.5);
   ctx.rotate(u.facing);
   const bob = Math.sin(t * 6 + u.id) * 0.04 * r;
+  if (look.wings) drawWings(ctx, look, r, t + u.id);
   ctx.save();
   ctx.translate(r * 0.1, r * 0.75);
   ctx.rotate(-1.1 + 2.0 * swing * swing);

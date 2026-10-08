@@ -42,6 +42,10 @@ const PLAN = {
   pudge_meat_hook: { proj: 'pudge_hook', fx: [['pudge_hook_hit', 3, 'hit'], ['pudge_hook_hit', 12, 'drag']], afterMs: 1500 },
   pudge_meat_shield: { fx: [['pudge_meat_shield', 3, 'release'], ['pudge_meat_shield', 30, 'shield']] },
   pudge_dismember: { fx: [['pudge_dismember', 3, 'bite'], ['pudge_dismember', 40, 'bite2']], afterMs: 2500 },
+  // 影魔：轻点 Q 智能选档（敌方英雄在 300–500，截 sf_raze），W 吸魂，R 蓄力（前摇 1.67 秒）后 20 道魂能段
+  sf_shadowraze: { fx: [['sf_raze', 2, 'hit'], ['sf_raze', 10, 'hit2']] },
+  sf_feast_of_souls: { fx: [['sf_feast_cast', 3, 'release'], ['sf_feast', 6, 'harvest']], afterMs: 2000 },
+  sf_requiem: { proj: 'sf_requiem_line', fx: [['sf_requiem', 3, 'release'], ['sf_requiem', 40, 'lines']], afterMs: 2500 },
 };
 /** 普攻（被动）要截的时刻：分裂斩痕（fx）或普攻弹道（proj） */
 // prep：开始普攻前在页面里执行的代码（me = 玩家英雄）。幻刺：一直把恩赐解脱的伪随机计数拉满，每隔一刀必定暴击
@@ -49,6 +53,7 @@ const ATTACK = {
   sven: { fx: 'cleave' }, lina: { proj: 'hero:lina' }, crystal_maiden: { proj: 'hero:crystal_maiden' }, zeus: { proj: 'hero:zeus' }, drow_ranger: { proj: 'drow_frost_arrow' },
   phantom_assassin: { fx: 'pa_crit', prep: "setInterval(() => { const m = me.modifiers.find((x) => x.def.id === 'pa_coup_de_grace'); if (m) m.data.prd = 100; }, 30)" },
   // 主宰：一直把剑舞的伪随机计数拉满（每一刀都暴击），截暴击飘字
+  shadow_fiend: { proj: 'hero:shadow_fiend' },
   juggernaut: { prep: "setInterval(() => { const m = me.modifiers.find((x) => x.def.id === 'jugg_blade_dance'); if (m) m.data.prd = 100; }, 30)" },
 };
 
@@ -124,6 +129,9 @@ const ATTACK = {
         g.debug.place(c.id, 900 + (i++ % 4) * 40, 8200);
       }
     }
+    // 影魔：给 20 个灵魂（魂之挽歌放出 20 道、头像旁显示"灵魂 20"）
+    const necro = me.modifiers.find((m) => m.def.id === 'sf_necromastery');
+    if (necro) necro.data.souls = 20;
     g.timeScale = 1;
     return { me: me.id, foes: foes.map((f) => f.id), allies: allies.map((a) => a.id), abilities: me.abilities.map((a) => [a.def.slot, a.def.id, a.level, a.def.targetType, !!a.def.instant || !a.def.castPoint]) };
   });

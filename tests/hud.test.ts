@@ -85,5 +85,8 @@ describe('HUD ability helpers', () => {
     const t = createHero(w, 'testhero', Team.Radiant, false);
     t.abilities.push(newAbilityInstance({ id: 'test_souls', name: '灵魂', description: '', slot: 'innate', maxLevel: 1, targetType: 'passive', values: {}, counter: () => 12 }));
     expect(innateCounter(t)).toEqual({ label: '灵魂', value: 12 });
+    // counterLabel 覆盖技能名（影魔：支配死灵 → "灵魂"）
+    const sf = createHero(w, 'shadow_fiend', Team.Radiant, false);
+    expect(innateCounter(sf)).toEqual({ label: '灵魂', value: 0 });
   });
 });

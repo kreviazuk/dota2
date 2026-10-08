@@ -12,6 +12,7 @@ export const SKILL_BUILDS: Record<string, AbilitySlot[]> = {
   phantom_assassin: ['Q', 'W', 'Q', 'E', 'Q', 'R', 'Q', 'E', 'E', 'E', 'R', 'W', 'W', 'W', 'R'],
   juggernaut: ['Q', 'E', 'Q', 'W', 'Q', 'R', 'Q', 'E', 'E', 'E', 'R', 'W', 'W', 'W', 'R'],
   pudge: ['Q', 'W', 'Q', 'E', 'Q', 'R', 'Q', 'W', 'W', 'W', 'R', 'E', 'E', 'E', 'R'],
+  shadow_fiend: ['Q', 'E', 'Q', 'E', 'Q', 'R', 'Q', 'E', 'E', 'W', 'R', 'W', 'W', 'W', 'R'],
 };
 
 /** 天赋预设：下标 = 天赋层（10/15/20/25 级），0 = 左 / 1 = 右 */
@@ -34,6 +35,8 @@ export const TALENT_BUILDS: Record<string, (0 | 1)[]> = {
   juggernaut: [1, 0, 1, 0],
   // +5 护甲、+150 肉钩伤害、+0.75 秒肢解、肢解伤害和治疗 ×1.5
   pudge: [0, 1, 0, 0],
+  // +30 毁灭阴影连中伤害、灵魂盛宴每名英雄多收 2 个灵魂、+5 灵魂上限、毁灭阴影附带攻击伤害
+  shadow_fiend: [0, 1, 0, 1],
 };
 
 const DEFAULT_BUILD: AbilitySlot[] = ['Q', 'W', 'E', 'Q', 'W', 'R', 'E', 'Q', 'W', 'E', 'R', 'Q', 'W', 'E', 'R'];

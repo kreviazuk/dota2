@@ -6,6 +6,7 @@ import type { FxSystem } from './fx';
 import type { ViewCamera } from './view';
 import { registerCalmCamera } from './cameraHints';
 import { abilityValue } from '../sim/systems/abilities';
+import { getSouls } from '../sim/heroes/shadow_fiend';
 
 /**
  * 2D 后备渲染器的特效注册表：sim 的 fx 事件和弹道外观。各英雄任务在这里注册自己的 2D 表现（简单的圈 / 粒子 / 颜色）；
@@ -615,4 +616,88 @@ registerFx2D('pudge_flesh_heap', (fx, e, world) => {
   const n = inn ? abilityValue(u, inn, 'strPerStack') : 2;
   fx.text(u.pos.x, u.pos.y - 110, `+${Number.isInteger(n) ? n : n.toFixed(1)} 力量`, '#7dff4a', 26);
   fx.burst(u.pos.x, u.pos.y - 40, 10, 'rgba(140,196,60,0.9)', 120, 5, 0.6, false);
+});
+
+// ---------- 影魔 ----------
+registerProjectile2D('hero:shadow_fiend', { color: '#b8141a', size: 8, shape: 'orb' });
+// 魂之挽歌用小魂球而不是 wave：wave 按碰撞宽度画，20 道在 300 外就首尾相接成一个圈
+registerProjectile2D('sf_requiem_line', { color: '#a0101a', size: 9, shape: 'orb' });
+
+/** 毁灭阴影：暗红色的圈 + 向上喷的暗红 / 黑色粒子 + 轻微震屏 */
+registerFx2D('sf_raze', (fx, e, _w, cam) => {
+  const r = e.radius ?? 250;
+  fx.ring(e.pos.x, e.pos.y, r * 0.3, r, 'rgba(160,16,20,', 0.45, 16);
+  fx.burst(e.pos.x, e.pos.y - 20, 26, 'rgba(122,10,16,0.95)', 260, 9, 0.55, false);
+  fx.burst(e.pos.x, e.pos.y - 20, 14, 'rgba(26,10,12,0.85)', 200, 10, 0.6, false);
+  fx.burst(e.pos.x, e.pos.y - 30, 8, 'rgba(255,90,40,0.95)', 220, 4, 0.4);
+  if (cam.visible(e.pos)) cam.shake(4);
+});
+
+/** 灵魂盛宴施放：脚下一圈暗红 */
+registerFx2D('sf_feast_cast', (fx, e, world) => {
+  const p = world.getUnit(e.unitId ?? -1)?.pos ?? e.pos;
+  fx.ring(p.x, p.y, 20, 140, 'rgba(200,26,20,', 0.4, 10);
+});
+
+/** 吸取灵魂：目标和影魔之间一串红点 */
+registerFx2D('sf_feast', (fx, e, world) => {
+  const u = world.getUnit(e.unitId ?? -1);
+  const from = world.getUnit(e.targetId ?? -1)?.pos ?? e.pos;
+  if (!u) return;
+  for (let i = 0; i <= 6; i++) {
+    const k = i / 6;
+    fx.burst(from.x + (u.pos.x - from.x) * k, from.y - 30 + (u.pos.y - from.y) * k, 2, 'rgba(220,30,24,0.9)', 40, 5, 0.3 + 0.2 * k, false);
+  }
+});
+
+/** 魂之挽歌：1000 的暗红冲击环 + 黑红烟尘 + 震屏 */
+registerFx2D('sf_requiem', (fx, e, _w, cam) => {
+  const r = e.radius ?? 1000;
+  fx.ring(e.pos.x, e.pos.y, 30, r, 'rgba(200,26,20,', 1.2, 26);
+  fx.ring(e.pos.x, e.pos.y, 20, r * 0.7, 'rgba(90,8,12,', 0.9, 14);
+  fx.burst(e.pos.x, e.pos.y - 20, 40, 'rgba(26,10,12,0.85)', 380, 10, 0.8, false);
+  fx.burst(e.pos.x, e.pos.y - 30, 24, 'rgba(200,26,20,0.95)', 420, 7, 0.6, false);
+  if (cam.visible(e.pos, 600)) cam.shake(12);
+});
+
+/** 灵魂盛宴：脚下脉动的红圈 */
+registerModifier2D('sf_feast', (ctx, u, _m, x, y, t) => {
+  const r = u.radius * 1.9;
+  ctx.strokeStyle = `rgba(220,30,24,${0.65 + 0.2 * Math.sin(t * 6)})`;
+  ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.ellipse(x, y + r * 0.2, r, r * 0.66, 0, 0, Math.PI * 2);
+  ctx.stroke();
+});
+
+/** 魔王降临：脚下一个小的暗紫色虚线圈（不画 1200 的大圈） */
+registerModifier2D('sf_presence', (ctx, u, _m, x, y, t) => {
+  if (u.hasState('breakPassives')) return;
+  const r = u.radius * 1.6;
+  ctx.save();
+  ctx.strokeStyle = 'rgba(110,50,150,0.7)';
+  ctx.lineWidth = 2.5;
+  ctx.setLineDash([6, 6]);
+  ctx.lineDashOffset = -t * 10;
+  ctx.beginPath();
+  ctx.ellipse(x, y + r * 0.2, r, r * 0.66, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  ctx.restore();
+});
+
+/** 支配死灵：身边绕圈的暗红魂点，个数 = ceil(灵魂 / 4)（最多 6 个） */
+registerModifier2D('sf_necromastery', (ctx, u, _m, x, y, t) => {
+  const n = Math.min(6, Math.ceil(getSouls(u) / 4));
+  const r = u.radius * 2;
+  for (let i = 0; i < n; i++) {
+    const a = -t * 1.8 + (i / n) * Math.PI * 2;
+    ctx.fillStyle = 'rgba(176,20,24,0.95)';
+    ctx.beginPath();
+    ctx.arc(x + Math.cos(a) * r, y - 20 + Math.sin(a) * r * 0.66, 4.5, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = 'rgba(255,110,60,0.9)';
+    ctx.beginPath();
+    ctx.arc(x + Math.cos(a) * r, y - 20 + Math.sin(a) * r * 0.66, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
 });

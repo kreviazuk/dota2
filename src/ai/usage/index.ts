@@ -8,6 +8,7 @@ import { DROW_RULES } from './drow_ranger';
 import { PA_RULES } from './phantom_assassin';
 import { JUGG_RULES } from './juggernaut';
 import { PUDGE_RULES } from './pudge';
+import { SF_RULES } from './shadow_fiend';
 
 export type { AiCtx, AiDecision, AiRule, HeroAiRules } from './types';
 
@@ -22,6 +23,7 @@ export const AI_RULES: HeroAiRules = {
   ...PA_RULES,
   ...JUGG_RULES,
   ...PUDGE_RULES,
+  ...SF_RULES,
 };
 
 export const aiRuleFor = (abilityId: string): AiRule | undefined => AI_RULES[abilityId];

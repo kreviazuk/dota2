@@ -201,6 +201,14 @@ describe('2D looks, shield bar and status markers', () => {
     expect(HERO_LOOKS.juggernaut).toMatchObject({ body: '#d9772b', trim: '#e8d27a', skin: '#c08a5a', initial: '剑', weapon: 'katana' });
   });
 
+  it('Shadow Fiend has 2D effects for every fx event, soul / Feast / Presence rings, a dark-red orb attack and shadow wings', () => {
+    for (const k of ['sf_raze', 'sf_feast_cast', 'sf_feast', 'sf_requiem']) expect(lookupFx2D(k)).toBeTypeOf('function');
+    for (const k of ['sf_feast', 'sf_presence', 'sf_necromastery']) expect(lookupModifier2D(k)).toBeTypeOf('function');
+    expect(lookupProjectile2D('hero:shadow_fiend')?.color).toBe('#b8141a');
+    expect(lookupProjectile2D('sf_requiem_line')?.shape).toBe('orb');
+    expect(HERO_LOOKS.shadow_fiend).toMatchObject({ body: '#2a1418', trim: '#c8282a', skin: '#4a1a1e', initial: '影', weapon: 'claws', wings: '#2a0a10' });
+  });
+
   it('Pudge has a 2D hook with a chain, effects for every fx event, and Rot / Meat Shield / Dismember rings', () => {
     for (const k of ['pudge_meat_hook', 'pudge_hook_hit', 'pudge_rot', 'pudge_meat_shield', 'pudge_dismember', 'pudge_flesh_heap']) expect(lookupFx2D(k)).toBeTypeOf('function');
     expect(lookupProjectile2D('pudge_hook')).toMatchObject({ shape: 'hook', chain: '#9a948a' });

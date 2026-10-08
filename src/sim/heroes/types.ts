@@ -104,6 +104,8 @@ export interface AbilityDef {
   aimShape?(caster: Unit, ab: AbilityInstance): { length?: number; width?: number; radius?: number };
   /** HUD 角标（层数、灵魂数……）；null = 不显示 */
   counter?(u: Unit, ab: AbilityInstance): number | null;
+  /** 先天技能角标在头像旁的标签（缺省 = 技能名；影魔支配死灵显示"灵魂"） */
+  counterLabel?: string;
   /** 被动暂时失效（例如射手天赋附近有敌方英雄）时 HUD 变灰 */
   inactive?(u: Unit, ab: AbilityInstance): boolean;
 }

@@ -20,3 +20,5 @@ import '../models/juggernaut';
 import './juggernaut';
 import '../models/pudge';
 import './pudge';
+import '../models/shadow_fiend';
+import './shadow_fiend';

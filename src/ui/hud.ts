@@ -60,7 +60,7 @@ export function innateCounter(u: Unit): { label: string; value: number } | null 
   for (const ab of u.abilities) {
     if (ab.def.slot !== 'innate' || !ab.def.counter) continue;
     const v = ab.def.counter(u, ab);
-    if (v !== null) return { label: ab.def.name, value: v };
+    if (v !== null) return { label: ab.def.counterLabel ?? ab.def.name, value: v };
   }
   return null;
 }
