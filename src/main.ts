@@ -11,6 +11,10 @@ import type { Difficulty } from './sim/core/types';
 import { applyControl, applyFear, applySlow } from './sim/status';
 import { blinkTo, knockback } from './sim/systems/motion';
 import { addShield } from './sim/shields';
+import { Rng } from './sim/core/rng';
+import { draftTeams } from './game/draft';
+import { availableHeroes } from './game/roster';
+import { refreshHero, setHeroLevel } from './game/debug';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const uiRoot = document.getElementById('ui') as HTMLDivElement;
@@ -22,8 +26,8 @@ document.body.appendChild(hint);
 /** 渲染器在启动时异步选择（3D 优先，WebGL 不可用时退回 2D），见 boot() */
 let renderer!: GameRenderer;
 
-/** P1：3v3 全部是斧王 */
-const TEAM_HEROES = ['axe', 'axe', 'axe'];
+/** 玩家英雄（Task 7 的选英雄界面接入前固定为斧王） */
+const PLAYER_HERO = 'axe';
 /** 对局结束后停留多久再弹出结算界面（毫秒），让玩家看到遗迹爆炸 */
 const RESULT_DELAY_MS = 1800;
 /** 单帧最多追赶的真实时间（秒），防止切回页面后一次跑太多逻辑帧 */
@@ -70,7 +74,10 @@ function closePause(): void {
 /** 主菜单背景：全 AI 演示对局，镜头跟随天辉第一个英雄 */
 function startDemoMatch(): void {
   teardown();
-  const match = new Match({ seed: newSeed(), radiantHeroes: TEAM_HEROES, direHeroes: TEAM_HEROES, playerSlot: null, difficulty: 'normal', recordEvents: true });
+  const seed = newSeed();
+  // 随机阵容（电脑补位规则，见 game/draft.ts）
+  const d = draftTeams(new Rng(seed), availableHeroes());
+  const match = new Match({ seed, radiantHeroes: d.radiant, direHeroes: d.dire, playerSlot: null, difficulty: 'normal', recordEvents: true });
   const followId = match.world.heroes()[0]?.id ?? null;
   session = { match, hud: null, controls: null, followId, demo: true, frozen: false };
   renderer.snapTo(match.world, followId);
@@ -88,7 +95,9 @@ function startGame(difficulty: Difficulty): void {
   closePause();
   lastDifficulty = difficulty;
   uiRoot.innerHTML = '';
-  const match = new Match({ seed: newSeed(), radiantHeroes: TEAM_HEROES, direHeroes: TEAM_HEROES, playerSlot: 0, difficulty, recordEvents: true });
+  const seed = newSeed();
+  const d = draftTeams(new Rng(seed), availableHeroes(), PLAYER_HERO);
+  const match = new Match({ seed, radiantHeroes: d.radiant, direHeroes: d.dire, playerSlot: 0, difficulty, recordEvents: true });
   const hud = new Hud(uiRoot, match, renderer.camera);
   const controls = new Controls(hud, match, renderer.camera);
   hud.pauseBtn.addEventListener('click', pause);
@@ -171,6 +180,8 @@ async function boot(): Promise<void> {
         set timeScale(v: number) { timeScale = v; },
         // 直接调用 sim 的状态 / 位移 / 护盾函数（截图脚本用来制造各种状态；参数和 sim 里一样，world 取 session.match.world）
         sim: { applyControl, applySlow, applyFear, knockback, blinkTo, addShield },
+        // 调试工具（game/debug.ts）：__game.debug.setHeroLevel(world, unit, 16) / refreshHero(world, unit)
+        debug: { setHeroLevel, refreshHero },
       },
     });
   }

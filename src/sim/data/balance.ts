@@ -115,6 +115,14 @@ export const BALANCE = {
     /** 跟随型召唤物与主人的距离超过 follow + followSlack 时才移动 */
     followSlack: 50,
   },
+  ai: {
+    /** 简单难度（prediction = 0）瞄准地点 / 方向时的随机偏差半径 */
+    easyAimError: 150,
+    /** bestCirclePoint：命中一个英雄相当于命中几个其他单位 */
+    heroWeight: 3,
+    /** 大招就绪（或快就绪）时，其他技能施放后至少留下大招的魔耗（keepsUltMana） */
+    conserveUltMana: true,
+  },
   maxGameTime: 2400,
 };
 

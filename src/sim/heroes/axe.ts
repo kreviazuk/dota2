@@ -38,13 +38,6 @@ const berserkersCall: AbilityDef = {
     addModifier(world, caster, CALL_ARMOR, { sourceId: caster.id, duration, data: { armor: ctx.v('armor') } });
     world.events.emit({ type: 'fx', kind: 'axe_call', pos: { ...caster.pos }, radius, unitId: caster.id });
   },
-  aiCast: (world, caster, ab) => {
-    const r = abilityValue(caster, ab, 'radius') - 40;
-    const heroes = enemiesInRadius(world, caster.team, caster.pos, r, { heroesOnly: true }).filter((h) => !h.hasState('hidden'));
-    if (heroes.length > 0) return {};
-    const creeps = enemiesInRadius(world, caster.team, caster.pos, r).filter((u) => u.kind !== 'hero' && !u.creep?.protectedUntilContact);
-    return creeps.length >= 4 && caster.mana / caster.stats.maxMana > 0.6 ? {} : null;
-  },
 };
 
 // ---------- W 战斗饥渴 ----------
@@ -79,14 +72,6 @@ const battleHunger: AbilityDef = {
     if (!t) return;
     addModifier(ctx.world, t, HUNGER, { sourceId: ctx.caster.id, duration: ctx.v('duration'), data: { dps: ctx.v('dps'), slow: ctx.v('slow') } });
     ctx.world.events.emit({ type: 'fx', kind: 'axe_hunger', pos: { ...t.pos }, unitId: ctx.caster.id, targetId: t.id });
-  },
-  aiCast: (world, caster, ab) => {
-    const range = abilityCastRange(caster, ab);
-    const heroes = enemiesInRadius(world, caster.team, caster.pos, range, { heroesOnly: true }).filter(
-      (h) => isTargetableBy(caster, h, 'enemy', false) && !h.modifiers.some((m) => m.def.id === 'axe_battle_hunger'),
-    );
-    const t = nearestOf(caster.pos, heroes);
-    return t ? { unitId: t.id } : null;
   },
 };
 
@@ -193,13 +178,6 @@ const cullingBlade: AbilityDef = {
     if (killable.length) return { unit: killable.reduce((a, b) => (b.hp < a.hp ? b : a)) };
     const t = nearestOf(caster.pos, heroes);
     return t ? { unit: t } : null;
-  },
-  aiCast: (world, caster, ab) => {
-    const threshold = abilityValue(caster, ab, 'damage');
-    const t = enemiesInRadius(world, caster.team, caster.pos, abilityCastRange(caster, ab) + 275, { heroesOnly: true }).find(
-      (u) => u.hp <= threshold && isTargetableBy(caster, u, 'enemy', true),
-    );
-    return t ? { unitId: t.id } : null;
   },
 };
 

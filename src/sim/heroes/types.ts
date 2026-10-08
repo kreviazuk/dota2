@@ -50,7 +50,7 @@ export interface CastContext {
   v(key: string): number;
 }
 
-/** AI 能力参数（随难度变化） */
+/** AI 能力参数（随难度变化）；技能使用规则在 src/ai/usage/<英雄>.ts */
 export interface AiSkill {
   reaction: number;
   prediction: number;
@@ -98,8 +98,6 @@ export interface AbilityDef {
   onChannelEnd?(ctx: CastContext, interrupted: boolean): void;
   onToggle?(ctx: CastContext, on: boolean): void;
   smartTarget?(world: World, caster: Unit, ability: AbilityInstance): ResolvedTarget | null;
-  /** P1 的 AI 施法规则（Task 6 挪到 src/ai/usage 后删除） */
-  aiCast?(world: World, caster: Unit, ability: AbilityInstance, skill: AiSkill): CastTarget | null;
   /** 瞄准指示器的尺寸（缺省读 castRange / values.distance / values.width / values.radius） */
   aimShape?(caster: Unit, ab: AbilityInstance): { length?: number; width?: number; radius?: number };
   /** HUD 角标（层数、灵魂数……）；null = 不显示 */

@@ -13,6 +13,8 @@ export function getHeroDef(id: string): HeroDef {
   return d;
 }
 
+export const hasHero = (id: string): boolean => REGISTRY.has(id);
+
 export const allHeroIds = (): string[] => [...REGISTRY.keys()];
 
 registerHero(AXE);

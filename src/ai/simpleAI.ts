@@ -3,21 +3,31 @@ import type { Unit } from '../sim/entities/unit';
 import { enemyTeam, type AbilitySlot, type Team } from '../sim/core/types';
 import type { Vec2 } from '../sim/core/vec2';
 import { dist } from '../sim/core/vec2';
-import type { AiSkill } from '../sim/heroes/types';
+import type { AbilityInstance, AiSkill } from '../sim/heroes/types';
 import type { Command } from '../sim/commands';
 import { isCommandLocked } from '../sim/commands';
 import { canCast } from '../sim/systems/abilities';
-import { canAttack, edgeDist, enemiesInRadius, expectedAttackDamage, nearestOf } from '../sim/query';
+import { alliesInRadius, canAttack, edgeDist, enemiesInRadius, expectedAttackDamage, nearestOf } from '../sim/query';
 import { forwardY, layoutFor } from '../sim/data/map';
 import { nextSkillToLearn, TALENT_BUILDS } from './builds';
 import { canPickTalent } from '../sim/talents';
+import { AI_RULES, type AiCtx, type AiDecision, type AiRule, type HeroAiRules } from './usage/index';
+
+/** AiCtx.enemyHeroes / allyHeroes 的搜索半径 */
+const CTX_RADIUS = 1500;
+
+/** 缺省优先级：R 30、X1/X2 20、其他 10 */
+const defaultPriority = (slot: AbilitySlot): number => (slot === 'R' ? 30 : slot === 'X1' || slot === 'X2' ? 20 : 10);
+
+interface RuleEntry { ab: AbilityInstance; slot: AbilitySlot; rule: AiRule; priority: number }
 
 /** P1 的简单 AI：会补刀、会放技能、低血回家、跟着兵线推进。P4 会替换为完整三层 AI。 */
 export class SimpleAI {
   private nextThink = 0;
   private retreating = false;
 
-  constructor(readonly unitId: number, readonly skill: AiSkill) {}
+  /** rules 缺省为全部英雄的规则表（测试可以换成假规则） */
+  constructor(readonly unitId: number, readonly skill: AiSkill, private readonly rules: HeroAiRules = AI_RULES) {}
 
   update(world: World): void {
     if (world.time < this.nextThink) return;
@@ -47,25 +57,34 @@ export class SimpleAI {
     } else if (hpPct < this.skill.retreatHp) {
       this.retreating = true;
     }
+    // P1 的 1000 范围（回城判断、换血目标）保持不变；技能规则看 1500 范围（AiCtx）
     const enemyHeroes = enemiesInRadius(world, me.team, me.pos, 1000, { heroesOnly: true }).filter((h) => canAttack(me, h));
+    const ctx: Omit<AiCtx, 'ab'> = {
+      world, me, skill: this.skill,
+      enemyHeroes: enemiesInRadius(world, me.team, me.pos, CTX_RADIUS, { heroesOnly: true }).filter((h) => canAttack(me, h)),
+      allyHeroes: alliesInRadius(world, me.team, me.pos, CTX_RADIUS, { heroesOnly: true, excludeId: me.id }),
+      hpPct, manaPct, retreating: this.retreating,
+    };
+    const rules = this.ruleEntries(me);
 
     if (this.retreating) {
+      // 正在施放（或走向施放位置的）逃跑技能：不下移动指令，否则会把它打断
+      const busyAb = me.cast?.ability ?? (me.order.kind === 'cast' ? me.order.ability : null);
+      if (busyAb && this.rules[busyAb.def.id]?.escape) return out;
+      if (this.tryRules(world, ctx, rules.filter((r) => r.rule.escape), out)) return out;
       if (atHome) out.push({ type: 'stop' });
       else if (enemyHeroes.length === 0 && dist(me.pos, L.fountain) > 2500) out.push({ type: 'recall' });
       else out.push({ type: 'moveTo', point: L.fountain });
       return out;
     }
 
-    // 正在前摇或引导时不再下施法指令：重新施法会取消当前施法（思考间隔短于施法前摇时永远放不出技能）
-    if (me.cast) return out;
-    for (const ab of me.abilities) {
-      if (!ab.def.aiCast || !canCast(world, me, ab)) continue;
-      const t = ab.def.aiCast(world, me, ab, this.skill);
-      if (t) {
-        out.push({ type: 'cast', slot: ab.def.slot as AbilitySlot, target: t });
-        return out;
-      }
+    // 正在前摇或引导时不再下施法指令：重新施法会取消当前施法（思考间隔短于施法前摇时永远放不出技能）；
+    // 只有 whileCasting 的（即时）技能可以插进来
+    if (me.cast) {
+      this.tryRules(world, ctx, rules.filter((r) => r.rule.whileCasting), out);
+      return out;
     }
+    if (this.tryRules(world, ctx, rules, out)) return out;
     if (me.order.kind === 'cast') return out;
 
     // 敌方英雄全灭或人数劣势明显时，趁机推塔：不必等小兵抗塔，血量够时也不躲塔（但仍然躲泉水）
@@ -110,6 +129,31 @@ export class SimpleAI {
       : { x: L.t1.x, y: this.frontTowerY(world, me) + fy * 250 };
     if (dist(me.pos, anchor) > 120) out.push({ type: 'moveTo', point: anchor });
     return out;
+  }
+
+  /** 已学会、有规则的技能，按优先级从高到低（同优先级保持技能顺序） */
+  private ruleEntries(me: Unit): RuleEntry[] {
+    const out: RuleEntry[] = [];
+    for (const ab of me.abilities) {
+      const slot = ab.def.slot;
+      if (slot === 'innate' || ab.level <= 0) continue;
+      const rule = this.rules[ab.def.id];
+      if (rule) out.push({ ab, slot, rule, priority: rule.priority ?? defaultPriority(slot) });
+    }
+    return out.sort((a, b) => b.priority - a.priority);
+  }
+
+  /** 依次试规则：canCast 为真才调用 decide；第一个做出决定的规则下指令，返回 true */
+  private tryRules(world: World, ctx: Omit<AiCtx, 'ab'>, entries: readonly RuleEntry[], out: Command[]): boolean {
+    for (const e of entries) {
+      if (!canCast(world, ctx.me, e.ab)) continue;
+      const d: AiDecision = e.rule.decide({ ...ctx, ab: e.ab });
+      if (!d) continue;
+      if ('toggle' in d) out.push({ type: 'toggle', slot: e.slot });
+      else out.push({ type: 'cast', slot: e.slot, target: d.cast });
+      return true;
+    }
+    return false;
   }
 
   private hasPushAdvantage(world: World, team: Team): boolean {
