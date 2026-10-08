@@ -79,6 +79,8 @@ class HeroView {
   // 本帧 Modifier 外观的累积（每帧在 update 里重置，在 finish 里应用）
   private fxTint = new Color();
   private fxTintK = 0;
+  private fxRim = new Color();
+  private fxRimK = 0;
   private fxScale = 1;
   private fxOpacity = 1;
   private fxLift = 0;
@@ -90,6 +92,12 @@ class HeroView {
       if (k > this.fxTintK) {
         this.fxTintK = k;
         this.fxTint.set(color);
+      }
+    },
+    rim: (color, k) => {
+      if (k > this.fxRimK) {
+        this.fxRimK = k;
+        this.fxRim.set(color);
       }
     },
     scale: (k) => (this.fxScale *= k),
@@ -123,6 +131,7 @@ class HeroView {
     this.lift = u.alive ? motionLift(u, alpha) : 0;
     this.hiddenAlly = u.alive && !hiddenEnemy && u.hasState('hidden');
     this.fxTintK = 0;
+    this.fxRimK = 0;
     this.fxScale = 1;
     this.fxOpacity = 1;
     this.fxLift = 0;
@@ -167,7 +176,9 @@ class HeroView {
     const f = this.tracker.flash;
     this.mat.emissive.setRGB(0.55 * f, 0.12 * f, 0.08 * f);
     if (this.fxTintK > 0) this.mat.emissive.add(this.tmpColor.copy(this.fxTint).multiplyScalar(this.fxTintK));
-    this.mat.rimU.value.copy(this.baseRim).lerp(this.tmpColor.setRGB(1.2, 0.5, 0.4), f);
+    const rim = this.mat.rimU.value.copy(this.baseRim);
+    if (this.fxRimK > 0) rim.lerp(this.tmpColor.copy(this.fxRim).multiplyScalar(2), Math.min(1, this.fxRimK));
+    rim.lerp(this.tmpColor.setRGB(1.2, 0.5, 0.4), f);
   }
 
   dispose(): void {

@@ -7,7 +7,7 @@ import { HERO_LOOKS } from '../src/render/heroVisuals';
 import { allHeroIds } from '../src/sim/heroes';
 import { lookupFx, registerFx, lookupModifierVisual, projectileStyle, registerProjectileStyle } from '../src/render3d/fx/registry';
 import '../src/render3d/fx/common';
-import { lookupFx2D, lookupProjectile2D, registerFx2D, registerProjectile2D } from '../src/render/fx2d';
+import { lookupFx2D, lookupModifier2D, lookupProjectile2D, registerFx2D, registerProjectile2D } from '../src/render/fx2d';
 import { applyControl, applyFear, applySlow } from '../src/sim/status';
 import { LruCache, MAP_TILE, tileRect, visibleTiles } from '../src/render/mapLayer';
 
@@ -156,6 +156,14 @@ describe('2D looks, shield bar and status markers', () => {
     registerProjectile2D('test_proj', { color: '#fff', size: 6 });
     expect(projectileStyle('test_proj')?.mesh).toBe('arrow');
     expect(lookupProjectile2D('test_proj')?.size).toBe(6);
+  });
+
+  it('Sven has 2D effects for every fx event, its hammer and its buffs', () => {
+    for (const k of ['sven_storm_hammer', 'sven_hammer_hit', 'sven_warcry', 'sven_gods_strength']) expect(lookupFx2D(k)).toBeTypeOf('function');
+    expect(lookupProjectile2D('sven_hammer')?.color).toBe('#7cc8ff');
+    for (const k of ['sven_warcry', 'sven_gods_strength']) expect(lookupModifier2D(k)).toBeTypeOf('function');
+    expect(lookupModifier2D('no_such_modifier')).toBeUndefined();
+    expect(HERO_LOOKS.sven).toMatchObject({ body: '#2f4f8f', trim: '#c9d3e2', skin: '#8fa0b5', initial: '斯', weapon: 'greatsword' });
   });
 
   it('status markers follow control states, fear and slows', () => {

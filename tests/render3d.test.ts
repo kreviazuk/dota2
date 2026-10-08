@@ -6,6 +6,9 @@ import { AnimTracker, BACKSWING, blendPose, selectState, turnToward, windupProgr
 import { arcFor, homingProgress, projectileHeight } from '../src/render3d/projectileArc';
 import { Bone, MeshBasicMaterial } from 'three';
 import { AXE_SPEC, attackPose, axePose, deathPose, idlePose, releasePose, runPose } from '../src/render3d/models/axe';
+import { SVEN_SPEC, attackPose as svenAttack } from '../src/render3d/models/sven';
+import { lookupFx as fxFor, lookupModifierVisual as modVisual, projectileStyle as projStyle } from '../src/render3d/fx/registry';
+import { getHeroDef } from '../src/sim/heroes';
 import '../src/render3d/fx/index';
 import { heroModelIds, heroModelSpec } from '../src/render3d/models/registry';
 import { SkinnedHeroModel } from '../src/render3d/models/heroModel';
@@ -340,5 +343,59 @@ describe('hero model registry and shared humanoid rig', () => {
     for (const [name] of AXE_SPEC.bones) axe[name] = new Bone();
     applyHumanoid(axe, { handRX: 1, axeX: 0.1 }, AXE_SPEC.bindRotations);
     expect(axe.axe.rotation.x).toBeCloseTo(Math.PI / 2 + 0.1);
+  });
+});
+
+describe('Sven model', () => {
+  const finite = (p: Record<string, number>) => Object.values(p).every(Number.isFinite);
+  it('sven poses are finite for every state and ability', () => {
+    // 每个主动技能都有收招动作
+    const actives = getHeroDef('sven').abilities.filter((a) => a.targetType !== 'passive').map((a) => a.id);
+    expect(Object.keys(SVEN_SPEC.releaseDur).sort()).toEqual([...actives].sort());
+    const states: Partial<AnimInput>[] = [{}, { speed: 320 }, { windup: 0.2 }, { channel: true }, { stunned: true }, { stunned: true, motion: 'hook' }, { alive: false }, { taunted: true }];
+    for (const inp of states) {
+      const tr = new AnimTracker();
+      tr.update(input(inp), 0.05, 0.5);
+      tr.update(input(inp), 0.3, 0.5);
+      expect(finite(SVEN_SPEC.pose(tr, 1.7, null))).toBe(true);
+    }
+    for (const id of Object.keys(SVEN_SPEC.releaseDur)) {
+      for (const cp of [0, 0.5, 1]) {
+        const tr = new AnimTracker();
+        tr.update(input({ castAbility: id, castProgress: cp }), 0.05, 0);
+        expect(tr.state).toBe('cast');
+        expect(finite(SVEN_SPEC.pose(tr, 0.4, null))).toBe(true);
+      }
+      for (const k of [0, 0.5, 1]) {
+        const tr = new AnimTracker();
+        const dur = SVEN_SPEC.releaseDur[id];
+        tr.trigger(id, dur);
+        tr.update(input(), Math.max(1e-3, k * dur * 0.999), 0);
+        expect(tr.state).toBe('release');
+        expect(finite(SVEN_SPEC.pose(tr, 0.4, null))).toBe(true);
+      }
+    }
+    // 战吼是即时技能：普攻前摇中放战吼时，右臂仍然按普攻出剑
+    const tr = new AnimTracker();
+    tr.trigger('sven_warcry', SVEN_SPEC.releaseDur.sven_warcry);
+    tr.update(input({ windup: 0.15 }), 0.1, 0);
+    expect(tr.state).toBe('release');
+    const p = SVEN_SPEC.pose(tr, 0.4, null);
+    expect(p.shRX).toBeCloseTo(svenAttack(tr.swing).shRX!);
+    expect(p.headX).toBeLessThan(svenAttack(tr.swing).headX! - 0.1);
+  });
+
+  it('swings the greatsword from behind the right shoulder across to the left', () => {
+    expect(svenAttack(0.6).torsoY).toBeLessThan(-0.5);
+    expect(svenAttack(1).torsoY).toBeGreaterThan(0.5);
+    expect(svenAttack(0.6).shRX).toBeLessThan(svenAttack(0).shRX! - 1.5);
+    expect(svenAttack(1).shRZ).toBeGreaterThan(svenAttack(0.6).shRZ! + 0.8);
+    expect(SVEN_SPEC.bones.map((b) => b[0])).toEqual(expect.arrayContaining(['sword', 'cape', 'handR']));
+  });
+
+  it('registers its projectile, fx events and modifier visuals', () => {
+    expect(projStyle('sven_hammer')?.mesh).toBe('hammer');
+    for (const k of ['sven_storm_hammer', 'sven_hammer_hit', 'sven_warcry', 'sven_gods_strength']) expect(fxFor(k)).toBeTypeOf('function');
+    for (const k of ['sven_warcry', 'sven_gods_strength']) expect(modVisual(k)).toBeDefined();
   });
 });

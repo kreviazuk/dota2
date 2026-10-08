@@ -59,9 +59,11 @@ export const projectileStyle = (visual: string): ProjectileStyle | undefined => 
 /** 通用状态标记的种类；Modifier 外观可以声明替换掉其中几种（例如冰封禁制的冰环替换通用的藤蔓缠绕） */
 export type StatusMark = 'stun' | 'silence' | 'root' | 'disarm' | 'fear' | 'slow' | 'shield' | 'break';
 
-/** 英雄模型的外观调节（每帧重置；多个外观的 scale 相乘、opacity 取最小、lift 相加、tint 取最强） */
+/** 英雄模型的外观调节（每帧重置；多个外观的 scale 相乘、opacity 取最小、lift 相加、tint / rim 取最强） */
 export interface ViewFx {
   tint(color: number, k: number): void;
+  /** 轮廓边缘光换成 color（k = 0..1，取最强的一个）：神之力量的红色描边 */
+  rim(color: number, k: number): void;
   scale(k: number): void;
   opacity(k: number): void;
   lift(h: number): void;

@@ -5,7 +5,7 @@ import { Team } from '../sim/core/types';
 import type { World } from '../sim/world';
 import { abilityValue, canCast } from '../sim/systems/abilities';
 import { shieldTotal } from '../sim/shields';
-import { lookupProjectile2D } from './fx2d';
+import { lookupModifier2D, lookupProjectile2D } from './fx2d';
 
 export const TEAM_COLORS: Record<Team, { main: string; light: string; dark: string; rgb: string }> = {
   [Team.Radiant]: { main: '#4caf50', light: '#a8f0a0', dark: '#1f5e25', rgb: '120,255,140' },
@@ -454,7 +454,7 @@ export function statusIcons2D(u: Unit): StatusIcon2D[] {
 
 const ICON_COLORS: Record<StatusIcon2D, string> = { stun: '#f2c94c', silence: '#9a5ae0', disarm: '#e07a3a', break: '#4ea86a', fear: '#7a2ab8' };
 
-/** 2D 状态标记（贴地部分）：缠绕（绿色荆棘圈）和减速（淡蓝色虚线圈），(x, y) 是单位位置 */
+/** 2D 状态标记（贴地部分）：缠绕（绿色荆棘圈）、减速（淡蓝色虚线圈）和注册的 Modifier 外观，(x, y) 是单位位置 */
 export function drawStatusGround2D(ctx: CanvasRenderingContext2D, u: Unit, x: number, y: number, t: number): void {
   if (!u.alive) return;
   const slowed = isSlowed(u);
@@ -487,6 +487,8 @@ export function drawStatusGround2D(ctx: CanvasRenderingContext2D, u: Unit, x: nu
     ctx.stroke();
     ctx.setLineDash([]);
   }
+  // 各英雄注册的持续外观（战吼、神之力量……）
+  for (const m of u.modifiers) lookupModifier2D(m.def.id)?.(ctx, u, m, x, y, t);
 }
 
 /**

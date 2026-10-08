@@ -4,12 +4,15 @@ import { canLearn } from '../sim/systems/progress';
 
 export const SKILL_BUILDS: Record<string, AbilitySlot[]> = {
   axe: ['Q', 'E', 'E', 'W', 'E', 'R', 'E', 'Q', 'Q', 'Q', 'R', 'W', 'W', 'W', 'R'],
+  sven: ['Q', 'W', 'E', 'W', 'W', 'R', 'W', 'Q', 'Q', 'Q', 'R', 'E', 'E', 'E', 'R'],
 };
 
 /** 天赋预设：下标 = 天赋层（10/15/20/25 级），0 = 左 / 1 = 右 */
 export const TALENT_BUILDS: Record<string, (0 | 1)[]> = {
   // 移速、+8 饥渴伤害、+40 螺旋、+150 淘汰
   axe: [0, 1, 0, 0],
+  // +5 秒战吼、+25% 分裂、−25% 风暴之拳冷却和魔耗、+50% 神之力量
+  sven: [0, 1, 0, 0],
 };
 
 const DEFAULT_BUILD: AbilitySlot[] = ['Q', 'W', 'E', 'Q', 'W', 'R', 'E', 'Q', 'W', 'E', 'R', 'Q', 'W', 'E', 'R'];

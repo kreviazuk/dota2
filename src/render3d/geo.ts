@@ -22,6 +22,8 @@ export interface PartOpts {
   jitter?: number;
   /** 顶部颜色（做竖直渐变：从 color 到 top，按局部 y 插值） */
   top?: number;
+  /** 顶点色乘数（> 1 时超过光照后的正常亮度，看起来像自发光：面甲缝里的蓝光、发光的发梢） */
+  glow?: number;
 }
 
 const tmpColor = new Color();
@@ -64,6 +66,7 @@ export class GeoBuilder {
     const base = tmpColor.setHex(color);
     const top = o.top !== undefined ? tmpTop.setHex(o.top) : null;
     const jitter = o.jitter ?? 0.08;
+    const glow = o.glow ?? 1;
     for (let i = 0; i < pa.count; i++) {
       const ly = pa.getY(i);
       v.set(pa.getX(i), ly, pa.getZ(i)).applyMatrix4(m);
@@ -72,7 +75,7 @@ export class GeoBuilder {
       this.nrm.push(n.x, n.y, n.z);
     }
     for (let f = 0; f < pa.count; f += 3) {
-      const k = 1 + (this.rng.next() * 2 - 1) * jitter;
+      const k = (1 + (this.rng.next() * 2 - 1) * jitter) * glow;
       for (let j = 0; j < 3; j++) {
         let r = base.r, g2 = base.g, b = base.b;
         if (top) {
