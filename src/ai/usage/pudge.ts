@@ -3,11 +3,17 @@ import type { Unit } from '../../sim/entities/unit';
 import { dist, normalize, sub } from '../../sim/core/vec2';
 import { abilityCastRange, abilityValue } from '../../sim/systems/abilities';
 import { edgeDist, enemiesInRadius, isHiddenFrom, isTargetableBy } from '../../sim/query';
-import { enemyCreepsNear, firstInLine, predictPos, underAttack } from '../aiHelpers';
+import { enemyCreepsNear, lineClearTo, predictPos, underAttack } from '../aiHelpers';
+
+/**
+ * 肉钩路线检查给别的单位留的余量（加大它们的碰撞半径、并要求比目标晚 25 才碰到），补偿出钩前摇 0.3 秒和飞行中它们的移动。
+ * Task 17 模拟（帕吉 + 斧王 对 帕吉 + 斯温 + 斧王，12 局）：0 时钩到友方 56 次，25 时 26 次、钩中敌方英雄的次数不变；50 时钩中敌方英雄少三成
+ */
+const HOOK_MARGIN = 25;
 
 /** 帕吉：肉钩只在路线上没有遮挡时出手，腐烂贴身开、没人时关，被打或肢解时开肉盾，肢解够得着的英雄 */
 export const PUDGE_RULES: HeroAiRules = {
-  // 肉钩：1300 内的敌方英雄，朝 predictPos(目标, 0.3 + 距离 / 1600) 出钩，且这条线上第一个会碰到的单位正是它；魔法 > 30%
+  // 肉钩：1300 内的敌方英雄，朝 predictPos(目标, 0.3 + 距离 / 1600) 出钩，且按钩子的扫掠判定（含帕吉身后的半圆）先碰到的是它、别的单位都至少晚 HOOK_MARGIN（`lineClearTo`）；魔法 > 30%
   pudge_meat_hook: {
     priority: 20,
     decide: (c) => {
@@ -22,7 +28,7 @@ export const PUDGE_RULES: HeroAiRules = {
         if (dist(me.pos, aim) > range) continue;
         const dir = normalize(sub(aim, me.pos));
         if (!dir.x && !dir.y) continue;
-        if (firstInLine(world, me, dir, range, half)?.id === h.id) return { cast: { dir } };
+        if (lineClearTo(world, me, h, dir, range, half, HOOK_MARGIN)) return { cast: { dir } };
       }
       return null;
     },

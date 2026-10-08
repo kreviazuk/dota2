@@ -5,7 +5,7 @@ import { dist } from '../src/sim/core/vec2';
 import { createHero } from '../src/sim/systems/heroes';
 import { recomputeStats } from '../src/sim/stats';
 import {
-  bestCirclePoint, enemyCreepsNear, firstInLine, keepsUltMana, lowestHpEnemyHero, magicDamageTo, nearestEnemyHero,
+  bestCirclePoint, enemyCreepsNear, firstInLine, keepsUltMana, lineClearTo, lowestHpEnemyHero, magicDamageTo, nearestEnemyHero,
   physicalDamageTo, predictPos, towardHome, underAttack, unitVelocity, unitsInLine,
 } from '../src/ai/aiHelpers';
 import { DIFFICULTY } from '../src/ai/difficulty';
@@ -59,6 +59,35 @@ describe('ai helpers', () => {
     expect(r3.heroes).toBe(1);
     // 施法距离外的候选不考虑
     expect(bestCirclePoint([...creeps, hero], 100, origin, 100)).toBeNull();
+  });
+
+  it('lineClearTo checks the projectile sweep capsule, including the half circle behind the caster', () => {
+    const w = makeWorld();
+    const me = spawnDummy(w, { kind: 'hero', team: Team.Radiant, pos: { x: 1500, y: 6000 } });
+    const target = spawnDummy(w, { kind: 'hero', team: Team.Dire, pos: { x: 1500, y: 5300 } });
+    const up = { x: 0, y: -1 };
+    expect(lineClearTo(w, me, target, up, 1300, 100)).toBe(true);
+    // 目标不在线上
+    expect(lineClearTo(w, me, target, { x: 1, y: 0 }, 1300, 100)).toBe(false);
+    // 贴在身后的友方小兵：矩形（firstInLine）看不到它，但弹道从施法者中心出发、先扫到它
+    const behind = spawnDummy(w, { team: Team.Radiant, pos: { x: 1540, y: 6060 } });
+    expect(firstInLine(w, me, up, 1300, 100)).toBe(target);
+    expect(lineClearTo(w, me, target, up, 1300, 100)).toBe(false);
+    behind.alive = false;
+    // 比目标晚碰到的单位不算（紧贴在目标身后也一样）；margin 加大别的单位的碰撞半径，并要求它们比目标晚 margin 以上
+    const past = spawnDummy(w, { team: Team.Dire, pos: { x: 1500, y: 5100 } });
+    expect(lineClearTo(w, me, target, up, 1300, 100)).toBe(true);
+    const side = spawnDummy(w, { team: Team.Radiant, pos: { x: 1650, y: 5700 } });
+    expect(lineClearTo(w, me, target, up, 1300, 100)).toBe(true);
+    expect(lineClearTo(w, me, target, up, 1300, 100, 50)).toBe(false);
+    side.alive = false;
+    past.pos = { x: 1500, y: 5240 };
+    expect(lineClearTo(w, me, target, up, 1300, 100)).toBe(true);
+    expect(lineClearTo(w, me, target, up, 1300, 100, 50)).toBe(false);
+    // 施法者身后、碰撞半径之外的单位不算
+    past.alive = false;
+    spawnDummy(w, { team: Team.Radiant, pos: { x: 1500, y: 6200 } });
+    expect(lineClearTo(w, me, target, up, 1300, 100)).toBe(true);
   });
 
   it('unitsInLine and firstInLine find units inside the rectangle in distance order', () => {

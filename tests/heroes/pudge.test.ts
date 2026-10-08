@@ -549,6 +549,30 @@ describe('Pudge AI', () => {
     expect(Q.decide(ctxFor(w, p, 'Q', [h]))).toBeNull();
   });
 
+  it('Meat Hook AI holds the hook when a unit beside or behind Pudge would be swept first', () => {
+    // Task 17 模拟：只按矩形判断时约三成的钩子钩到了贴在帕吉身边的友方英雄 / 小兵
+    const w = makeWorld();
+    const p = heroAt(w, PUDGE, P0, { levels: ALL });
+    const Q = PUDGE_RULES.pudge_meat_hook;
+    const h = foe(w, 1500, 4300);
+    const ally = foe(w, 1540, 5060, { kind: 'creep', team: Team.Radiant });
+    w.step();
+    expect(Q.decide(ctxFor(w, p, 'Q', [h]))).toBeNull();
+    // 真的出钩：钩到的是身后的友方小兵，不是前方的敌方英雄
+    w.events.drain();
+    w.issue(p.id, { type: 'cast', slot: 'Q', target: { dir: { x: 0, y: -1 } } });
+    runFor(w, 0.5);
+    const hit = fxOf(w.events.drain(), 'pudge_hook_hit')[0];
+    expect(hit && hit.type === 'fx' ? hit.targetId : null).toBe(ally.id);
+    // 小兵离开扫掠范围后才出钩
+    const w2 = makeWorld();
+    const p2 = heroAt(w2, PUDGE, P0, { levels: ALL });
+    const h2 = foe(w2, 1500, 4300);
+    foe(w2, 1700, 5060, { kind: 'creep', team: Team.Radiant });
+    w2.step();
+    expect(Q.decide(ctxFor(w2, p2, 'Q', [h2]))).not.toBeNull();
+  });
+
   it('Rot: on near an enemy hero or 2+ creeps while healthy, off when nobody is in 400 or hp < 25%', () => {
     const w = makeWorld();
     const p = heroAt(w, PUDGE, P0, { levels: ALL });

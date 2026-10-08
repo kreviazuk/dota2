@@ -95,12 +95,52 @@ export function unitsInLine(world: World, team: Team, origin: Vec2, dir: Vec2, l
  * 也不含对我方隐藏的单位——AI 看不见它们）——肉钩用
  */
 export function firstInLine(world: World, me: Unit, dir: Vec2, length: number, halfWidth: number): Unit | null {
-  const list = world.units.filter(
+  return sortedInLine(lineBlockers(world, me), me.pos, dir, length, halfWidth)[0] ?? null;
+}
+
+/** firstInLine 考虑的单位：敌我都算，不含自己、建筑、召唤物、无敌 / 不可选中单位和对我方隐藏的单位 */
+function lineBlockers(world: World, me: Unit): Unit[] {
+  return world.units.filter(
     (u) =>
       isAliveUnit(u) && u.id !== me.id && u.kind !== 'building' && u.kind !== 'summon' &&
       !u.hasState('invulnerable') && !u.hasState('untargetable') && !isHiddenFrom(u, me.team),
   );
-  return sortedInLine(list, me.pos, dir, length, halfWidth)[0] ?? null;
+}
+
+/**
+ * 直线弹道沿 n 方向前进多远时第一次碰到 u（与 linearSweep 一致：到扫过线段的距离 ≤ hitRadius）；碰不到时返回 null。
+ * 出手点附近（包括身后）hitRadius 内的单位在出发时就会被碰到，返回 0
+ */
+function sweepEntry(u: Unit, origin: Vec2, n: Vec2, length: number, hitRadius: number): number | null {
+  const d = sub(u.pos, origin);
+  const t = dot(d, n);
+  const perp = Math.abs(d.x * n.y - d.y * n.x);
+  if (perp > hitRadius || t > length + hitRadius) return null;
+  const entry = t - Math.sqrt(hitRadius * hitRadius - perp * perp);
+  if (entry > length) return null;
+  if (t < 0 && Math.hypot(t, perp) > hitRadius) return null;
+  return Math.max(0, entry);
+}
+
+/**
+ * 直线技能（肉钩）是否会先碰到 target：按弹道的扫掠判定（linearSweep：到扫过线段的距离 ≤ 宽度 + 单位半径）
+ * 算出每个单位第一次被碰到时弹道走了多远，别的单位（同 firstInLine 的筛选）都要比 target 晚至少 margin。
+ * 和 firstInLine 的矩形不同，它包括出手点身后的半圆——贴在施法者身边（甚至身后）的单位出发时就会被碰到。
+ * margin 同时把别的单位的碰撞半径加大 margin，补偿它们在前摇和飞行中的移动。
+ */
+export function lineClearTo(
+  world: World, me: Unit, target: Unit, dir: Vec2, length: number, halfWidth: number, margin = 0,
+): boolean {
+  const n = normalize(dir);
+  if (n.x === 0 && n.y === 0) return false;
+  const te = sweepEntry(target, me.pos, n, length, halfWidth + target.radius);
+  if (te === null) return false;
+  for (const u of lineBlockers(world, me)) {
+    if (u === target) continue;
+    const e = sweepEntry(u, me.pos, n, length, halfWidth + margin + u.radius);
+    if (e !== null && e <= te + margin) return false;
+  }
+  return true;
 }
 
 /** 魔法伤害打到目标身上的实际数值（× (1 − 魔抗)） */
