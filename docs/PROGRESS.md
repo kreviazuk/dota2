@@ -102,7 +102,7 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
 | 3 | 战斗扩展（攻击信息、技能发起的攻击、分裂、伪随机、护甲拆分、伤害钩子、护盾、伤害统计） | ✅ |
 | 4 | 光环、召唤物、全局死亡钩子 | ✅ |
 | 5 | 渲染框架（模型注册表、共用人形骨骼、特效 / 弹道 / 状态外观注册表、2D 后备注册表） | ✅ |
-| 6 | AI 框架（技能使用表）、选人补位、调试工具 | |
+| 6 | AI 框架（技能使用表）、选人补位、调试工具 | ✅ |
 | 7 | 选英雄界面、天赋弹窗、X1/X2 技能键、角标、自动加点 | |
 | 8 | 斯温 | |
 | 9 | 莉娜 | |
@@ -122,6 +122,8 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
 - Task 5（2026-10-08）：渲染框架。3D：`models/heroModel.ts`（`HeroModelSpec` / `SkinnedHeroModel`，P1 `AxeModel` 的蒙皮合并和姿势混合逻辑）、`models/humanoid.ts`（`humanoidBones` / `applyHumanoid` / `buildSkinnedGeometry`、按 `Stance` 的通用姿势和 `dispatchPose`、被钩 / 被击退的浮空挣扎姿势）、`models/registry.ts`（英雄模型 / 召唤物模型注册表）、`fx/registry.ts`（fx 事件、弹道外观、Modifier 外观、区域效果外观、每单位的通用外观）、`fx/common.ts`（通用状态标记、`blink` / `cleave` 特效）、`fx/index.ts`（副作用导入）；斧王改为 `AXE_SPEC`（外观和动作逐像素不变）；`Renderer3D` 按注册表建英雄模型（头顶高度、收招时长、fx 触发动作、出手高度都读 spec），位移抬高，己方隐藏单位半透明 0.45，召唤物视图（未注册模型时画小图腾，移除后 0.6 秒淡出），注册的弹道外观（8 种网格、光晕、拖尾、翻滚、链子、按宽度缩放），注册的区域效果外观和 Modifier 外观；`Fx3D` 先查注册表，新增 `line()`（折线 / 闪电）、`pillar()`（光柱）、`decalFlash()`（贴地闪光）；`makeToon().setOpacity()`。2D：`src/render/fx2d.ts`（`registerFx2D` / `registerProjectile2D`，通用的闪烁和分裂）、`HERO_LOOKS` 10 名英雄、10 种武器画法、`look.size`、`drawPortrait()`、护盾条（`shieldSegment`）、状态标记（脚下缠绕 / 减速圈、头顶图标）、召唤物小图腾、位移抬高。开发钩子 `__game.sim`。共 271 个测试。
 
 - Task 4（2026-10-08）：`src/sim/auras.ts`（`AuraDef` / `updateAuras`：每 tick 给范围内的单位挂子 Modifier，离开后残留 `BALANCE.auras.linger` = 0.5 秒；同名光环不叠加；`active` 为 false 或主人被破坏 / 死亡时不施加；`includeSelf` / `includeBuildings` / `filter` / `childData`）；`src/sim/systems/summons.ts`（`spawnSummon` / `updateSummons`：`kind 'summon'`、没有赏金、到期死亡并移除、跟随主人身后、主人死亡后原地不动；`hitsToKill` 的召唤物每次普攻固定掉 1 点，其他伤害无效）；`ModifierDef.onUnitDeath`（任意单位死亡时对每个存活英雄调用）；防御塔把召唤物和小兵放在同一优先级。新的系统顺序：spawner → heroes → auras → buildings → creepAI → abilities → attacks → motion → movement → projectiles → effects → timers → summons → regen。新增 `tests/auras.test.ts`（9 个）、`tests/summons.test.ts`（7 个），共 262 个测试；`npm run sim -- --games 4 --seed 1` 结果与 Task 1–3 完全相同（18:21–34:11）。
+
+- Task 6（2026-10-08）：AI 技能使用表 `src/ai/usage/`（`types.ts` 的 `AiCtx` / `AiDecision` / `AiRule` / `HeroAiRules`，`index.ts` 的 `AI_RULES` / `aiRuleFor`，`axe.ts` 斧王三条规则原样迁移），`AbilityDef.aiCast` 删除；`SimpleAI` 按优先级试规则（`canCast` 为真才调用 `decide`），撤退时先试 `escape` 规则，施法中只试 `whileCasting` 规则，开关决定下 `toggle` 指令；`src/ai/aiHelpers.ts`（`unitVelocity` / `predictPos` / `bestCirclePoint` / `unitsInLine` / `firstInLine` / `magicDamageTo` / `physicalDamageTo` / `towardHome` / `nearestEnemyHero` / `lowestHpEnemyHero` / `enemyCreepsNear` / `underAttack` / `keepsUltMana`）；`BALANCE.ai`（`easyAimError` 150、`heroWeight` 3、`conserveUltMana`）；`src/game/roster.ts`（`HERO_ROSTER` 10 名、`availableHeroes`）、`src/game/draft.ts`（`draftTeams` 电脑补位）、`src/game/debug.ts`（`setHeroLevel` / `refreshHero`，开发钩子 `__game.debug`）；`hasHero`；演示局和开局都用 `draftTeams`（现在只有斧王，仍是 3 斧王对 3 斧王）。新增 `tests/draft.test.ts`（6 个）、`tests/aiHelpers.test.ts`（6 个），`tests/ai.test.ts` 追加 7 个，共 290 个测试；`npm run sim -- --games 10 --seed 1` 迁移前后输出逐行相同（天辉 4 胜、夜魇 4 胜、2 局超时，结束的局 18:21–34:11），另用记录事件的脚本统计 10 局里三个主动技能的施放次数（吼 2279、饥渴 2756、淘汰 767，斩杀 753）、螺旋触发 9075 次、英雄阵亡 920 次，前后完全一致。
 
 ## 后续阶段（尚未写实施计划）
 （P2 进行中，见上面）P3 物品与商店 → P4 完整 AI、精英怪、选人、难度 → P5 平衡调参 → P6 特效音效和 Capacitor 打包 APK。详见设计文档 §14。
@@ -245,6 +247,21 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
   - 包体：主包 86.5 kB → 74.6 kB + 共享代码块 16.8 kB（Rollup 把 sim 里被主包和渲染器共用的模块拆成单独的块，首屏总量 +4.8 kB / gzip +2.7 kB）；3D 渲染器 666 kB → 683 kB（gzip 175 → 181 kB）；2D 后备 23 kB → 28 kB。
   - 浏览器验证（Playwright + SwiftShader，脚本和截图在会话 scratchpad，没有提交）：844×390@2 和 1280×720，3D 和 `?renderer=2d`，敌方英雄依次加眩晕、沉默、缠绕、缴械、恐惧、减速、护盾（半血时血条上的白色护盾段）、全部组合、击退（停在半空：浮空挣扎、影子留在地面、血条跟着抬高），玩家 `blinkTo`（起点终点闪光），己方隐藏英雄半透明 + 双方召唤物图腾，四种测试弹道外观（锤、带链子的钩、按宽度缩放的波、箭）和 `line` / `pillar` / `decalFlash`，通用分裂斩痕。控制台 0 报错。
   - 计划要求 PROGRESS 和代码一起提交；实际按任务分派的要求单独提交 `docs: progress (P2 task 5)`。
+
+- P2 Task 6（AI 框架、选人补位、调试工具）：
+  - 斧王淘汰之刃的规则显式写 `priority: 10`（缺省 R 是 30）：P1 按技能顺序 Q → W → R 试规则，保持这个顺序才能同种子同结果。试过用缺省 30（斩杀优先于吼和饥渴）：10 局里天辉 6 胜 1 负 3 超时、平均时长更长、每分钟斩杀次数几乎不变（2.67 → 2.75），看不出更好，所以保留 P1 顺序。
+  - `AiCtx.enemyHeroes` / `allyHeroes` 按计划用 1500 范围；P1 原有的回城判断（附近没有敌方英雄才回城）和换血目标仍用 1000 范围的列表，行为不变。
+  - 撤退时如果正在施放（或走向施放位置的）是 `escape` 规则的技能，这次思考不下移动指令（`moveTo` 会打断施法）；其他技能的施法照旧被撤退的移动打断（P1 行为）。
+  - 规则做出施法决定后这次思考就结束（即时技能也一样，下一次思考再下攻击等指令，间隔约 0.2–0.4 秒）。
+  - `SimpleAI` 构造函数多了第三个可选参数 `rules`（缺省 `AI_RULES`），测试用它换成假规则。
+  - `bestCirclePoint` 多了第五个可选参数 `heroWeight`（缺省读全局 `BALANCE.ai.heroWeight`；有 world 的规则传 `world.balance.ai.heroWeight`）。点在圆内按单位边缘判定（与 `unitsInRadius` 一致），得分 = 非英雄数 + 英雄数 × 权重。
+  - `predictPos` 的简单难度偏差：随机方向、随机半径 0–150（两次 `world.rng`），`prediction > 0` 时不加偏差、不消耗随机数。
+  - `unitsInLine` / `firstInLine` 都排除对我方隐藏的单位（AI 看不见，不能拿来做决定）和无敌单位；`firstInLine` 另外排除不可选中单位。`enemyCreepsNear` 只算小兵和精英怪（不含召唤物）。`lowestHpEnemyHero` 按生命绝对值比较。
+  - 新增 `keepsUltMana(c)`（`BALANCE.ai.conserveUltMana`）：大招已学、冷却剩余 ≤ 10 秒时，放其他技能后要留够大招的魔耗。斧王的规则不用它（P1 行为不变），留给后面的英雄。
+  - `draftTeams`：先补一个力量英雄（池子里有、本方没有时），再补一个硬控英雄（本方还没有时；力量英雄都带硬控），其余随机；电脑选的几个位置再打乱一次，约束英雄不总在 1 号位。池子里没用过的英雄不够时才重复。玩家英雄不必在池子里。
+  - `setHeroLevel` 只升不降（目标等级 ≤ 当前等级时只做加点和天赋），经验按队伍经验倍率换算；缺省 `learn: 'build'`、`talents: true`。`refreshHero` 把充能补满、清空充能计时。
+  - 开局（`startGame`）也改用 `draftTeams(…, 'axe')`，Task 7 接入选英雄界面后换成玩家选的英雄。浏览器检查（Playwright，1280×720）：主菜单演示局 3 斧王对 3 斧王，开局后用 `__game.debug.setHeroLevel` 升到 16 级（加点和两层天赋正确）、`refreshHero` 回满，控制台 0 报错；生产构建里没有 `__game`。
+  - 计划要求 PROGRESS 和代码一起提交；实际按任务分派的要求单独提交 `docs: progress (P2 task 6)`。
 
 ## 已知的小问题（推迟处理，不影响功能）
 主要是测试覆盖不足，例如嘲讽/引导期间不能移动、塔的强制目标 3 秒后失效、队伍金钱倍率等没有测试；另有少量写死的常量（小兵攻速 100、伤害 ±2 浮动、出兵阵型偏移）尚未移入 `BALANCE`。
