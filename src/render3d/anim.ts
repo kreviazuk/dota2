@@ -22,6 +22,8 @@ export interface AnimInput {
   channel: boolean;
   stunned: boolean;
   taunted: boolean;
+  /** 不能行动的强制位移的种类（'knockback' / 'hook' …，见 ForcedMotion.kind）；没有位移或位移不禁止行动时 null */
+  motion?: string | null;
 }
 
 /** 两次普攻之间的收招时间上限（秒） */
@@ -48,8 +50,10 @@ export function animInput(u: Unit): AnimInput {
     castAbility: c && c.phase === 'point' ? c.ability.def.id : null,
     castProgress: c && c.phase === 'point' && castPoint > 0 ? Math.max(0, Math.min(1, 1 - c.timer / castPoint)) : 0,
     channel: c?.phase === 'channel' || u.order.kind === 'recall',
-    stunned: u.hasState('stunned'),
+    // 不能行动的强制位移（被钩、被击退）按眩晕处理，姿势函数再按 tracker.motion 换成浮空挣扎
+    stunned: u.hasState('stunned') || !!u.motion?.disables,
     taunted: u.stats.tauntedBy !== null,
+    motion: u.motion?.disables ? u.motion.kind : null,
   };
 }
 
@@ -99,6 +103,8 @@ export class AnimTracker {
   castAbility: string | null = null;
   castProgress = 0;
   taunted = false;
+  /** 当前不能行动的强制位移的种类（null = 没有；自己的跳跃、冲刺等不禁止行动的位移也是 null） */
+  motion: string | null = null;
   /** 死亡后经过的时间（-1 = 活着） */
   deadTime = -1;
   /** 受击闪光（1 → 0） */
@@ -141,6 +147,7 @@ export class AnimTracker {
     this.castAbility = i.castAbility;
     this.castProgress = i.castProgress;
     this.taunted = i.taunted;
+    this.motion = i.alive ? i.motion ?? null : null;
     this.flash = Math.max(0, this.flash - dt * 6);
     this.pop = Math.max(0, this.pop - dt * 2.5);
     if (i.alive) this.deadTime = -1;

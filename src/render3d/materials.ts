@@ -60,11 +60,27 @@ export function addRim(mat: Material, color: number, strength: number, key: stri
   return u;
 }
 
-/** 人物 / 建筑：顶点色 + 卡通明暗 + 边缘光 */
-export function makeToon(opts: { rim?: number; rimStrength?: number; key?: string; transparent?: boolean } = {}): MeshToonMaterial & { rimU: { value: Color } } {
+/**
+ * 运行时切换材质的不透明度：k < 1 时切到透明（不写深度），k = 1 时切回不透明。
+ * 只在透明 / 不透明切换的那一帧标记 needsUpdate。
+ */
+export function setOpacity(m: Material, k: number): void {
+  const see = k < 0.999;
+  if (m.transparent !== see) {
+    m.transparent = see;
+    m.depthWrite = !see;
+    m.needsUpdate = true;
+  }
+  m.opacity = see ? Math.max(0, k) : 1;
+}
+
+export type ToonMaterial = MeshToonMaterial & { rimU: { value: Color }; setOpacity(k: number): void };
+
+/** 人物 / 建筑：顶点色 + 卡通明暗 + 边缘光；setOpacity 运行时切换透明度（隐藏的友方英雄、建筑挡住英雄时） */
+export function makeToon(opts: { rim?: number; rimStrength?: number; key?: string; transparent?: boolean } = {}): ToonMaterial {
   const m = new MeshToonMaterial({ vertexColors: true, gradientMap: toonGradient(), transparent: opts.transparent ?? false });
   const rimU = addRim(m, opts.rim ?? 0xfff2d8, opts.rimStrength ?? 0.35, opts.key ?? 'char');
-  return Object.assign(m, { rimU });
+  return Object.assign(m, { rimU, setOpacity: (k: number) => setOpacity(m, k) });
 }
 
 /** 树、石头等环境物件：顶点色 + 兰伯特光照（比卡通材质便宜，颜色过渡更柔和） */

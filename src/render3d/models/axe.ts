@@ -1,10 +1,10 @@
-import {
-  Bone, BufferGeometry, Float32BufferAttribute, Group, Matrix3, Skeleton, SkinnedMesh, Uint16BufferAttribute, Vector3, type Material, type Object3D,
-} from 'three';
+import type { BufferGeometry } from 'three';
 import { GeoBuilder } from '../geo';
 import { PAL, teamColor, teamDark } from '../materials';
 import { type AnimTracker, type Pose, smooth01 } from '../anim';
-import { cachedGeo } from './rig';
+import type { BoneDef, HeroModelSpec, PartDef } from './heroModel';
+import { strugglePose } from './humanoid';
+import { registerHeroModel } from './registry';
 
 /**
  * 斧王：由基本体拼成的低多边形野蛮人。骨骼层级：
@@ -138,7 +138,7 @@ function axeGeo(): BufferGeometry {
 }
 
 /** 骨骼表：名字、父骨骼、相对父骨骼的位置（模型单位，缩放前） */
-const AXE_BONES: [string, string | null, [number, number, number]][] = [
+const AXE_BONES: BoneDef[] = [
   ['body', null, [0, 0, 0]],
   ['pelvis', 'body', [0, 56, 0]],
   ['torso', 'pelvis', [0, 10, 0]],
@@ -155,7 +155,7 @@ const AXE_BONES: [string, string | null, [number, number, number]][] = [
 ];
 
 /** 每根骨骼挂的部件几何体（骨骼局部坐标） */
-function axeParts(team: number): [string, () => BufferGeometry][] {
+function axeParts(team: number): PartDef[] {
   return [
     ['pelvis', () => pelvisGeo(team)],
     ['torso', () => torsoGeo(team)],
@@ -170,130 +170,6 @@ function axeParts(team: number): [string, () => BufferGeometry][] {
     ['shinL', shinGeo],
     ['shinR', shinGeo],
   ];
-}
-
-/**
- * 斧王的骨骼 + 网格。所有部件按初始姿势合并成一个蒙皮网格（每个顶点 100% 绑定到它所属的骨骼），
- * 整个英雄只需要一次绘制调用（加一次阴影绘制）。material 由调用方提供（每个英雄一份，用来做受击闪光）。
- */
-export class AxeModel {
-  readonly root = new Group();
-  readonly body: Bone;
-  readonly mesh: SkinnedMesh;
-  private readonly b: Record<string, Bone> = {};
-
-  constructor(team: number, mat: Material) {
-    const list: Bone[] = [];
-    for (const [name, parent, p] of AXE_BONES) {
-      const bn = new Bone();
-      bn.name = name;
-      bn.position.set(p[0], p[1], p[2]);
-      if (parent) this.b[parent].add(bn);
-      this.b[name] = bn;
-      list.push(bn);
-    }
-    this.body = this.b.body;
-    // 绑定姿势：骨骼旋转全为 0，斧子按握持方向（与 apply() 里的基准一致）
-    this.b.axe.rotation.set(Math.PI / 2, 0, 0);
-    this.body.updateMatrixWorld(true);
-    const geo = cachedGeo(`axe:skinned:${team}`, () => buildSkinnedGeometry(this.b, list, axeParts(team)));
-    this.mesh = new SkinnedMesh(geo, mat);
-    this.mesh.add(this.body);
-    this.mesh.castShadow = true;
-    this.mesh.frustumCulled = false;
-    this.root.add(this.mesh);
-    this.root.updateMatrixWorld(true);
-    this.mesh.bind(new Skeleton(list));
-    this.root.scale.setScalar(AXE_SCALE);
-  }
-
-  /** 头顶（血条锚点）离地高度 */
-  static readonly HEAD_HEIGHT = 175 * AXE_SCALE;
-
-  private last: Pose = {};
-  private from: Pose = {};
-
-  /** 按动画状态摆姿势。time：动画时间；状态切换时从上一帧的姿势过渡到新姿势 */
-  pose(tr: AnimTracker, time: number, idPhase: number): void {
-    const target = axePose(tr, time + idPhase);
-    if (tr.blend < 1) {
-      if (tr.stateTime === 0) this.from = { ...this.last };
-      const k = smooth01(tr.blend);
-      for (const key of new Set([...Object.keys(this.from), ...Object.keys(target)])) {
-        target[key] = (this.from[key] ?? 0) * (1 - k) + (target[key] ?? 0) * k;
-      }
-    }
-    this.last = target;
-    this.apply(target);
-    // 反击螺旋的旋转不参与混合（否则结束时会倒转回去）
-    this.body.rotation.y = tr.release?.kind === 'helix' ? Math.PI * 2 * smooth01(tr.releaseK) : 0;
-  }
-
-  private apply(p: Pose): void {
-    const b = this.b;
-    const g = (k: string) => p[k] ?? 0;
-    b.body.position.set(0, g('bodyY') - g('sink'), g('bodyZ'));
-    b.body.rotation.x = g('bodyX');
-    b.body.rotation.z = g('bodyRoll');
-    b.pelvis.rotation.set(0, g('pelvisY'), 0);
-    b.torso.rotation.set(g('torsoX'), g('torsoY'), g('torsoZ'));
-    b.head.rotation.set(g('headX'), g('headY'), g('headZ'));
-    b.shL.rotation.set(g('shLX'), g('shLY'), g('shLZ'));
-    b.elL.rotation.set(g('elL'), 0, 0);
-    b.shR.rotation.set(g('shRX'), g('shRY'), g('shRZ'));
-    b.elR.rotation.set(g('elR'), 0, 0);
-    b.axe.rotation.set(Math.PI / 2 + g('axeX'), g('axeY'), g('axeZ'));
-    b.thighL.rotation.set(g('hipL'), 0, g('hipLZ'));
-    b.shinL.rotation.set(g('kneeL'), 0, 0);
-    b.thighR.rotation.set(g('hipR'), 0, g('hipRZ'));
-    b.shinR.rotation.set(g('kneeR'), 0, 0);
-  }
-
-  /** 所有骨骼（调试 / 测试用） */
-  get bones(): Readonly<Record<string, Object3D>> {
-    return this.b;
-  }
-
-  dispose(): void {
-    this.mesh.skeleton.dispose();
-  }
-}
-
-/**
- * 把挂在各骨骼上的部件按绑定姿势（调用前已摆好、已更新世界矩阵）变换到模型空间并合并，
- * 每个顶点写入 skinIndex = 所属骨骼、skinWeight = 1（刚性绑定）。
- */
-function buildSkinnedGeometry(bones: Record<string, Bone>, list: Bone[], parts: [string, () => BufferGeometry][]): BufferGeometry {
-  const pos: number[] = [], nrm: number[] = [], col: number[] = [], si: number[] = [], sw: number[] = [];
-  const v = new Vector3();
-  const n = new Vector3();
-  const nm = new Matrix3();
-  for (const [name, build] of parts) {
-    const g = build();
-    const bone = bones[name];
-    const m = bone.matrixWorld;
-    nm.getNormalMatrix(m);
-    const idx = list.indexOf(bone);
-    const pa = g.attributes.position, na = g.attributes.normal, ca = g.attributes.color;
-    for (let i = 0; i < pa.count; i++) {
-      v.fromBufferAttribute(pa, i).applyMatrix4(m);
-      n.fromBufferAttribute(na, i).applyMatrix3(nm).normalize();
-      pos.push(v.x, v.y, v.z);
-      nrm.push(n.x, n.y, n.z);
-      col.push(ca.getX(i), ca.getY(i), ca.getZ(i));
-      si.push(idx, 0, 0, 0);
-      sw.push(1, 0, 0, 0);
-    }
-    g.dispose();
-  }
-  const geo = new BufferGeometry();
-  geo.setAttribute('position', new Float32BufferAttribute(pos, 3));
-  geo.setAttribute('normal', new Float32BufferAttribute(nrm, 3));
-  geo.setAttribute('color', new Float32BufferAttribute(col, 3));
-  geo.setAttribute('skinIndex', new Uint16BufferAttribute(si, 4));
-  geo.setAttribute('skinWeight', new Float32BufferAttribute(sw, 4));
-  geo.computeBoundingSphere();
-  return geo;
 }
 
 const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
@@ -410,7 +286,7 @@ export function releasePose(kind: string, k: number): Pose {
       };
     }
     case 'helix':
-      // 反击螺旋：双臂平伸、大斧横扫（旋转本身在 AxeModel.pose 里加）
+      // 反击螺旋：双臂平伸、大斧横扫（旋转本身由 AXE_SPEC.spin 给出）
       return {
         bodyY: -5, torsoX: 0.18, headX: 0.05,
         shLX: -0.15, shLZ: 1.45, elL: -0.15,
@@ -495,3 +371,33 @@ function blendTo(a: Pose, b: Pose, k: number): Pose {
   for (const key of new Set([...Object.keys(a), ...Object.keys(b)])) out[key] = (a[key] ?? 0) * (1 - k) + (b[key] ?? 0) * k;
   return out;
 }
+
+/** 技能释放后收招动作的时长 */
+export const AXE_RELEASE_DUR: Record<string, number> = { axe_berserkers_call: 0.65, axe_battle_hunger: 0.45, axe_culling_blade: 0.6 };
+/** 反击螺旋（fx 事件触发）的旋转时长 */
+export const HELIX_DUR = 0.38;
+
+/**
+ * 斧王的模型描述（P1 的 AxeModel 原样迁移）：13 根骨骼（没有手骨骼，斧子直接挂在右前臂上），
+ * 部件按绑定姿势合并成一个刚性蒙皮网格；斧子绑定时按握持方向旋转 (π/2, 0, 0)，`axeX/Y/Z` 通道叠加在它上面。
+ */
+export const AXE_SPEC: HeroModelSpec = {
+  id: 'axe',
+  scale: AXE_SCALE,
+  headHeight: 175,
+  muzzleHeight: 110,
+  bones: AXE_BONES,
+  parts: axeParts,
+  bindRotations: { axe: [Math.PI / 2, 0, 0] },
+  pose: (tr, t) => {
+    const p = axePose(tr, t);
+    // 被钩 / 被击退：浮空挣扎
+    return tr.state === 'stunned' && tr.motion ? strugglePose(p, t) : p;
+  },
+  releaseDur: AXE_RELEASE_DUR,
+  fxTriggers: { axe_helix: { kind: 'helix', dur: HELIX_DUR } },
+  // 反击螺旋：整个身体转一圈
+  spin: (tr) => (tr.release?.kind === 'helix' ? Math.PI * 2 * smooth01(tr.releaseK) : 0),
+};
+
+registerHeroModel(AXE_SPEC);

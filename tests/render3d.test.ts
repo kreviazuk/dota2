@@ -4,7 +4,16 @@ import { facingToRotY, groundHeight, simToThree, threeToSim, RIVER_DEPTH, FOREST
 import { Camera3D, CAM3D, cameraDistance, rayPlaneY } from '../src/render3d/camera3d';
 import { AnimTracker, BACKSWING, blendPose, selectState, turnToward, windupProgress, type AnimInput } from '../src/render3d/anim';
 import { arcFor, homingProgress, projectileHeight } from '../src/render3d/projectileArc';
-import { attackPose, axePose, deathPose, idlePose, releasePose, runPose } from '../src/render3d/models/axe';
+import { Bone, MeshBasicMaterial } from 'three';
+import { AXE_SPEC, attackPose, axePose, deathPose, idlePose, releasePose, runPose } from '../src/render3d/models/axe';
+import '../src/render3d/fx/index';
+import { heroModelIds, heroModelSpec } from '../src/render3d/models/registry';
+import { SkinnedHeroModel } from '../src/render3d/models/heroModel';
+import {
+  applyHumanoid, castGenericPose, channelPose, dispatchPose, humanoidBones, deathPose as hDeath, idlePose as hIdle, runPose as hRun, stunnedPose as hStun,
+  type Stance,
+} from '../src/render3d/models/humanoid';
+import { allHeroIds } from '../src/sim/heroes';
 import { MAP } from '../src/sim/data/map';
 import { Team } from '../src/sim/core/types';
 import { DT } from '../src/sim/core/constants';
@@ -191,6 +200,18 @@ describe('animation state selection and timing', () => {
 });
 
 describe('Axe poses', () => {
+  it('the Axe spec keeps the P1 poses', () => {
+    const tr = new AnimTracker();
+    tr.update(input(), 0.2, 0);
+    expect(AXE_SPEC.pose(tr, 1.3, null)).toEqual(axePose(tr, 1.3));
+    expect(AXE_SPEC.scale).toBe(1.3);
+    expect(AXE_SPEC.headHeight * AXE_SPEC.scale).toBeCloseTo(227.5);
+    expect(AXE_SPEC.releaseDur).toEqual({ axe_berserkers_call: 0.65, axe_battle_hunger: 0.45, axe_culling_blade: 0.6 });
+    expect(AXE_SPEC.fxTriggers?.axe_helix).toEqual({ kind: 'helix', dur: 0.38 });
+    tr.trigger('helix', 0.38);
+    tr.update(input(), 0.19, 0);
+    expect(AXE_SPEC.spin!(tr, 0, null)).toBeCloseTo(Math.PI);
+  });
   const finite = (p: Record<string, number>) => Object.values(p).every(Number.isFinite);
   it('produces finite poses for every state', () => {
     for (const p of [idlePose(1), runPose(2), attackPose(0), attackPose(0.6), attackPose(1), deathPose(0.3), deathPose(3)]) expect(finite(p)).toBe(true);
@@ -219,5 +240,105 @@ describe('projectile flight height', () => {
     expect(homingProgress(0, 10)).toBe(1);
     expect(arcFor('siege', 690)).toBeGreaterThan(arcFor('creep', 500));
     expect(arcFor('tower', 700)).toBeLessThan(arcFor('creep', 500));
+  });
+});
+
+const STANCES: Stance[] = [
+  { weaponHand: 'R', hunch: 0, armSpread: 0, heavy: 0 },
+  { weaponHand: 'L', hunch: 0.3, armSpread: 0.5, heavy: 1 },
+  { weaponHand: 'both', hunch: 0.1, armSpread: 0.25, heavy: 0.7 },
+  { weaponHand: 'none', hunch: 0.25, armSpread: 0.3, heavy: 0.2 },
+];
+
+describe('hero model registry and shared humanoid rig', () => {
+  const finite = (p: Record<string, number>) => Object.values(p).every(Number.isFinite);
+
+  it('every registered hero has a 3D model spec', () => {
+    const ids = heroModelIds();
+    for (const id of allHeroIds()) expect(ids).toContain(id);
+    // 未注册的英雄退回斧王
+    expect(heroModelSpec('not_a_hero').id).toBe('axe');
+  });
+
+  it('SkinnedHeroModel builds one skinned mesh bound to every bone of the spec', () => {
+    for (const id of heroModelIds()) {
+      const spec = heroModelSpec(id);
+      for (const team of [0, 1]) {
+        const m = new SkinnedHeroModel(spec, team, new MeshBasicMaterial());
+        expect(m.mesh.skeleton.bones.length).toBe(spec.bones.length);
+        const si = m.mesh.geometry.getAttribute('skinIndex');
+        const sw = m.mesh.geometry.getAttribute('skinWeight');
+        expect(si.count).toBeGreaterThan(100);
+        for (let i = 0; i < si.count; i++) {
+          expect(si.getX(i)).toBeGreaterThanOrEqual(0);
+          expect(si.getX(i)).toBeLessThan(spec.bones.length);
+          expect(sw.getX(i)).toBe(1);
+        }
+        expect(m.headHeightWorld).toBeCloseTo(spec.headHeight * spec.scale);
+        // 所有部件都挂在存在的骨骼上，名字一一对应
+        for (const [name] of spec.bones) expect(m.bones[name]).toBeDefined();
+        // 摆一次姿势不报错，骨骼矩阵有限
+        const tr = new AnimTracker();
+        tr.update(input({ speed: 300 }), 0.1, 0);
+        m.pose(tr, 1, 0, null);
+        m.root.updateMatrixWorld(true);
+        for (const b of m.mesh.skeleton.bones) expect(b.matrixWorld.elements.every(Number.isFinite)).toBe(true);
+        m.dispose();
+      }
+    }
+  });
+
+  it('humanoid base poses are finite for every AnimState and stance', () => {
+    const own = { attack: (p: number) => ({ shRX: -p }), cast: () => null, release: () => null };
+    const tr = new AnimTracker();
+    const states: [Partial<AnimInput>, (t: AnimTracker) => void][] = [
+      [{}, () => {}],
+      [{ speed: 300 }, () => {}],
+      [{ windup: 0.2 }, () => {}],
+      [{ castAbility: 'x', castProgress: 0.5 }, () => {}],
+      [{ channel: true }, () => {}],
+      [{}, (t) => t.trigger('x', 0.5)],
+      [{ stunned: true }, () => {}],
+      [{ stunned: true, motion: 'knockback' }, () => {}],
+      [{ alive: false }, () => {}],
+    ];
+    const seen = new Set<string>();
+    for (const s of STANCES) {
+      for (const p of [hIdle(1.3, s), hRun(2, s), channelPose(0.7, s), castGenericPose(0, s), castGenericPose(0.5, s), castGenericPose(1, s)]) expect(finite(p)).toBe(true);
+      for (const [inp, prep] of states) {
+        prep(tr);
+        tr.update(input(inp), 0.05, 0.5);
+        seen.add(tr.state);
+        expect(finite(dispatchPose(tr, 2.1, s, own))).toBe(true);
+      }
+    }
+    for (const p of [hStun(0.4), hDeath(0.3), hDeath(4)]) expect(finite(p)).toBe(true);
+    expect([...seen].sort()).toEqual(['attack', 'cast', 'channel', 'dead', 'idle', 'release', 'run', 'stunned']);
+    // 被击退时是浮空挣扎（身体后仰），普通眩晕不是
+    tr.update(input({ stunned: true, motion: 'knockback' }), 0.05, 0);
+    const struggling = dispatchPose(tr, 1, STANCES[0], own);
+    tr.update(input({ stunned: true }), 0.05, 0);
+    expect(struggling.bodyX).toBeLessThan((dispatchPose(tr, 1, STANCES[0], own).bodyX ?? 0) - 0.2);
+  });
+
+  it('applyHumanoid maps extra-bone channels onto their bones', () => {
+    const defs = humanoidBones({ shoulderX: 40 }, [['sword', 'handR', [0, 0, 2]], ['cape', 'torso', [0, 40, -15]]]);
+    expect(defs.find((d) => d[0] === 'shL')![2]).toEqual([40, 46, 0]);
+    expect(defs.find((d) => d[0] === 'head')![2]).toEqual([0, 58, 2]);
+    const b: Record<string, Bone> = {};
+    for (const [name] of defs) b[name] = new Bone();
+    applyHumanoid(b, { swordX: 0.5, swordZ: -0.2, capeX: 0.3, shLX: -1, elR: -0.4, handRX: 0.2, bodyY: 5, sink: 2 }, { sword: [Math.PI / 2, 0, 0] });
+    expect(b.sword.rotation.x).toBeCloseTo(Math.PI / 2 + 0.5);
+    expect(b.sword.rotation.z).toBeCloseTo(-0.2);
+    expect(b.cape.rotation.x).toBeCloseTo(0.3);
+    expect(b.shL.rotation.x).toBeCloseTo(-1);
+    expect(b.elR.rotation.x).toBeCloseTo(-0.4);
+    expect(b.handR.rotation.x).toBeCloseTo(0.2);
+    expect(b.body.position.y).toBeCloseTo(3);
+    // 斧王没有手骨骼：缺少的骨骼直接跳过
+    const axe: Record<string, Bone> = {};
+    for (const [name] of AXE_SPEC.bones) axe[name] = new Bone();
+    applyHumanoid(axe, { handRX: 1, axeX: 0.1 }, AXE_SPEC.bindRotations);
+    expect(axe.axe.rotation.x).toBeCloseTo(Math.PI / 2 + 0.1);
   });
 });

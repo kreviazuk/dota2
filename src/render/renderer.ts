@@ -8,7 +8,10 @@ import { Camera } from './camera';
 import { MapLayer } from './mapLayer';
 import { FxSystem } from './fx';
 import { drawHero } from './heroVisuals';
-import { drawAreaEffect, drawBars, drawBuilding, drawCreep, drawProjectile, drawShadow, killMarkerFor } from './unitDraw';
+import {
+  drawAreaEffect, drawBars, drawBuilding, drawCreep, drawProjectile, drawShadow, drawStatusGround2D, drawStatusIcons2D, drawSummon, killMarkerFor,
+} from './unitDraw';
+import { motionHeight } from '../sim/systems/motion';
 
 export type { AimIndicator } from './view';
 
@@ -93,15 +96,19 @@ export class Renderer implements GameRenderer {
       if (u.kind === 'building') continue;
       drawShadow(ctx, p.x, p.y, u.radius * 1.3, u.radius * 0.8);
       this.drawChannel(ctx, world, u, p);
+      drawStatusGround2D(ctx, u, p.x, p.y, this.time);
     }
     for (const u of visible) {
       if (flat(u)) continue;
       const p = positions.get(u.id)!;
       const ghost = u.hasState('hidden');
       if (ghost) ctx.globalAlpha = 0.5;
+      // 被击退 / 跳跃时向上偏移（世界单位的一半）
+      const lift = motionHeight(u.motion) * 0.5;
       if (u.kind === 'building') drawBuilding(ctx, u, p.x, p.y, this.time);
-      else if (u.kind === 'hero') drawHero(ctx, u, p.x, p.y, this.time, this.swing(u), u.id === followId && !!u.hero?.playerControlled);
-      else drawCreep(ctx, u, p.x, p.y, this.time);
+      else if (u.kind === 'hero') drawHero(ctx, u, p.x, p.y, this.time, this.swing(u), u.id === followId && !!u.hero?.playerControlled, motionHeight(u.motion));
+      else if (u.kind === 'summon') drawSummon(ctx, u, p.x, p.y - lift, this.time);
+      else drawCreep(ctx, u, p.x, p.y - lift, this.time);
       if (ghost) ctx.globalAlpha = 1;
     }
     for (const pr of world.projectiles) {
@@ -113,7 +120,14 @@ export class Renderer implements GameRenderer {
     const barOpts = { killMarker: killMarkerFor(world, focus), time: this.time, uiScale: cam.uiScale };
     for (const u of visible) {
       const p = positions.get(u.id)!;
-      drawBars(ctx, u, p.x, p.y, u.id === followId, viewerTeam, barOpts);
+      const y = p.y - motionHeight(u.motion) * 0.5;
+      // 召唤物的血条画在图腾顶上
+      if (u.kind === 'summon') drawBars(ctx, u, p.x, y, u.id === followId, viewerTeam, { ...barOpts, top: y - Math.max(14, u.radius * 1.1) * 3.5 - 10 });
+      else drawBars(ctx, u, p.x, y, u.id === followId, viewerTeam, barOpts);
+      if (u.kind !== 'building') {
+        const s = u.kind === 'hero' ? cam.uiScale : 1 + (cam.uiScale - 1) * 0.5;
+        drawStatusIcons2D(ctx, u, p.x, y - u.radius * 1.3 - (u.kind === 'hero' ? 50 : 24) * s, this.time, s);
+      }
     }
     this.fx.drawTexts(ctx, cam.uiScale);
   }

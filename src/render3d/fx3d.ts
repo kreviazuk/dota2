@@ -8,6 +8,7 @@ import { drawFloatText } from '../render/fx';
 import { RingDecal } from './decals';
 import type { Camera3D } from './camera3d';
 import { groundHeight } from './coords';
+import { lookupFx } from './fx/registry';
 
 type RGB = [number, number, number];
 
@@ -18,9 +19,12 @@ interface Particle {
   c: RGB; a: number; drag: number; grav: number; add: boolean;
 }
 interface FloatText { x: number; z: number; h: number; rise: number; vy: number; life: number; max: number; text: string; color: string; size: number }
-interface RingFx { decal: RingDecal; x: number; z: number; r0: number; r1: number; life: number; max: number; color: number; width: number }
+interface RingFx { decal: RingDecal; x: number; z: number; r0: number; r1: number; life: number; max: number; color: number; width: number; fill: number }
 interface BeamFx { mesh: Mesh<CylinderGeometry, ShaderMaterial>; life: number; max: number; grow: number; r: number }
 interface SlashFx { mesh: Mesh<BufferGeometry, ShaderMaterial>; life: number; max: number; spin: number }
+interface LineFx { mesh: Mesh<BufferGeometry, ShaderMaterial>; life: number; max: number; flicker: number }
+/** 折线的一个点：sim 坐标 (x, y) + 离地高度 h（世界高度，不是相对地面） */
+export interface LinePoint { x: number; y: number; h: number }
 
 const MAX_PARTICLES = 900;
 const MAX_TEXTS = 70;
@@ -96,6 +100,54 @@ function slashMaterial(): ShaderMaterial {
   });
 }
 
+/** 折线 / 闪电：十字交叉的两片条带（任何角度看都有宽度），中心亮、边缘软 */
+function lineMaterial(): ShaderMaterial {
+  return new ShaderMaterial({
+    transparent: true,
+    depthWrite: false,
+    blending: AdditiveBlending,
+    side: DoubleSide,
+    uniforms: { uColor: { value: new Color() }, uOpacity: { value: 1 } },
+    vertexShader: `attribute float aEdge; varying float vEdge; void main() { vEdge = aEdge; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
+    fragmentShader: `uniform vec3 uColor; uniform float uOpacity; varying float vEdge;
+      void main() { float c = 1.0 - abs(vEdge); float a = smoothstep(0.0, 0.6, c) * uOpacity; gl_FragColor = vec4(mix(uColor, vec3(1.0), smoothstep(0.55, 1.0, c) * 0.8), a); }`,
+  });
+}
+
+/** 折线几何体：每段两片互相垂直的条带（宽 width），三维坐标 (x, 高度, z) */
+export function lineGeometry(pts: { x: number; y: number; z: number }[], width: number): BufferGeometry {
+  const pos: number[] = [];
+  const edge: number[] = [];
+  const hw = width / 2;
+  for (let i = 0; i + 1 < pts.length; i++) {
+    const a = pts[i], b = pts[i + 1];
+    const dx = b.x - a.x, dy = b.y - a.y, dz = b.z - a.z;
+    const len = Math.hypot(dx, dy, dz) || 1;
+    // 侧向（水平）：d × up；竖直的线段退回 x 轴
+    let sx = -dz, sz = dx;
+    const sl = Math.hypot(sx, sz);
+    if (sl < 1e-6 * len) { sx = 1; sz = 0; } else { sx /= sl; sz /= sl; }
+    // 第二个方向：d × side
+    const ux = dy * sz, uy = dz * sx - dx * sz, uz = -dy * sx;
+    const ul = Math.hypot(ux, uy, uz) || 1;
+    const sides: [number, number, number][] = [[sx, 0, sz], [ux / ul, uy / ul, uz / ul]];
+    for (const [px, py, pz] of sides) {
+      const q = [
+        [a.x - px * hw, a.y - py * hw, a.z - pz * hw, -1], [a.x + px * hw, a.y + py * hw, a.z + pz * hw, 1],
+        [b.x - px * hw, b.y - py * hw, b.z - pz * hw, -1], [b.x + px * hw, b.y + py * hw, b.z + pz * hw, 1],
+      ];
+      for (const k of [0, 1, 2, 1, 3, 2]) {
+        pos.push(q[k][0], q[k][1], q[k][2]);
+        edge.push(q[k][3]);
+      }
+    }
+  }
+  const g = new BufferGeometry();
+  g.setAttribute('position', new BufferAttribute(new Float32Array(pos), 3));
+  g.setAttribute('aEdge', new BufferAttribute(new Float32Array(edge), 1));
+  return g;
+}
+
 const rgb = (hex: number): RGB => [((hex >> 16) & 255) / 255, ((hex >> 8) & 255) / 255, (hex & 255) / 255];
 
 /** 单位的"身高"：受击火花、飘字等按它定位 */
@@ -115,6 +167,8 @@ export class Fx3D {
   private beamPool: Mesh<CylinderGeometry, ShaderMaterial>[] = [];
   private slashes: SlashFx[] = [];
   private slashPool: Mesh<BufferGeometry, ShaderMaterial>[] = [];
+  private lines: LineFx[] = [];
+  private linePool: ShaderMaterial[] = [];
   private readonly beamGeo = new CylinderGeometry(1, 1, 1, 20, 1, true).translate(0, 0.5, 0);
   private readonly crescent = crescentGeometry();
   private readonly pts: { points: Points; pos: Float32Array; col: Float32Array; size: Float32Array; mat: ShaderMaterial }[];
@@ -149,6 +203,8 @@ export class Fx3D {
     this.beams = [];
     for (const s of this.slashes) this.releaseSlash(s.mesh);
     this.slashes = [];
+    for (const l of this.lines) this.releaseLine(l.mesh);
+    this.lines = [];
     this.flash.life = 0;
   }
 
@@ -186,7 +242,58 @@ export class Fx3D {
 
   /** 贴地扩散的冲击环 */
   ring(x: number, z: number, r0: number, r1: number, color: number, life = 0.5, width = 16): void {
-    this.rings.push({ decal: this.takeRing(), x, z, r0, r1, life, max: life, color, width });
+    this.rings.push({ decal: this.takeRing(), x, z, r0, r1, life, max: life, color, width, fill: 0 });
+  }
+
+  /** 贴地闪光：一个实心的发光圆盘，略微扩大后淡出（闪烁的起点 / 终点、落雷点） */
+  decalFlash(x: number, z: number, radius: number, color: number, life = 0.35): void {
+    this.rings.push({ decal: this.takeRing(), x, z, r0: radius * 0.75, r1: radius, life, max: life, color, width: radius * 0.35, fill: 0.85 });
+  }
+
+  /**
+   * 折线 / 闪电：pts 是 sim 坐标 + 世界高度的点列。jag > 0 时在每两个点之间插 segs 段随机折点（振幅 jag），
+   * flicker > 0 时整体闪烁（宙斯的电弧）。一次性的，life 秒内淡出。
+   */
+  line(pts: LinePoint[], color: number, width: number, life: number, o: { jag?: number; segs?: number; flicker?: number } = {}): void {
+    if (pts.length < 2) return;
+    const out: { x: number; y: number; z: number }[] = [];
+    const jag = o.jag ?? 0;
+    const segs = jag > 0 ? Math.max(1, o.segs ?? 6) : 1;
+    for (let i = 0; i + 1 < pts.length; i++) {
+      const a = pts[i], b = pts[i + 1];
+      for (let k = 0; k < segs; k++) {
+        const t = k / segs;
+        const off = k === 0 ? 0 : jag;
+        out.push({
+          x: a.x + (b.x - a.x) * t + (Math.random() - 0.5) * 2 * off,
+          y: a.h + (b.h - a.h) * t + (Math.random() - 0.5) * 2 * off,
+          z: a.y + (b.y - a.y) * t + (Math.random() - 0.5) * 2 * off,
+        });
+      }
+    }
+    const last = pts[pts.length - 1];
+    out.push({ x: last.x, y: last.h, z: last.y });
+    const mat = this.linePool.pop() ?? lineMaterial();
+    mat.uniforms.uColor.value.set(color);
+    mat.uniforms.uOpacity.value = 1;
+    const mesh = new Mesh(lineGeometry(out, width), mat);
+    mesh.frustumCulled = false;
+    mesh.renderOrder = 8;
+    this.group.add(mesh);
+    this.lines.push({ mesh, life, max: life, flicker: o.flicker ?? 0 });
+  }
+
+  private releaseLine(m: Mesh<BufferGeometry, ShaderMaterial>): void {
+    m.removeFromParent();
+    m.geometry.dispose();
+    this.linePool.push(m.material);
+  }
+
+  /** 光柱：外层彩色光柱 + 内层白色细芯 + 脚下的贴地闪光（比 beam 更亮，用于大招落点） */
+  pillar(x: number, z: number, radius: number, height: number, color: number, life = 0.6): void {
+    this.beam(x, z, radius, height, color, life);
+    this.beam(x, z, radius * 0.4, height * 1.1, 0xffffff, life * 0.8);
+    this.decalFlash(x, z, radius * 1.8, color, life * 0.7);
   }
 
   private takeBeam(): Mesh<CylinderGeometry, ShaderMaterial> {
@@ -337,6 +444,12 @@ export class Fx3D {
   }
 
   private fxEvent(e: Extract<SimEvent, { type: 'fx' }>, world: World, cam: Camera3D, heightOf: HeightOf): void {
+    // 先查注册表（各英雄的 fx/<id>.ts、通用的 fx/common.ts），没有再走内置分支
+    const h = lookupFx(e.kind);
+    if (h) {
+      h(e, { fx: this, world, cam, heightOf });
+      return;
+    }
     const { x, y } = e.pos;
     const gy = groundHeight(x, y);
     switch (e.kind) {
@@ -467,7 +580,7 @@ export class Fx3D {
       r.life -= dt;
       const k = 1 - r.life / r.max;
       const rad = r.r0 + (r.r1 - r.r0) * (1 - (1 - k) * (1 - k));
-      r.decal.set(r.x, groundHeight(r.x, r.z) + 3, r.z, rad, { color: r.color, opacity: Math.max(0, 1 - k), width: r.width * (1 - k * 0.6), soft: 6 });
+      r.decal.set(r.x, groundHeight(r.x, r.z) + 3, r.z, rad, { color: r.color, opacity: Math.max(0, 1 - k), width: r.width * (1 - k * 0.6), soft: 6, fill: r.fill });
     }
     for (const r of this.rings) if (r.life <= 0) this.releaseRing(r.decal);
     this.rings = this.rings.filter((r) => r.life > 0);
@@ -491,6 +604,15 @@ export class Fx3D {
     }
     for (const s of this.slashes) if (s.life <= 0) this.releaseSlash(s.mesh);
     this.slashes = this.slashes.filter((s) => s.life > 0);
+
+    for (const l of this.lines) {
+      l.life -= dt;
+      const k = Math.max(0, l.life / l.max);
+      const fl = l.flicker > 0 ? 1 - l.flicker * (0.5 + 0.5 * Math.sin(l.life * 90)) : 1;
+      l.mesh.material.uniforms.uOpacity.value = Math.min(1, k * 1.5) * fl;
+    }
+    for (const l of this.lines) if (l.life <= 0) this.releaseLine(l.mesh);
+    this.lines = this.lines.filter((l) => l.life > 0);
 
     this.flash.life = Math.max(0, this.flash.life - dt);
   }

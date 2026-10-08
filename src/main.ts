@@ -8,6 +8,9 @@ import { Controls } from './input/controls';
 import { showPauseMenu, showResultScreen, showStartScreen } from './ui/screens';
 import { DT } from './sim/core/constants';
 import type { Difficulty } from './sim/core/types';
+import { applyControl, applyFear, applySlow } from './sim/status';
+import { blinkTo, knockback } from './sim/systems/motion';
+import { addShield } from './sim/shields';
 
 const canvas = document.getElementById('game') as HTMLCanvasElement;
 const uiRoot = document.getElementById('ui') as HTMLDivElement;
@@ -166,6 +169,8 @@ async function boot(): Promise<void> {
         renderer,
         get timeScale() { return timeScale; },
         set timeScale(v: number) { timeScale = v; },
+        // 直接调用 sim 的状态 / 位移 / 护盾函数（截图脚本用来制造各种状态；参数和 sim 里一样，world 取 session.match.world）
+        sim: { applyControl, applySlow, applyFear, knockback, blinkTo, addShield },
       },
     });
   }

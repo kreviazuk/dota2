@@ -1,12 +1,15 @@
 import type { SimEvent } from '../sim/core/events';
 import type { World } from '../sim/world';
 import type { ViewCamera } from './view';
+import { lookupFx2D } from './fx2d';
 
 interface Particle { x: number; y: number; vx: number; vy: number; life: number; max: number; size: number; color: string; drag: number; add: boolean }
 interface FloatText { x: number; y: number; vy: number; life: number; max: number; text: string; color: string; size: number }
 /** color 是不带 alpha 的前缀，例如 'rgba(255,60,40,' */
 interface Ring { x: number; y: number; r0: number; r1: number; life: number; max: number; color: string; width: number }
 interface Slash { x: number; y: number; angle: number; life: number; max: number; color: string; size: number }
+/** 扇形弧（分裂斩痕）：从 angle − half 到 angle + half，半径从 0.4r 扩到 r */
+interface Arc { x: number; y: number; angle: number; half: number; r: number; life: number; max: number; color: string; width: number }
 
 const MAX_PARTICLES = 700;
 const MAX_TEXTS = 70;
@@ -17,12 +20,14 @@ export class FxSystem {
   private texts: FloatText[] = [];
   private rings: Ring[] = [];
   private slashes: Slash[] = [];
+  private arcs: Arc[] = [];
 
   clear(): void {
     this.particles = [];
     this.texts = [];
     this.rings = [];
     this.slashes = [];
+    this.arcs = [];
   }
 
   burst(x: number, y: number, n: number, color: string, speed: number, size: number, life = 0.6, add = true): void {
@@ -35,6 +40,16 @@ export class FxSystem {
 
   ring(x: number, y: number, r0: number, r1: number, color: string, life = 0.5, width = 8): void {
     this.rings.push({ x, y, r0, r1, life, max: life, color, width });
+  }
+
+  /** 扇形弧（color 是不带 alpha 的前缀，例如 'rgba(255,200,140,'） */
+  arc(x: number, y: number, angle: number, half: number, r: number, color: string, life = 0.3, width = 12): void {
+    this.arcs.push({ x, y, angle, half, r, life, max: life, color, width });
+  }
+
+  /** 直线斩击（color 是完整颜色） */
+  slash(x: number, y: number, angle: number, size: number, color: string, life = 0.4): void {
+    this.slashes.push({ x, y, angle, life, max: life, color, size });
   }
 
   text(x: number, y: number, text: string, color: string, size = 26): void {
@@ -115,6 +130,12 @@ export class FxSystem {
   }
 
   private fxEvent(e: Extract<SimEvent, { type: 'fx' }>, world: World, cam: ViewCamera): void {
+    // 先查注册表（fx2d.ts），没有再走内置分支
+    const h = lookupFx2D(e.kind);
+    if (h) {
+      h(this, e, world, cam);
+      return;
+    }
     const { x, y } = e.pos;
     switch (e.kind) {
       case 'axe_call':
@@ -176,6 +197,8 @@ export class FxSystem {
     this.rings = this.rings.filter((r) => r.life > 0);
     for (const s of this.slashes) s.life -= dt;
     this.slashes = this.slashes.filter((s) => s.life > 0);
+    for (const a of this.arcs) a.life -= dt;
+    this.arcs = this.arcs.filter((a) => a.life > 0);
   }
 
   drawWorld(ctx: CanvasRenderingContext2D): void {
@@ -185,6 +208,15 @@ export class FxSystem {
       ctx.lineWidth = r.width * (1 - k * 0.6);
       ctx.beginPath();
       ctx.arc(r.x, r.y, r.r0 + (r.r1 - r.r0) * (1 - (1 - k) * (1 - k)), 0, Math.PI * 2);
+      ctx.stroke();
+    }
+    for (const a of this.arcs) {
+      const k = 1 - a.life / a.max;
+      ctx.strokeStyle = `${a.color}${(1 - k).toFixed(3)})`;
+      ctx.lineWidth = a.width * (1 - k * 0.5);
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(a.x, a.y, a.r * (0.4 + 0.6 * (1 - (1 - k) * (1 - k))), a.angle - a.half, a.angle + a.half);
       ctx.stroke();
     }
     ctx.save();
