@@ -27,9 +27,13 @@ const PLAN = {
   cm_crystal_nova: { fx: [['cm_nova', 3, 'hit'], ['cm_nova', 12, 'hit2']] },
   cm_frostbite: { fx: [['cm_frostbite', 3, 'hit'], ['cm_frostbite', 24, 'ice']] },
   cm_freezing_field: { fx: [['cm_freezing_field', 3, 'start'], ['cm_ff_blast', 40, 'field'], ['cm_ff_blast', 140, 'field2']], afterMs: 2500 },
+  zeus_arc_lightning: { fx: [['zeus_arc', 2, 'arc'], ['zeus_arc', 30, 'bounce']] },
+  zeus_lightning_bolt: { fx: [['zeus_bolt', 2, 'hit'], ['zeus_bolt', 8, 'hit2']] },
+  zeus_heavenly_jump: { fx: [['zeus_jump_shock', 2, 'shock'], ['zeus_jump', 14, 'air']] },
+  zeus_thundergods_wrath: { fx: [['zeus_wrath', 1, 'flash'], ['zeus_wrath_hit', 5, 'hit']], afterMs: 2500 },
 };
 /** 普攻（被动）要截的时刻：分裂斩痕（fx）或普攻弹道（proj） */
-const ATTACK = { sven: { fx: 'cleave' }, lina: { proj: 'hero:lina' }, crystal_maiden: { proj: 'hero:crystal_maiden' } };
+const ATTACK = { sven: { fx: 'cleave' }, lina: { proj: 'hero:lina' }, crystal_maiden: { proj: 'hero:crystal_maiden' }, zeus: { proj: 'hero:zeus' } };
 
 (async () => {
   const browser = await chromium.launch({
@@ -104,7 +108,7 @@ const ATTACK = { sven: { fx: 'cleave' }, lina: { proj: 'hero:lina' }, crystal_ma
       }
     }
     g.timeScale = 1;
-    return { me: me.id, foes: foes.map((f) => f.id), allies: allies.map((a) => a.id), abilities: me.abilities.map((a) => [a.def.slot, a.def.id, a.level, a.def.targetType, !!a.def.instant]) };
+    return { me: me.id, foes: foes.map((f) => f.id), allies: allies.map((a) => a.id), abilities: me.abilities.map((a) => [a.def.slot, a.def.id, a.level, a.def.targetType, !!a.def.instant || !a.def.castPoint]) };
   });
   console.log(JSON.stringify(setup));
   await wait(2500);

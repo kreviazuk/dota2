@@ -100,18 +100,23 @@ function slashMaterial(): ShaderMaterial {
   });
 }
 
-/** 折线 / 闪电：十字交叉的两片条带（任何角度看都有宽度），中心亮、边缘软 */
-function lineMaterial(): ShaderMaterial {
-  return new ShaderMaterial({
+/**
+ * 折线 / 闪电：十字交叉的两片条带（任何角度看都有宽度），中心亮、边缘软。
+ * normal = 普通混合（中心只微微泛白）：饱和的蓝色闪电外层在浅色地面上也看得见，叠加混合会洗成白色。
+ */
+function lineMaterial(normal = false): ShaderMaterial {
+  const m = new ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    blending: AdditiveBlending,
+    blending: normal ? NormalBlending : AdditiveBlending,
     side: DoubleSide,
-    uniforms: { uColor: { value: new Color() }, uOpacity: { value: 1 } },
+    uniforms: { uColor: { value: new Color() }, uOpacity: { value: 1 }, uWhite: { value: normal ? 0.3 : 0.8 } },
     vertexShader: `attribute float aEdge; varying float vEdge; void main() { vEdge = aEdge; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-    fragmentShader: `uniform vec3 uColor; uniform float uOpacity; varying float vEdge;
-      void main() { float c = 1.0 - abs(vEdge); float a = smoothstep(0.0, 0.6, c) * uOpacity; gl_FragColor = vec4(mix(uColor, vec3(1.0), smoothstep(0.55, 1.0, c) * 0.8), a); }`,
+    fragmentShader: `uniform vec3 uColor; uniform float uOpacity; uniform float uWhite; varying float vEdge;
+      void main() { float c = 1.0 - abs(vEdge); float a = smoothstep(0.0, 0.6, c) * uOpacity; gl_FragColor = vec4(mix(uColor, vec3(1.0), smoothstep(0.55, 1.0, c) * uWhite), a); }`,
   });
+  m.userData.normal = normal;
+  return m;
 }
 
 /** 折线几何体：每段两片互相垂直的条带（宽 width），三维坐标 (x, 高度, z) */
@@ -169,11 +174,12 @@ export class Fx3D {
   private slashPool: Mesh<BufferGeometry, ShaderMaterial>[] = [];
   private lines: LineFx[] = [];
   private linePool: ShaderMaterial[] = [];
+  private lineNormalPool: ShaderMaterial[] = [];
   private readonly beamGeo = new CylinderGeometry(1, 1, 1, 20, 1, true).translate(0, 0.5, 0);
   private readonly crescent = crescentGeometry();
   private readonly pts: { points: Points; pos: Float32Array; col: Float32Array; size: Float32Array; mat: ShaderMaterial }[];
-  /** 全屏闪光（淘汰之刃斩杀） */
-  flash = { color: '255,40,30', life: 0, max: 1 };
+  /** 全屏闪光（淘汰之刃斩杀）；pulses > 0 时在淡出过程中快速闪烁 pulses 次（雷神之怒） */
+  flash = { color: '255,40,30', life: 0, max: 1, pulses: 0 };
 
   constructor() {
     this.pts = [true, false].map((add) => {
@@ -252,9 +258,9 @@ export class Fx3D {
 
   /**
    * 折线 / 闪电：pts 是 sim 坐标 + 世界高度的点列。jag > 0 时在每两个点之间插 segs 段随机折点（振幅 jag），
-   * flicker > 0 时整体闪烁（宙斯的电弧）。一次性的，life 秒内淡出。
+   * flicker > 0 时整体闪烁（宙斯的电弧）；normal = 普通混合（见 lineMaterial）。一次性的，life 秒内淡出。
    */
-  line(pts: LinePoint[], color: number, width: number, life: number, o: { jag?: number; segs?: number; flicker?: number } = {}): void {
+  line(pts: LinePoint[], color: number, width: number, life: number, o: { jag?: number; segs?: number; flicker?: number; normal?: boolean } = {}): void {
     if (pts.length < 2) return;
     const out: { x: number; y: number; z: number }[] = [];
     const jag = o.jag ?? 0;
@@ -273,7 +279,7 @@ export class Fx3D {
     }
     const last = pts[pts.length - 1];
     out.push({ x: last.x, y: last.h, z: last.y });
-    const mat = this.linePool.pop() ?? lineMaterial();
+    const mat = (o.normal ? this.lineNormalPool.pop() : this.linePool.pop()) ?? lineMaterial(!!o.normal);
     mat.uniforms.uColor.value.set(color);
     mat.uniforms.uOpacity.value = 1;
     const mesh = new Mesh(lineGeometry(out, width), mat);
@@ -286,7 +292,7 @@ export class Fx3D {
   private releaseLine(m: Mesh<BufferGeometry, ShaderMaterial>): void {
     m.removeFromParent();
     m.geometry.dispose();
-    this.linePool.push(m.material);
+    (m.material.userData.normal ? this.lineNormalPool : this.linePool).push(m.material);
   }
 
   /** 光柱：外层彩色光柱 + 内层白色细芯 + 脚下的贴地闪光（比 beam 更亮，用于大招落点） */
@@ -349,8 +355,24 @@ export class Fx3D {
     this.texts.push({ x: x + (Math.random() - 0.5) * 30, z, h, rise: 0, vy: 90, life: 0.9, max: 0.9, text, color, size });
   }
 
-  screenFlash(color: string, life: number): void {
-    this.flash = { color, life, max: life };
+  /** 刚刚（0.08 秒内）在 (x, z) 处生成的飘字个数 */
+  private freshTextsAt(x: number, z: number): number {
+    let n = 0;
+    for (const t of this.texts) if (t.max - t.life < 0.08 && Math.abs(t.z - z) < 1 && Math.abs(t.x - x) < 40) n++;
+    return n;
+  }
+
+  screenFlash(color: string, life: number, pulses = 0): void {
+    this.flash = { color, life, max: life, pulses };
+  }
+
+  /** 当前全屏闪光的不透明度（0 = 没有）：最亮 0.35，随寿命线性淡出，pulses 次快速明暗 */
+  flashAlpha(): number {
+    const f = this.flash;
+    if (f.life <= 0 || f.max <= 0) return 0;
+    const k = f.life / f.max;
+    const pulse = f.pulses > 0 ? 0.3 + 0.7 * (0.5 + 0.5 * Math.cos(2 * Math.PI * f.pulses * (1 - k))) : 1;
+    return 0.35 * k * pulse;
   }
 
   // ---------- 事件 → 特效 ----------
@@ -366,7 +388,10 @@ export class Fx3D {
           const involvesPlayer = playerId !== null && (e.sourceId === playerId || e.targetId === playerId);
           if (involvesPlayer || t.kind === 'hero' || e.crit || e.amount >= 100) {
             const color = e.crit ? '#ff4d3d' : e.damageType === 'magical' ? '#7cc4ff' : e.damageType === 'pure' ? '#ffd54a' : '#ffffff';
-            this.text(t.pos.x, t.pos.y, gy + H + 20, `${Math.round(e.amount)}${e.crit ? '!' : ''}`, color, e.crit ? 40 : involvesPlayer ? 28 : 22);
+            const size = e.crit ? 40 : involvesPlayer ? 28 : 22;
+            // 同一时刻打在同一个目标上的几个数字（静电场 + 技能本体）往上叠，不挤成一个数
+            const h = gy + H + 20 + this.freshTextsAt(t.pos.x, t.pos.y) * size * 2;
+            this.text(t.pos.x, t.pos.y, h, `${Math.round(e.amount)}${e.crit ? '!' : ''}`, color, size);
           }
           if (e.isAttack) {
             const hh = t.kind === 'building' ? Math.min(160, H * 0.45) : H * 0.55;

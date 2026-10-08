@@ -10,6 +10,8 @@ interface Ring { x: number; y: number; r0: number; r1: number; life: number; max
 interface Slash { x: number; y: number; angle: number; life: number; max: number; color: string; size: number }
 /** 扇形弧（分裂斩痕）：从 angle − half 到 angle + half，半径从 0.4r 扩到 r */
 interface Arc { x: number; y: number; angle: number; half: number; r: number; life: number; max: number; color: string; width: number }
+/** 折线闪电（宙斯）：生成时就定好折点；color 是完整颜色 */
+interface Bolt { pts: { x: number; y: number }[]; life: number; max: number; color: string; width: number }
 
 const MAX_PARTICLES = 700;
 const MAX_TEXTS = 70;
@@ -21,8 +23,13 @@ export class FxSystem {
   private rings: Ring[] = [];
   private slashes: Slash[] = [];
   private arcs: Arc[] = [];
+  private bolts: Bolt[] = [];
+  /** 全屏闪光（雷神之怒）；pulses > 0 时淡出过程中快速闪烁 */
+  private flash = { color: '255,255,255', life: 0, max: 1, pulses: 0 };
 
   clear(): void {
+    this.bolts = [];
+    this.flash.life = 0;
     this.particles = [];
     this.texts = [];
     this.rings = [];
@@ -52,6 +59,39 @@ export class FxSystem {
     this.slashes.push({ x, y, angle, life, max: life, color, size });
   }
 
+  /** 两点之间的折线闪电：中间插 segs 个随机折点（振幅 jag） */
+  bolt(x1: number, y1: number, x2: number, y2: number, color: string, width: number, life = 0.25, jag = 18, segs = 6): void {
+    const pts = [{ x: x1, y: y1 }];
+    for (let i = 1; i < segs; i++) {
+      const k = i / segs;
+      pts.push({ x: x1 + (x2 - x1) * k + (Math.random() - 0.5) * 2 * jag, y: y1 + (y2 - y1) * k + (Math.random() - 0.5) * 2 * jag });
+    }
+    pts.push({ x: x2, y: y2 });
+    this.bolts.push({ pts, life, max: life, color, width });
+  }
+
+  /** 全屏闪光：color = 'r,g,b'，最亮 0.35，pulses 次快速明暗 */
+  screenFlash(color: string, life: number, pulses = 0): void {
+    this.flash = { color, life, max: life, pulses };
+  }
+
+  /** 当前全屏闪光的不透明度（0 = 没有） */
+  flashAlpha(): number {
+    const f = this.flash;
+    if (f.life <= 0 || f.max <= 0) return 0;
+    const k = f.life / f.max;
+    const pulse = f.pulses > 0 ? 0.3 + 0.7 * (0.5 + 0.5 * Math.cos(2 * Math.PI * f.pulses * (1 - k))) : 1;
+    return 0.35 * k * pulse;
+  }
+
+  /** 在屏幕坐标下画全屏闪光（调用前 ctx 已经是单位变换） */
+  drawFlash(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+    const a = this.flashAlpha();
+    if (a <= 0) return;
+    ctx.fillStyle = `rgba(${this.flash.color},${a})`;
+    ctx.fillRect(0, 0, w, h);
+  }
+
   text(x: number, y: number, text: string, color: string, size = 26): void {
     if (this.texts.length >= MAX_TEXTS) this.texts.shift();
     this.texts.push({ x: x + (Math.random() - 0.5) * 30, y, vy: -90, life: 0.9, max: 0.9, text, color, size });
@@ -68,7 +108,11 @@ export class FxSystem {
           if (involvesPlayer || t.kind === 'hero' || e.crit || e.amount >= 100) {
             // 物理白、魔法蓝、纯粹金；暴击放大红字
             const color = e.crit ? '#ff4d3d' : e.damageType === 'magical' ? '#7cc4ff' : e.damageType === 'pure' ? '#ffd54a' : '#ffffff';
-            this.text(t.pos.x, t.pos.y - 60, `${Math.round(e.amount)}${e.crit ? '!' : ''}`, color, e.crit ? 40 : involvesPlayer ? 28 : 22);
+            const size = e.crit ? 40 : involvesPlayer ? 28 : 22;
+            // 同一时刻打在同一个目标上的几个数字（静电场 + 技能本体）往上叠
+            let n = 0;
+            for (const tt of this.texts) if (tt.max - tt.life < 0.08 && Math.abs(tt.x - t.pos.x) < 40 && tt.y <= t.pos.y - 59 && tt.y > t.pos.y - 400) n++;
+            this.text(t.pos.x, t.pos.y - 60 - n * size * 2, `${Math.round(e.amount)}${e.crit ? '!' : ''}`, color, size);
           }
           if (e.isAttack) this.burst(t.pos.x, t.pos.y, 4, 'rgba(255,80,60,0.9)', 160, 5, 0.3, false);
           break;
@@ -199,6 +243,9 @@ export class FxSystem {
     this.slashes = this.slashes.filter((s) => s.life > 0);
     for (const a of this.arcs) a.life -= dt;
     this.arcs = this.arcs.filter((a) => a.life > 0);
+    for (const b of this.bolts) b.life -= dt;
+    this.bolts = this.bolts.filter((b) => b.life > 0);
+    this.flash.life = Math.max(0, this.flash.life - dt);
   }
 
   drawWorld(ctx: CanvasRenderingContext2D): void {
@@ -219,6 +266,17 @@ export class FxSystem {
       ctx.arc(a.x, a.y, a.r * (0.4 + 0.6 * (1 - (1 - k) * (1 - k))), a.angle - a.half, a.angle + a.half);
       ctx.stroke();
     }
+    for (const b of this.bolts) {
+      ctx.strokeStyle = b.color;
+      ctx.globalAlpha = Math.max(0, Math.min(1, (b.life / b.max) * 1.5));
+      ctx.lineWidth = b.width;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.beginPath();
+      b.pts.forEach((p, i) => (i === 0 ? ctx.moveTo(p.x, p.y) : ctx.lineTo(p.x, p.y)));
+      ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
     ctx.save();
     for (const p of this.particles) {
       ctx.globalCompositeOperation = p.add ? 'lighter' : 'source-over';

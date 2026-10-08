@@ -89,6 +89,8 @@ export interface AbilityDef {
   defaultToggled?: boolean;
   channelTime?: number[];
   channelAllowsMove?: boolean;
+  /** 被缠绕时不能施放（自己位移的技能：神圣一跳） */
+  blockedByRoot?: boolean;
   ignoresDebuffImmune?: boolean;
   values: Record<string, number[]>;
   /** 学会后常驻的被动 Modifier */

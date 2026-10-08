@@ -9,6 +9,8 @@ import { AXE_SPEC, attackPose, axePose, deathPose, idlePose, releasePose, runPos
 import { SVEN_SPEC, attackPose as svenAttack } from '../src/render3d/models/sven';
 import { LINA_SPEC, attackPose as linaAttack, runPose as linaRun, idlePose as linaIdle } from '../src/render3d/models/lina';
 import { CM_SPEC } from '../src/render3d/models/crystal_maiden';
+import { ZEUS_SPEC, attackPose as zeusAttack, jumpPose as zeusJump, runPose as zeusRun, idlePose as zeusIdle } from '../src/render3d/models/zeus';
+import { Fx3D } from '../src/render3d/fx3d';
 import { lookupAreaVisual as areaVisual, lookupFx as fxFor, lookupModifierVisual as modVisual, projectileStyle as projStyle } from '../src/render3d/fx/registry';
 import { getHeroDef } from '../src/sim/heroes';
 import '../src/render3d/fx/index';
@@ -520,5 +522,91 @@ describe('Crystal Maiden model', () => {
     for (const k of ['cm_nova', 'cm_frostbite', 'cm_freezing_field', 'cm_ff_blast']) expect(fxFor(k)).toBeTypeOf('function');
     expect(modVisual('cm_frostbite')?.replaces).toContain('root');
     expect(modVisual('cm_freezing_field')).toBeDefined();
+  });
+});
+
+describe('Zeus model', () => {
+  const finite = (p: Record<string, number>) => Object.values(p).every(Number.isFinite);
+  it('zeus poses are finite for every state and ability', () => {
+    const actives = getHeroDef('zeus').abilities.filter((a) => a.targetType !== 'passive').map((a) => a.id);
+    expect(Object.keys(ZEUS_SPEC.releaseDur).sort()).toEqual([...actives].sort());
+    const states: Partial<AnimInput>[] = [
+      {}, { speed: 300 }, { windup: 0.4 }, { channel: true }, { stunned: true }, { stunned: true, motion: 'knockback' },
+      { stunned: true, motion: 'leap' }, { alive: false }, { taunted: true },
+    ];
+    for (const inp of states) {
+      const tr = new AnimTracker();
+      tr.update(input(inp), 0.05, 0.5);
+      tr.update(input(inp), 0.3, 0.5);
+      expect(finite(ZEUS_SPEC.pose(tr, 1.7, null))).toBe(true);
+    }
+    for (const id of Object.keys(ZEUS_SPEC.releaseDur)) {
+      for (const cp of [0, 0.5, 1]) {
+        const tr = new AnimTracker();
+        tr.update(input({ castAbility: id, castProgress: cp }), 0.05, 0);
+        expect(tr.state).toBe('cast');
+        expect(finite(ZEUS_SPEC.pose(tr, 0.4, null))).toBe(true);
+      }
+      for (const k of [0, 0.5, 1]) {
+        const tr = new AnimTracker();
+        const dur = ZEUS_SPEC.releaseDur[id];
+        tr.trigger(id, dur);
+        tr.update(input(), Math.max(1e-3, k * dur * 0.999), 0);
+        expect(tr.state).toBe('release');
+        expect(finite(ZEUS_SPEC.pose(tr, 0.4, null))).toBe(true);
+      }
+    }
+  });
+
+  it('pushes the right palm forward, tucks its legs mid-leap, and the beard swings with the body', () => {
+    // 蓄力时右手收到肩前（小臂折起），出手时向前平推
+    expect(zeusAttack(0.6).elR).toBeLessThan(-1.8);
+    expect(zeusAttack(1).shRX).toBeLessThan(-1.3);
+    expect(zeusAttack(1).elR).toBeGreaterThan(-0.3);
+    // 跳跃：腾空时收腿，落地前伸腿
+    expect(zeusJump(0.45).kneeL).toBeGreaterThan(1.4);
+    expect(zeusJump(1).kneeL).toBeLessThan(1);
+    // 位移中（tracker.motion = 'leap'）用跳跃姿势，而不是被击退的挣扎姿势
+    const tr = new AnimTracker();
+    tr.update(input({ stunned: true, motion: 'leap' }), 0.05, 0);
+    tr.update(input({ stunned: true, motion: 'leap' }), 0.2, 0);
+    expect(ZEUS_SPEC.pose(tr, 0, null).kneeL).toBeGreaterThan(1.2);
+    // 胡子骨骼挂在头上，跑动时摆得更厉害
+    expect(ZEUS_SPEC.bones.find((b) => b[0] === 'beard1')?.[1]).toBe('head');
+    expect(ZEUS_SPEC.bones.find((b) => b[0] === 'beard2')?.[1]).toBe('beard1');
+    const run = new AnimTracker();
+    for (let i = 0; i < 3; i++) run.update(input({ speed: 300 }), 0.2, 0);
+    expect(ZEUS_SPEC.pose(run, 1, null).beard1X).toBeDefined();
+    expect(finite(zeusRun(1))).toBe(true);
+    expect(finite(zeusIdle(0))).toBe(true);
+    expect(ZEUS_SPEC.headHeight).toBeCloseTo(178, -1);
+    expect(ZEUS_SPEC.scale).toBe(1.25);
+  });
+
+  it('registers its projectile, fx events and the hand-arc modifier visual', () => {
+    expect(projStyle('hero:zeus')?.mesh).toBe('orb');
+    expect(projStyle('hero:zeus')?.emitter).toBeTypeOf('function');
+    for (const k of ['zeus_arc', 'zeus_bolt', 'zeus_jump', 'zeus_jump_shock', 'zeus_wrath', 'zeus_wrath_hit', 'zeus_static']) expect(fxFor(k)).toBeTypeOf('function');
+    expect(modVisual('zeus_static_field')).toBeDefined();
+  });
+
+  it('screen flashes can pulse while fading', () => {
+    const fx = new Fx3D();
+    expect(fx.flashAlpha()).toBe(0);
+    fx.screenFlash('255,255,255', 0.35, 2);
+    expect(fx.flashAlpha()).toBeCloseTo(0.35);
+    const seen: number[] = [];
+    for (let i = 0; i < 35; i++) {
+      fx.update(0.01, 720, 1);
+      seen.push(fx.flashAlpha());
+    }
+    // 两次明暗：中途至少一次变暗后又变亮
+    let rises = 0;
+    for (let i = 1; i < seen.length; i++) if (seen[i] > seen[i - 1] + 1e-4) rises++;
+    expect(rises).toBeGreaterThan(0);
+    expect(seen[seen.length - 1]).toBeCloseTo(0);
+    fx.screenFlash('255,40,30', 0.3);
+    fx.update(0.15, 720, 1);
+    expect(fx.flashAlpha()).toBeCloseTo(0.175);
   });
 });

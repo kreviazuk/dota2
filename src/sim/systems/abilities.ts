@@ -83,6 +83,7 @@ export function canCast(world: World, caster: Unit, ab: AbilityInstance): boolea
   const tt = ab.def.targetType;
   if (tt === 'passive') return false;
   if (isDisabled(caster) || caster.hasState('silenced')) return false;
+  if (ab.def.blockedByRoot && caster.hasState('rooted')) return false;
   if (tt === 'toggle') return true;
   return isReady(ab, caster) && caster.mana + 1e-6 >= abilityManaCost(ab, caster);
 }

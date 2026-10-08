@@ -245,3 +245,67 @@ registerModifier2D('cm_freezing_field', (ctx, _u, _m, x, y, t) => {
   ctx.stroke();
   ctx.setLineDash([]);
 });
+
+// ---------- 宙斯 ----------
+registerProjectile2D('hero:zeus', { color: '#a8dcff', size: 6, shape: 'orb' });
+
+/** 两层的蓝白折线闪电（外层饱和蓝、内层白） */
+function bolt2D(fx: FxSystem, x1: number, y1: number, x2: number, y2: number, width: number, life: number, jag: number): void {
+  fx.bolt(x1, y1, x2, y2, 'rgba(47,127,255,0.95)', width, life, jag);
+  fx.bolt(x1, y1, x2, y2, 'rgba(235,248,255,0.95)', width * 0.35, life * 0.8, jag * 0.5);
+}
+
+/** 弧形闪电的一跳：上一个点到新目标的折线 + 小火花 */
+registerFx2D('zeus_arc', (fx, e, world) => {
+  const t = world.getUnit(e.targetId);
+  if (!t) return;
+  bolt2D(fx, e.pos.x, e.pos.y - 30, t.pos.x, t.pos.y - 30, 7, 0.28, 16);
+  fx.burst(t.pos.x, t.pos.y - 30, 8, 'rgba(150,210,255,0.95)', 160, 4, 0.25);
+});
+
+/** 雷击：从画面上方劈下的竖直闪电 + 落点的蓝圈 + 震屏（范围雷击再加一圈） */
+registerFx2D('zeus_bolt', (fx, e, world, cam) => {
+  const t = world.getUnit(e.targetId);
+  const p = t?.pos ?? e.pos;
+  bolt2D(fx, p.x + (Math.random() - 0.5) * 80, p.y - 520, p.x, p.y, 12, 0.35, 30);
+  fx.ring(p.x, p.y, 10, 90, 'rgba(90,160,255,', 0.35, 8);
+  fx.burst(p.x, p.y, 18, 'rgba(160,215,255,0.95)', 260, 5, 0.35);
+  if (e.radius) fx.ring(p.x, p.y, 30, e.radius, 'rgba(70,140,255,', 0.45, 10);
+  if (cam.visible(p)) cam.shake(6);
+});
+
+/** 神圣一跳起跳点：一圈电火花 */
+registerFx2D('zeus_jump', (fx, e) => {
+  fx.ring(e.pos.x, e.pos.y, 20, 160, 'rgba(70,140,255,', 0.4, 10);
+  fx.burst(e.pos.x, e.pos.y, 22, 'rgba(150,210,255,0.95)', 380, 5, 0.35);
+});
+
+/** 神圣一跳的电击：宙斯到目标的折线 */
+registerFx2D('zeus_jump_shock', (fx, e, world) => {
+  const z = world.getUnit(e.unitId);
+  const t = world.getUnit(e.targetId);
+  if (!z || !t) return;
+  bolt2D(fx, z.pos.x, z.pos.y - 30, t.pos.x, t.pos.y - 30, 6, 0.28, 16);
+});
+
+/** 雷神之怒：全屏蓝白闪光（快速闪两次） */
+registerFx2D('zeus_wrath', (fx) => {
+  fx.screenFlash('210,235,255', 0.35, 2);
+});
+
+/** 天雷：劈在每个敌方英雄身上的粗闪电 + 蓝圈 + 震屏 */
+registerFx2D('zeus_wrath_hit', (fx, e, world, cam) => {
+  const t = world.getUnit(e.targetId);
+  const p = t?.pos ?? e.pos;
+  bolt2D(fx, p.x + (Math.random() - 0.5) * 60, p.y - 700, p.x, p.y, 18, 0.45, 36);
+  fx.ring(p.x, p.y, 10, 200, 'rgba(70,140,255,', 0.5, 12);
+  fx.burst(p.x, p.y, 30, 'rgba(170,220,255,0.95)', 380, 6, 0.5);
+  if (cam.visible(p)) cam.shake(18);
+});
+
+/** 静电场：目标身上的小电火花 */
+registerFx2D('zeus_static', (fx, e, world) => {
+  const t = world.getUnit(e.targetId);
+  const p = t?.pos ?? e.pos;
+  fx.burst(p.x, p.y - 30, 5, 'rgba(120,190,255,0.95)', 120, 3.5, 0.22);
+});

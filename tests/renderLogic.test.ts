@@ -4,6 +4,8 @@ import { createHero } from '../src/sim/systems/heroes';
 import { Team } from '../src/sim/core/types';
 import { isKillable, isSlowed, killMarkerFor, shieldSegment, statusIcons2D } from '../src/render/unitDraw';
 import { HERO_LOOKS } from '../src/render/heroVisuals';
+import { FxSystem } from '../src/render/fx';
+import type { ViewCamera } from '../src/render/view';
 import { allHeroIds } from '../src/sim/heroes';
 import { lookupFx, registerFx, lookupModifierVisual, projectileStyle, registerProjectileStyle } from '../src/render3d/fx/registry';
 import '../src/render3d/fx/common';
@@ -179,6 +181,28 @@ describe('2D looks, shield bar and status markers', () => {
     expect(lookupProjectile2D('hero:crystal_maiden')?.color).toBe('#9fe8ff');
     for (const k of ['cm_frostbite', 'cm_freezing_field']) expect(lookupModifier2D(k)).toBeTypeOf('function');
     expect(HERO_LOOKS.crystal_maiden).toMatchObject({ body: '#9ad4f5', trim: '#ffffff', skin: '#f0dcd0', initial: '冰', weapon: 'staff' });
+  });
+
+  it('Zeus has 2D effects for every fx event and his projectile, and Wrath flashes the 2D screen', () => {
+    for (const k of ['zeus_arc', 'zeus_bolt', 'zeus_jump', 'zeus_jump_shock', 'zeus_wrath', 'zeus_wrath_hit', 'zeus_static']) expect(lookupFx2D(k)).toBeTypeOf('function');
+    expect(lookupProjectile2D('hero:zeus')?.color).toBe('#a8dcff');
+    expect(HERO_LOOKS.zeus).toMatchObject({ body: '#f2ead0', trim: '#e2b04a', skin: '#e8cfae', initial: '宙', weapon: 'lightning' });
+    const fx = new FxSystem();
+    const w = makeWorld();
+    const cam = { visible: () => true, shake: () => {} } as unknown as ViewCamera;
+    lookupFx2D('zeus_wrath')!(fx, { type: 'fx', kind: 'zeus_wrath', pos: { x: 0, y: 0 } }, w, cam);
+    expect(fx.flashAlpha()).toBeCloseTo(0.35);
+    fx.update(0.4);
+    expect(fx.flashAlpha()).toBe(0);
+    // 静电场和技能本体同一时刻的两个伤害数字上下叠开，不挤成一个数
+    const t = spawnDummy(w, { kind: 'hero', team: Team.Dire, pos: { x: 1500, y: 5000 } });
+    fx.consume([
+      { type: 'damage', sourceId: null, targetId: t.id, amount: 35, damageType: 'magical', crit: false, isAttack: false },
+      { type: 'damage', sourceId: null, targetId: t.id, amount: 380, damageType: 'magical', crit: false, isAttack: false },
+    ], w, null, cam);
+    const ys = (fx as unknown as { texts: { y: number }[] }).texts.map((x) => x.y);
+    expect(ys.length).toBe(2);
+    expect(Math.abs(ys[0] - ys[1])).toBeGreaterThan(20);
   });
 
   it('status markers follow control states, fear and slows', () => {

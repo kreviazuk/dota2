@@ -130,6 +130,9 @@ export class Renderer implements GameRenderer {
       }
     }
     this.fx.drawTexts(ctx, cam.uiScale);
+    ctx.setTransform(1, 0, 0, 1, 0, 0);
+    ctx.globalAlpha = 1;
+    this.fx.drawFlash(ctx, this.canvas.width, this.canvas.height);
   }
 
   private swing(u: Unit): number {

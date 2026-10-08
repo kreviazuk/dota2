@@ -1424,10 +1424,10 @@ export class Renderer3D implements GameRenderer {
       if (u.kind !== 'building' && u.modifiers.length) drawStatusIcons2D(ctx, u, sx, opts.top - 8 * s, this.time, s, this.iconSkip(u));
     }
     this.fx.drawTexts(ctx, cam, k, ui);
-    const fl = this.fx.flash;
-    if (fl.life > 0) {
+    const fa = this.fx.flashAlpha();
+    if (fa > 0) {
       ctx.setTransform(1, 0, 0, 1, 0, 0);
-      ctx.fillStyle = `rgba(${fl.color},${(0.35 * fl.life) / fl.max})`;
+      ctx.fillStyle = `rgba(${this.fx.flash.color},${fa})`;
       ctx.fillRect(0, 0, this.overlay.width, this.overlay.height);
     }
   }

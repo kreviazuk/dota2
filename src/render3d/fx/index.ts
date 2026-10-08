@@ -10,3 +10,5 @@ import '../models/lina';
 import './lina';
 import '../models/crystal_maiden';
 import './crystal_maiden';
+import '../models/zeus';
+import './zeus';

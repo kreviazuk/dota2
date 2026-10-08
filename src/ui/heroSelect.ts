@@ -24,9 +24,6 @@ interface PreviewLike {
   dispose(): void;
 }
 
-/** 攻击距离达到这个值算远程（与 Decisions D28 一致） */
-const RANGED_MIN = 400;
-
 const esc = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
 function statsHtml(def: HeroDef): string {
@@ -127,7 +124,7 @@ export function showHeroSelect(parent: HTMLElement, o: HeroSelectOpts, onStart: 
     q<HTMLDivElement>('.hs-name').innerHTML = `${esc(def.name)}<span class="hs-title">${esc(def.title)}</span>`;
     q<HTMLDivElement>('.hs-tags').innerHTML =
       `<span class="attr" style="background:${PRIMARY_COLORS[def.primary]}">${PRIMARY_NAMES[def.primary]}</span>` +
-      `<span class="range">${def.attackRange >= RANGED_MIN ? '远程' : '近战'}</span>` +
+      `<span class="range">${def.projectileSpeed > 0 ? '远程' : '近战'}</span>` +
       def.roles.map((r) => `<span class="role">${esc(r)}</span>`).join('');
     q<HTMLDivElement>('.hs-stats').innerHTML = statsHtml(def);
     const list = q<HTMLDivElement>('.hs-abilities');

@@ -3,6 +3,7 @@ import { AXE } from './axe';
 import { SVEN } from './sven';
 import { LINA } from './lina';
 import { CRYSTAL_MAIDEN } from './crystal_maiden';
+import { ZEUS } from './zeus';
 
 const REGISTRY = new Map<string, HeroDef>();
 
@@ -24,3 +25,4 @@ registerHero(AXE);
 registerHero(SVEN);
 registerHero(LINA);
 registerHero(CRYSTAL_MAIDEN);
+registerHero(ZEUS);
