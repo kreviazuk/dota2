@@ -101,7 +101,7 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
 | 2 | 控制状态、强制位移、计时器、隐藏规则 | ✅ |
 | 3 | 战斗扩展（攻击信息、技能发起的攻击、分裂、伪随机、护甲拆分、伤害钩子、护盾、伤害统计） | ✅ |
 | 4 | 光环、召唤物、全局死亡钩子 | ✅ |
-| 5 | 渲染框架（模型注册表、共用人形骨骼、特效 / 弹道 / 状态外观注册表、2D 后备注册表） | |
+| 5 | 渲染框架（模型注册表、共用人形骨骼、特效 / 弹道 / 状态外观注册表、2D 后备注册表） | ✅ |
 | 6 | AI 框架（技能使用表）、选人补位、调试工具 | |
 | 7 | 选英雄界面、天赋弹窗、X1/X2 技能键、角标、自动加点 | |
 | 8 | 斯温 | |
@@ -119,6 +119,8 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
 - Task 1（2026-10-08）：`src/sim/talents.ts`（`pendingTalentTier` / `canPickTalent` / `pickTalent` / `hasTalent` / `pickedTalents`）、`pickTalent` 指令（死亡时也能选）和 `talent` 事件；天赋数值加成支持加值和乘数（技能数值、冷却、魔耗、施法距离、引导时间、充能）、`stats`（隐藏、不可驱散、死亡保留的 `talent:<id>` Modifier）和自定义 `modifier`；技能框架新增先天主动（`innate`）、即时技能（`instant`）、并行充能（`chargeMode: 'parallel'`）、落点吸附（`pointSnap`）、`<键>PerLevel` 按英雄等级成长、施法速度（`castSpeed`）、`defaultToggled`、所有目标类型的 `smartTarget`、`none` 技能透传 `dir`、`aimShape` / `counter` / `inactive` 字段（后两个 Task 7 的 HUD 才用）。斧王 8 个天赋全部生效（10 级 A 按生效中的战斗饥渴数量加移速），AI 按 `TALENT_BUILDS` 选天赋（斧王 `[0, 1, 0, 0]`）。共 208 个测试；`npm run sim -- --games 4 --seed 1` 4 局都正常推掉遗迹（18:21–34:11）。
 - Task 2（2026-10-08）：`src/sim/status.ts`（`applyControl` 眩晕 / 缠绕 / 沉默 / 缴械 / 破坏 / 禁用物品，同类取剩余时间更长的一个；`applySlow` 按 key + 来源刷新、不同 key 或来源叠加，可同时减攻速和魔抗；`applyFear` 支持 `addUpTo` 累加上限；`CONTROL_NAMES`）；`src/sim/systems/motion.ts`（`startMotion` / `endMotion` / `knockback` / `blinkTo` / `motionHeight` / `updateMotion`，`Unit.motion`）；`World.after()` 计时器；`busy` 状态；`isDisabled`（眩晕或禁用行动的位移）替换攻击、移动、施法、回城里的 `hasState('stunned')`；对敌隐藏（`isHiddenFrom`）的单位不能被普攻、不能被技能选中，范围效果照常命中。新的系统顺序：spawner → heroes → buildings → creepAI → abilities → attacks → motion → movement → projectiles → effects → timers → regen。共 228 个测试；`npm run sim -- --games 4 --seed 1` 结果与 Task 1 完全相同（18:21–34:11）。
 - Task 3（2026-10-08）：`AttackInfo` 扩展（`damageMult`、`abilityId`、`noProcs`、`ignoreBaseArmor`、`visual`、`flags`）和 `newAttackInfo()`；`performAttack`（技能发起的攻击，`instant` 立即结算或按 `projectileSpeed` 发追踪弹道，普攻的 `launchAttack` 也走它）、`rollAttackDamage`；`DamageInfo` 新增 `ignoreArmor` / `ignoreBaseArmor` / `noSpellAmp` / `attack` / `preMitigation`；Modifier 新增 `onBeforeDealDamage`（减免前、来源一侧）和 `finalStats`（第三轮属性）；护甲拆成 `baseArmor` + `bonusArmor`；`HeroState.damageDealt`；`src/sim/prd.ts`（`prdC` 二分求常数，与 Dota 表一致：20% → 0.055704、25% → 0.084744）、`src/sim/systems/cleave.ts`（梯形分裂）、`src/sim/shields.ts`（按伤害类型吸收的独立护盾）。新增 `tests/combat.test.ts`（18 个），共 246 个测试；`npm run sim -- --games 4 --seed 1` 结果与 Task 1/2 完全相同（18:21–34:11，随机数调用顺序没有变）。
+- Task 5（2026-10-08）：渲染框架。3D：`models/heroModel.ts`（`HeroModelSpec` / `SkinnedHeroModel`，P1 `AxeModel` 的蒙皮合并和姿势混合逻辑）、`models/humanoid.ts`（`humanoidBones` / `applyHumanoid` / `buildSkinnedGeometry`、按 `Stance` 的通用姿势和 `dispatchPose`、被钩 / 被击退的浮空挣扎姿势）、`models/registry.ts`（英雄模型 / 召唤物模型注册表）、`fx/registry.ts`（fx 事件、弹道外观、Modifier 外观、区域效果外观、每单位的通用外观）、`fx/common.ts`（通用状态标记、`blink` / `cleave` 特效）、`fx/index.ts`（副作用导入）；斧王改为 `AXE_SPEC`（外观和动作逐像素不变）；`Renderer3D` 按注册表建英雄模型（头顶高度、收招时长、fx 触发动作、出手高度都读 spec），位移抬高，己方隐藏单位半透明 0.45，召唤物视图（未注册模型时画小图腾，移除后 0.6 秒淡出），注册的弹道外观（8 种网格、光晕、拖尾、翻滚、链子、按宽度缩放），注册的区域效果外观和 Modifier 外观；`Fx3D` 先查注册表，新增 `line()`（折线 / 闪电）、`pillar()`（光柱）、`decalFlash()`（贴地闪光）；`makeToon().setOpacity()`。2D：`src/render/fx2d.ts`（`registerFx2D` / `registerProjectile2D`，通用的闪烁和分裂）、`HERO_LOOKS` 10 名英雄、10 种武器画法、`look.size`、`drawPortrait()`、护盾条（`shieldSegment`）、状态标记（脚下缠绕 / 减速圈、头顶图标）、召唤物小图腾、位移抬高。开发钩子 `__game.sim`。共 271 个测试。
+
 - Task 4（2026-10-08）：`src/sim/auras.ts`（`AuraDef` / `updateAuras`：每 tick 给范围内的单位挂子 Modifier，离开后残留 `BALANCE.auras.linger` = 0.5 秒；同名光环不叠加；`active` 为 false 或主人被破坏 / 死亡时不施加；`includeSelf` / `includeBuildings` / `filter` / `childData`）；`src/sim/systems/summons.ts`（`spawnSummon` / `updateSummons`：`kind 'summon'`、没有赏金、到期死亡并移除、跟随主人身后、主人死亡后原地不动；`hitsToKill` 的召唤物每次普攻固定掉 1 点，其他伤害无效）；`ModifierDef.onUnitDeath`（任意单位死亡时对每个存活英雄调用）；防御塔把召唤物和小兵放在同一优先级。新的系统顺序：spawner → heroes → auras → buildings → creepAI → abilities → attacks → motion → movement → projectiles → effects → timers → summons → regen。新增 `tests/auras.test.ts`（9 个）、`tests/summons.test.ts`（7 个），共 262 个测试；`npm run sim -- --games 4 --seed 1` 结果与 Task 1–3 完全相同（18:21–34:11）。
 
 ## 后续阶段（尚未写实施计划）
@@ -228,6 +230,22 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
   - `onUnitDeath` 在 `onKill` 之后、死者的 Modifier 被移除之前调用；召唤物到期死亡（击杀者 null）也会触发。
   - 计划要求 PROGRESS 和代码一起提交；实际按任务分派的要求单独提交 `docs: progress (P2 task 4)`。
 
+- P2 Task 5（渲染框架）：
+  - 斧王迁移：`AXE_SPEC` 沿用斧王原来的 13 根骨骼（没有手骨骼，斧子挂在右前臂上），不改用 `humanoidBones()`（那样会多出两根手骨骼）；`applyHumanoid` 跳过 spec 里没有的骨骼。迁移前后用固定种子的确定性场景（停掉主循环、手动驱动渲染器、`Math.random` 换成固定种子）截图逐像素比较：3D 和 `?renderer=2d` 各 5 个场景 × 844×390@2 / 1280×720，全部 0 像素差异。
+  - `Proportions` 比计划多了 `waist`、`headZ`、`thighY` 三个字段（斧王的躯干在骨盆上方 10、头骨骼前移 2、大腿根在骨盆下方 6）；`torsoLen + neck` = 头骨骼高度。
+  - 浮空挣扎：`AnimInput.stunned` 在"不能行动的强制位移"（`motion.disables`）时也为真，`AnimTracker.motion` 记录这种位移的种类；`dispatchPose` / 斧王在眩晕状态且 `tracker.motion` 不为空时用 `strugglePose`（眩晕姿势 + 后仰 + 四肢乱蹬）。自己发起、不禁止行动的位移（跳跃、冲刺）`tracker.motion` 为 null，由各英雄的 `pose` 自己读 `u.motion`。
+  - 头顶状态图标（眩晕、沉默、缴械、破坏、恐惧）画在**界面层**上、血条正上方（3D 和 2D 共用 `drawStatusIcons2D`，按 `uiScale` 放大），而不是计划里 3D 场景中的贴图：3D 贴图放在头顶上方会被血条挡住，手机上也太小。3D 场景里画的是脚下的缠绕藤蔓、减速的淡蓝色虚线细环、护盾光壳（菲涅尔边缘发光的椭球）、恐惧的紫色滴落粒子和发抖。英雄的眩晕金星从"头顶上方 30"挪到绕着头转（原位置被血条挡住；P1 没有眩晕技能，迁移对比不受影响）。
+  - 通用状态标记由 `registerUnitVisual` 注册（每个可见单位每帧调用）；`registerModifierVisual(id, v, { replaces })` 可以声明替换掉某几种通用标记（例如冰封禁制用冰环替换通用的藤蔓缠绕），被替换的头顶图标和 3D 标记都不画。外观上下文比计划多了 `world`、`lift`、`top`、`headBusy`、`obj(key, build)`（每单位按 key 缓存的 3D 对象，本帧没用到的自动隐藏），`view` 多了 `shake()`。
+  - 减速的判定（`isSlowed`，`src/render/unitDraw.ts`）：`applySlow` 的 `slow_<key>` Modifier 有移速或攻速减速；或者其他减益 Modifier 的**静态** `stats` 里有负的百分比移速 / 攻速（函数形式的 `stats` 不求值）。只削魔抗的 `applySlow` 不显示。
+  - 弹道外观的 `size`：网格按 `size / 14` 缩放（20 的法球直径约 20）；实物网格（箭、匕首、锤、钩、石块）是顶点色 × 外观颜色的兰伯特材质，发光体（法球、波、碎片）用 `makeGlow`；链子是 14 节随距离拉长、略微下垂的方块链节。
+  - 召唤物：3D 用 `registerSummonModel` 注册的模型，没注册时画一个约 96 高的小图腾（石座 + 木柱 + 雕刻的头 + 阵营色宝石和光晕）；sim 里召唤物死亡即移除，渲染层保留外观缩小、下沉、淡出 0.6 秒。2D 画成阵营色底圈 + 木柱 + 发光宝石，血条画在图腾顶上。小兵被击退时也会抬高。
+  - `HERO_LOOKS` 现在就写好了 10 名英雄（颜色、首字、武器按计划各英雄任务给出的值），选人界面的头像（Task 7）对未实现的英雄也能画；各英雄任务只需核对。2D 斧王的斧刃描边保持斜接拐角（其他武器用圆角），保证 2D 迁移前后逐像素一致。
+  - `drawStatusIcons2D` / `statusIcons2D` / `isSlowed` / `shieldSegment` 都放在 `src/render/unitDraw.ts`（2D 后备代码块），3D 渲染器从那里导入；`render/fx.ts` 新增 `arc()`（扇形弧）和公开的 `slash()`，给 2D 特效注册表用。
+  - `index.html` 加了空图标 `<link rel="icon" href="data:,">`：原来浏览器请求 `/favicon.ico` 得到 404，控制台每次都有一条报错。
+  - 包体：主包 86.5 kB → 74.6 kB + 共享代码块 16.8 kB（Rollup 把 sim 里被主包和渲染器共用的模块拆成单独的块，首屏总量 +4.8 kB / gzip +2.7 kB）；3D 渲染器 666 kB → 683 kB（gzip 175 → 181 kB）；2D 后备 23 kB → 28 kB。
+  - 浏览器验证（Playwright + SwiftShader，脚本和截图在会话 scratchpad，没有提交）：844×390@2 和 1280×720，3D 和 `?renderer=2d`，敌方英雄依次加眩晕、沉默、缠绕、缴械、恐惧、减速、护盾（半血时血条上的白色护盾段）、全部组合、击退（停在半空：浮空挣扎、影子留在地面、血条跟着抬高），玩家 `blinkTo`（起点终点闪光），己方隐藏英雄半透明 + 双方召唤物图腾，四种测试弹道外观（锤、带链子的钩、按宽度缩放的波、箭）和 `line` / `pillar` / `decalFlash`，通用分裂斩痕。控制台 0 报错。
+  - 计划要求 PROGRESS 和代码一起提交；实际按任务分派的要求单独提交 `docs: progress (P2 task 5)`。
+
 ## 已知的小问题（推迟处理，不影响功能）
 主要是测试覆盖不足，例如嘲讽/引导期间不能移动、塔的强制目标 3 秒后失效、队伍金钱倍率等没有测试；另有少量写死的常量（小兵攻速 100、伤害 ±2 浮动、出兵阵型偏移）尚未移入 `BALANCE`。
 斧王 10 级天赋 A 已在 P2 Task 1 实现。玩家英雄的天赋要等 Task 7 的天赋弹窗才能选（AI 英雄已经会选）。淘汰之刃直接斩杀时不经过 `applyDamage`，所以不会更新目标的 `lastHeroDamage`（斧王本身就是击杀者，不影响记功）。
@@ -236,7 +254,7 @@ P1 最终基线（Task 16，普通难度 10 局，种子 1–10）记录在 `doc
 
 AI：1 级时双方血量相当，`pickHeroTarget` 总是出手换血，三个斧王常常同时开吼，第一波兵交汇（约 0:25）时会打成 3v3 团战，几个英雄几秒内掉到 30% 以下、0:40 左右回城到泉水，损失前几波兵的经验和金钱（双方对称，不是 bug）。P4 的对线 AI 应该在前几级以补刀为主，换血按决策掷骰，并避免多人同时交同一个控制技能。`moveTo` 到达目的地后指令仍然是 `moveTo`，英雄会站着不自动攻击（只影响 AI，玩家操作不用 `moveTo`；AI 会显式下攻击指令，影响不大）。计划里 `pickHeroTarget` 的 `focus` 在每次思考时都掷骰（每秒约 4 次），实际效果是"经常在劣势时也上去打"；P4 重写 AI 时应该改成按决策掷骰。
 
-3D 渲染器：只在 SwiftShader 软件 GPU 上测过，真机 GPU 帧率未测（CPU 端开销见上）；手机上首次出现新材质（第一波兵、第一个弹道、第一次技能特效）时会编译着色器，可能卡一帧（开始界面的演示局会提前编译大部分）；P1 没有眩晕技能，眩晕动作和金星标记只在代码里，没有在对局里见到；只有斧王一个英雄模型，P2 的其他英雄需要各自的模型和姿势函数（`HeroView` 目前直接用 `AxeModel`）；WebGL 上下文丢失只做了 `preventDefault`，依赖 Three.js 自动恢复，没有专门测试。
+3D 渲染器：只在 SwiftShader 软件 GPU 上测过，真机 GPU 帧率未测（CPU 端开销见上）；手机上首次出现新材质（第一波兵、第一个弹道、第一次技能特效）时会编译着色器，可能卡一帧（开始界面的演示局会提前编译大部分）；只有斧王一个英雄模型（P2 Task 5 之后每个英雄任务只需新增 `models/<id>.ts` 和 `fx/<id>.ts`）；WebGL 上下文丢失只做了 `preventDefault`，依赖 Three.js 自动恢复，没有专门测试。
 
 ## 安卓 APK
 - Capacitor 8 工程在 `android/`：横屏、沉浸式全屏、对局中屏幕常亮；包名 `com.kreviazuk.dotalane`。
