@@ -3,11 +3,14 @@ import type { World } from './world';
 import type { DamageInfo } from './systems/damage';
 import type { AttackInfo } from './systems/attack';
 import type { ComputedStats } from './stats';
+import type { AuraDef } from './auras';
 import { recomputeStats } from './stats';
 
 export type UnitState =
   | 'stunned' | 'silenced' | 'rooted' | 'disarmed' | 'muted' | 'invulnerable' | 'debuffImmune'
-  | 'untargetable' | 'hidden' | 'phased' | 'breakPassives';
+  | 'untargetable' | 'hidden' | 'phased' | 'breakPassives'
+  /** 自身技能占用（无敌斩、出钩）：移动 / 攻击 / 施法 / 回城指令无效，不出手、不移动 */
+  | 'busy';
 
 export interface StatBonus {
   str?: number; agi?: number; int?: number; allStats?: number;
@@ -23,6 +26,8 @@ export interface StatBonus {
   moveSpeedPct?: number;
   evasion?: number; lifesteal?: number; spellAmp?: number; spellLifesteal?: number;
   castRange?: number; statusResist?: number; slowResist?: number;
+  /** 施法速度（加法叠加）：0.3 = 施法前摇 ÷ 1.3 */
+  castSpeed?: number;
 }
 
 export interface ModifierInstance {
@@ -49,6 +54,8 @@ export interface ModifierDef {
   /** refresh/stacks 时按来源区分 */
   perSource?: boolean;
   maxStacks?: number;
+  /** 刷新时取剩余时间和新时长中更长的一个（控制状态：同类不叠加，长的生效） */
+  keepLonger?: boolean;
   persistOnDeath?: boolean;
   hidden?: boolean;
   states?: UnitState[];
@@ -58,6 +65,8 @@ export interface ModifierDef {
   stats?: StatBonus | ((m: ModifierInstance, owner: Unit, world: World) => StatBonus);
   /** 第二轮属性：可以读取第一轮算出的面板（例如斧王一人之军按护甲加力量） */
   lateStats?: (m: ModifierInstance, owner: Unit, world: World, s: ComputedStats) => { str?: number; agi?: number; int?: number };
+  /** 第三轮：面板全部算完后直接修改 s（神之愤怒按力量加攻击力）；改护甲时同时改 bonusArmor */
+  finalStats?: (m: ModifierInstance, owner: Unit, world: World, s: ComputedStats) => void;
   interval?: number;
   onInterval?: Hook<[owner: Unit, world: World]>;
   onTick?: Hook<[owner: Unit, world: World, dt: number]>;
@@ -65,16 +74,22 @@ export interface ModifierDef {
   onRemove?: Hook<[owner: Unit, world: World]>;
   /** owner 是攻击者：出手时（可以设置暴击） */
   onAttackStart?: Hook<[owner: Unit, target: Unit, world: World, atk: AttackInfo]>;
-  /** owner 是攻击者：攻击命中并结算伤害后 */
+  /** owner 是攻击者：攻击命中并结算伤害后（info.attack 一定存在；noProcs 的攻击不调用） */
   onAttackLanded?: Hook<[owner: Unit, target: Unit, world: World, info: DamageInfo]>;
   /** owner 是被攻击者：被攻击命中并结算伤害后 */
   onAttacked?: Hook<[owner: Unit, attacker: Unit, world: World, info: DamageInfo]>;
   /** owner 是受伤者：减免后、扣血前，可修改 info.amount（护盾、格挡） */
   onIncomingDamage?: Hook<[owner: Unit, world: World, info: DamageInfo]>;
+  /** owner 是伤害来源：减免之前调用（info.preMitigation 已写入）。可以自己再调用 applyDamage（注意用 abilityId 防止递归）；目标在钩子里死亡则这次伤害作废 */
+  onBeforeDealDamage?: Hook<[owner: Unit, target: Unit, world: World, info: DamageInfo]>;
   /** owner 是伤害来源：扣血后 */
   onDealtDamage?: Hook<[owner: Unit, target: Unit, world: World, info: DamageInfo]>;
   onKill?: Hook<[owner: Unit, victim: Unit, world: World]>;
   onDeath?: Hook<[owner: Unit, killer: Unit | null, world: World]>;
+  /** 任意单位死亡时（在击杀者的 onKill 之后），对场上每个存活英雄（不含死者）的 Modifier 调用（腐肉堆积） */
+  onUnitDeath?: Hook<[owner: Unit, victim: Unit, killer: Unit | null, world: World]>;
+  /** 光环：updateAuras 每 tick 给范围内的单位挂上 aura.child（见 src/sim/auras.ts） */
+  aura?: AuraDef;
   onAbilityCast?: Hook<[owner: Unit, abilityId: string, world: World]>;
 }
 
@@ -101,6 +116,11 @@ export function addModifier(world: World, target: Unit, def: ModifierDef, opts: 
   if (stacking !== 'independent') {
     const existing = target.modifiers.find((m) => m.def.id === def.id && (!def.perSource || m.sourceId === sourceId));
     if (existing) {
+      if (def.keepLonger && existing.duration >= duration) {
+        if (stacking === 'stacks') existing.stacks = Math.min(def.maxStacks ?? Infinity, existing.stacks + (opts.stacks ?? 1));
+        recomputeStats(world, target);
+        return existing;
+      }
       if (stacking === 'stacks') existing.stacks = Math.min(def.maxStacks ?? Infinity, existing.stacks + (opts.stacks ?? 1));
       existing.duration = duration;
       existing.total = duration;

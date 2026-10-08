@@ -6,6 +6,8 @@ import type { ModifierInstance, UnitState } from '../modifiers';
 import type { ComputedStats } from '../stats';
 import { emptyStats } from '../stats';
 import type { AbilityInstance, CastState, ResolvedTarget } from '../heroes/types';
+import type { ForcedMotion } from '../systems/motion';
+import type { SummonState } from '../systems/summons';
 
 export interface UnitBase {
   maxHp: number;
@@ -53,6 +55,8 @@ export interface HeroState {
   talents: (0 | 1 | null)[];
   /** key = `${abilityId}.${valueKey}` */
   talentValueBonus: Record<string, number>;
+  /** key = `${abilityId}.${valueKey}`，缺省 1 */
+  talentValueMult: Record<string, number>;
   respawnTimer: number;
   kills: number;
   deaths: number;
@@ -64,12 +68,17 @@ export interface HeroState {
   creepAggroCd: number;
   /** 物品总价值（P3 物品系统接入前恒为 0） */
   itemValue: number;
+  /** 对敌方实际造成的伤害（含技能，按扣掉的生命计，不含溢出） */
+  damageDealt: { heroes: number; creeps: number; buildings: number };
+  /** 技能 id → 施放次数（发 cast 事件的地方都 +1，开关只计打开；批量模拟统计用） */
+  abilityCasts: Record<string, number>;
 }
 
 export const newHeroState = (heroId: string, attrs: HeroAttrs, playerControlled: boolean, gold: number): HeroState => ({
   heroId, attrs, level: 1, xp: 0, gold, skillPoints: 1, attributeBonusLevel: 0, talents: [null, null, null, null],
-  talentValueBonus: {}, respawnTimer: 0, kills: 0, deaths: 0, assists: 0, lastHits: 0, streak: 0, playerControlled,
-  lastDamagedTime: -999, creepAggroCd: 0, itemValue: 0,
+  talentValueBonus: {}, talentValueMult: {}, respawnTimer: 0, kills: 0, deaths: 0, assists: 0, lastHits: 0, streak: 0, playerControlled,
+  lastDamagedTime: -999, creepAggroCd: 0, itemValue: 0, damageDealt: { heroes: 0, creeps: 0, buildings: 0 },
+  abilityCasts: {},
 });
 
 export type CreepType = 'melee' | 'ranged' | 'siege' | 'superMelee' | 'superRanged';
@@ -131,6 +140,8 @@ export class Unit {
   order: Order = { kind: 'idle' };
   attack: { targetId: number | null; windup: number; cooldown: number } = { targetId: null, windup: -1, cooldown: 0 };
   cast: CastState | null = null;
+  /** 强制位移（击退、拖拽、跳跃……）；不为 null 时不按指令移动 */
+  motion: ForcedMotion | null = null;
   abilities: AbilityInstance[] = [];
   bounty: { gold: number; xp: number };
   baseStates = new Set<UnitState>();
@@ -140,6 +151,8 @@ export class Unit {
   hero?: HeroState;
   creep?: CreepState;
   building?: BuildingState;
+  /** kind = 'summon' 的单位：主人、到期时间、按次数死亡、跟随 */
+  summon?: SummonState;
 
   constructor(i: UnitInit) {
     this.id = i.id;

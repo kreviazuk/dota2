@@ -1,7 +1,9 @@
 import type { World } from '../world';
 import { Projectile, type ProjectileInit } from '../entities/projectile';
 import { AreaEffect, type AreaEffectInit } from '../entities/effect';
-import { add, dist, distToSegment, scale } from '../core/vec2';
+import { add, dist, distToSegment, scale, type Vec2 } from '../core/vec2';
+import type { Unit } from '../entities/unit';
+import { attackOnly } from '../query';
 
 export function spawnProjectile(world: World, init: Omit<ProjectileInit, 'id'>): Projectile {
   const p = new Projectile({ ...init, id: world.allocId() });
@@ -13,6 +15,34 @@ export function spawnEffect(world: World, init: Omit<AreaEffectInit, 'id'>): Are
   const e = new AreaEffect({ ...init, id: world.allocId() });
   world.effects.push(e);
   return e;
+}
+
+/**
+ * 躲弹道（Dota 的 disjoint）：传送、回城等瞬间位移后，正在飞向该单位的追踪弹道全部失效，
+ * 按"目标消失"处理（触发 onEnd，不触发 onHit）。直线弹道不受影响。
+ */
+export function disjointProjectiles(world: World, u: Unit): void {
+  for (const p of world.projectiles) {
+    if (p.done || p.kind !== 'homing' || p.targetId !== u.id) continue;
+    p.done = true;
+    p.onEnd?.(world, p);
+  }
+}
+
+/**
+ * 直线弹道这一步（from → to）扫到的单位，按离 from 的距离排序：存活、非建筑、非无敌、不是只受普攻影响的单位
+ * （直线弹道都是技能，D17）、没被这个弹道打过，
+ * 通过 hitFilter（缺省 = 敌方），且到线段的距离 ≤ 碰撞半径 + 单位半径。自定义 update 的弹道（肉钩）也用它做碰撞
+ */
+export function linearSweep(world: World, p: Projectile, from: Vec2, to: Vec2): Unit[] {
+  const hits = world.units.filter(
+    (u) =>
+      u.alive && !u.removed && u.kind !== 'building' && !u.hasState('invulnerable') && !attackOnly(u) && !p.hit.has(u.id) &&
+      (p.hitFilter ? p.hitFilter(world, u) : u.team !== p.team) &&
+      distToSegment(u.pos, from, to) <= p.width + u.radius,
+  );
+  hits.sort((a, b) => dist(a.pos, from) - dist(b.pos, from));
+  return hits;
 }
 
 export function updateProjectiles(world: World, dt: number): void {
@@ -43,13 +73,7 @@ export function updateProjectiles(world: World, dt: number): void {
     const to = add(from, scale(dir, s));
     p.pos = to;
     p.traveled += s;
-    const hits = world.units.filter(
-      (u) =>
-        u.alive && !u.removed && u.kind !== 'building' && !u.hasState('invulnerable') && !p.hit.has(u.id) &&
-        (p.hitFilter ? p.hitFilter(world, u) : u.team !== p.team) &&
-        distToSegment(u.pos, from, to) <= p.width + u.radius,
-    );
-    hits.sort((a, b) => dist(a.pos, from) - dist(b.pos, from));
+    const hits = linearSweep(world, p, from, to);
     for (const u of hits) {
       p.hit.add(u.id);
       p.onHit(world, u, p);

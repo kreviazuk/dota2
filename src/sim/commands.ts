@@ -6,6 +6,7 @@ import type { Unit } from './entities/unit';
 import type { World } from './world';
 import { cancelCast, canCast, issueCast, toggleAbility } from './systems/abilities';
 import { learnAbility } from './systems/progress';
+import { pickTalent } from './talents';
 import { canAttack, smartAttackTarget, lastHitTarget, buildingTarget } from './query';
 
 export type Command =
@@ -22,8 +23,8 @@ export type Command =
   | { type: 'sell'; index: number }
   | { type: 'recall' };
 
-/** 被嘲讽或恐惧时，移动/攻击/施法类指令无效 */
-export const isCommandLocked = (u: Unit): boolean => u.stats.tauntedBy !== null || u.stats.fearedBy !== null;
+/** 被嘲讽、恐惧或自身技能占用（busy）时，移动/攻击/施法/回城类指令无效（加点、选天赋仍然有效） */
+export const isCommandLocked = (u: Unit): boolean => u.stats.tauntedBy !== null || u.stats.fearedBy !== null || u.hasState('busy');
 
 /** move/moveTo 打断施法，除非处于允许移动的引导中 */
 const interruptsCast = (u: Unit): boolean =>
@@ -51,7 +52,7 @@ export function applyCommand(world: World, u: Unit, cmd: Command): void {
       u.attack.windup = -1;
       return;
     case 'stop':
-      if (!u.alive) return;
+      if (!u.alive || u.hasState('busy')) return;
       if (u.cast) cancelCast(world, u, true);
       u.order = { kind: 'idle' };
       u.attack.windup = -1;
@@ -79,6 +80,10 @@ export function applyCommand(world: World, u: Unit, cmd: Command): void {
     }
     case 'learn':
       learnAbility(world, u, cmd.slot);
+      return;
+    case 'pickTalent':
+      // 死亡时也可以选
+      pickTalent(world, u, cmd.tier, cmd.side);
       return;
     case 'recall':
       if (!u.alive || !u.hero || isCommandLocked(u)) return;

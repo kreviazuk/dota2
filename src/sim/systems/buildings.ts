@@ -108,7 +108,8 @@ export function pickTowerTarget(world: World, b: Unit): Unit | null {
   const cur = world.getUnit(b.attack.targetId);
   if (cur && inRange(cur)) return cur;
   const cands = enemiesInRadius(world, b.team, b.pos, b.stats.attackRange + b.radius).filter(inRange);
-  const g1 = cands.filter((u) => (u.kind === 'creep' && u.creep?.type !== 'siege') || u.kind === 'elite');
+  // 第一优先级：小兵（攻城车除外）、精英怪、召唤物
+  const g1 = cands.filter((u) => (u.kind === 'creep' && u.creep?.type !== 'siege') || u.kind === 'elite' || u.kind === 'summon');
   if (g1.length) return nearestOf(b.pos, g1);
   const g2 = cands.filter((u) => u.creep?.type === 'siege');
   if (g2.length) return nearestOf(b.pos, g2);

@@ -4,7 +4,7 @@ import type { Unit } from '../entities/unit';
 import type { Vec2 } from '../core/vec2';
 import { add, angleOf, dist, dot, normalize, scale, sub } from '../core/vec2';
 import { clampToWalkable } from '../data/map';
-import { edgeDist } from '../query';
+import { edgeDist, isDisabled } from '../query';
 
 const MASS: Record<string, number> = { hero: 3, creep: 1, elite: 4, summon: 1, building: 1e6 };
 
@@ -62,7 +62,8 @@ function steerAroundBuildings(world: World, u: Unit, dir: Vec2): Vec2 {
 export function updateMovement(world: World, dt: number): void {
   for (const u of world.units) {
     if (!u.alive || u.kind === 'building') continue;
-    if (u.hasState('stunned') || u.hasState('rooted')) continue;
+    // 强制位移中的单位由 updateMotion 决定位置（仍参与下面的碰撞推开）
+    if (u.motion || isDisabled(u) || u.hasState('rooted') || u.hasState('busy')) continue;
     if (u.cast && !(u.cast.phase === 'channel' && u.cast.ability.def.channelAllowsMove)) continue;
     if (u.attack.windup >= 0) continue;
     const goal = movementGoal(world, u);
@@ -72,7 +73,8 @@ export function updateMovement(world: World, dt: number): void {
     if (d < 1e-6) continue;
     const dir = steerAroundBuildings(world, u, scale(to, 1 / d));
     const step = Math.min(u.stats.moveSpeed * dt, d);
-    u.facing = angleOf(dir);
+    // 允许移动的引导（数箭齐发）中保持面向施法方向：边走边射（走到这里时 u.cast 只可能是允许移动的引导）
+    if (u.cast?.phase !== 'channel') u.facing = angleOf(dir);
     u.pos = clampToWalkable(add(u.pos, scale(dir, step)), u.radius);
   }
   resolveCollisions(world);

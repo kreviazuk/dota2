@@ -70,7 +70,9 @@ export const BALANCE = {
     backdoorRadius: 900,
     backdoorMult: 0.4,
     towerAggroHold: 3,
-    fountain: { damage: 250, bat: 0.25, attackRange: 1100, healPctPerSec: 0.05, healRadius: 450, radius: 60 },
+    // 射程从设计文档的 1100 改为 500：泉水离遗迹只有 400、离 T4 约 760，1100 会覆盖整个高地，遗迹几乎打不下来。
+    // 500 仍覆盖复活点和回复区（防止守尸），但从正面进攻遗迹时不会被泉水打到。
+    fountain: { damage: 250, bat: 0.25, attackRange: 500, healPctPerSec: 0.05, healRadius: 450, radius: 60 },
   },
   damageMatrix: {
     hero: { hero: 1, basic: 1, reinforced: 0.5 },
@@ -102,6 +104,26 @@ export const BALANCE = {
     attributeBonusPerPoint: 2,
     recallTime: 5,
     radius: 24,
+    /** 天赋 0–3 层的解锁等级 */
+    talentLevels: [10, 15, 20, 25],
+  },
+  auras: {
+    /** 离开光环范围后子 Modifier 残留的秒数 */
+    linger: 0.5,
+  },
+  summons: {
+    /** 跟随型召唤物与主人的距离超过 follow + followSlack 时才移动 */
+    followSlack: 50,
+  },
+  ai: {
+    /** 简单难度（prediction = 0）瞄准地点 / 方向时的随机偏差半径 */
+    easyAimError: 150,
+    /** bestCirclePoint：命中一个英雄相当于命中几个其他单位 */
+    heroWeight: 3,
+    /** 大招就绪（或快就绪）时，其他技能施放后至少留下大招的魔耗（keepsUltMana） */
+    conserveUltMana: true,
+    /** 规则带 disengage 的施法（交战中开魅影无形）之后撤退多少秒（≥ 魅影无形的 0.8 秒隐藏延迟 + 几秒拉开距离） */
+    disengageTime: 4,
   },
   maxGameTime: 2400,
 };
