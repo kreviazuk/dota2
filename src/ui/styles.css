@@ -167,13 +167,222 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f0a; col
 .btn-row { display: flex; gap: 2rem; }
 .diff .btn { padding: 1.2rem 4rem; }
 .diff .btn.selected { outline: 0.5rem solid #fff; }
-.result-title { font-size: 10rem; font-weight: 900; line-height: 1.1; }
-.result-title.win { color: #7be07a; } .result-title.lose { color: #ff6a5a; }
-.result-table { border-collapse: collapse; font-size: max(2.2rem, 11px); background: rgba(10,12,16,0.88); }
-.result-table td, .result-table th { padding: 0.5rem 2rem; border-bottom: 1px solid #333; text-align: center; white-space: nowrap; }
-.result-table th { color: #aaa; font-weight: normal; }
-.result-table tr.rad td:first-child { color: #7be07a; } .result-table tr.dire td:first-child { color: #ff7a6a; }
-.result-table tr.me { background: rgba(255,255,255,0.1); }
+
+/* ---------- 结算界面 ---------- */
+.screen.result-screen {
+  background: radial-gradient(circle at center, rgba(16, 20, 28, 0.96) 0%, rgba(6, 8, 12, 0.98) 100%);
+  overflow-y: auto;
+  padding: 3rem 2rem;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+}
+.screen.result-screen.win {
+  box-shadow: inset 0 0 12rem rgba(46, 125, 50, 0.35);
+}
+.screen.result-screen.lose {
+  box-shadow: inset 0 0 12rem rgba(198, 40, 40, 0.35);
+}
+.result-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2rem;
+  width: min(120rem, 96vw);
+  max-width: 100%;
+  margin: auto;
+}
+.result-header {
+  text-align: center;
+}
+.result-title { font-size: max(8rem, 36px); font-weight: 900; line-height: 1.1; letter-spacing: 0.5rem; text-shadow: 0 0.4rem 1.2rem rgba(0,0,0,0.8); }
+.result-title.win { color: #5fe05a; text-shadow: 0 0 2rem rgba(95, 224, 90, 0.6); }
+.result-title.lose { color: #ff5252; text-shadow: 0 0 2rem rgba(255, 82, 82, 0.6); }
+.result-subtitle { font-size: max(2.6rem, 14px); color: #ddd; margin-top: 0.8rem; display: flex; align-items: center; justify-content: center; gap: 1.2rem; }
+.result-subtitle .score-rad { color: #5fe05a; font-weight: 800; font-size: max(3.2rem, 16px); }
+.result-subtitle .score-vs { color: #888; font-size: max(2.2rem, 12px); }
+.result-subtitle .score-dire { color: #ff5252; font-weight: 800; font-size: max(3.2rem, 16px); }
+.result-subtitle .match-time { color: #aaa; margin-left: 0.8rem; }
+
+/* MVP Banner */
+.mvp-banner {
+  display: flex;
+  align-items: center;
+  gap: 2.4rem;
+  background: linear-gradient(90deg, rgba(245, 158, 11, 0.15) 0%, rgba(217, 119, 6, 0.28) 50%, rgba(245, 158, 11, 0.15) 100%);
+  border: 2px solid #f59e0b;
+  border-radius: 1.2rem;
+  padding: 1.2rem 3rem;
+  box-shadow: 0 0 2.5rem rgba(245, 158, 11, 0.35);
+  animation: mvp-shine 3s infinite ease-in-out;
+}
+@keyframes mvp-shine {
+  0%, 100% { border-color: #f59e0b; box-shadow: 0 0 2rem rgba(245, 158, 11, 0.3); }
+  50% { border-color: #fde047; box-shadow: 0 0 3.5rem rgba(253, 224, 71, 0.6); }
+}
+.mvp-badge-icon {
+  font-size: max(3.2rem, 16px);
+  font-weight: 900;
+  color: #1a1202;
+  background: linear-gradient(135deg, #fde047, #f59e0b);
+  padding: 0.6rem 1.6rem;
+  border-radius: 0.8rem;
+  letter-spacing: 0.2rem;
+  box-shadow: 0 0.2rem 0.6rem rgba(0,0,0,0.4);
+}
+.mvp-info { display: flex; flex-direction: column; gap: 0.3rem; }
+.mvp-hero { font-size: max(2.6rem, 14px); font-weight: 800; color: #fde047; }
+.mvp-team { font-size: max(2rem, 11px); color: #ccc; font-weight: normal; }
+.mvp-score { font-size: max(2rem, 11px); color: #e2e8f0; }
+.mvp-score strong { color: #facc15; font-size: max(2.2rem, 12px); }
+
+/* Team Tables */
+.result-tables {
+  display: flex;
+  flex-direction: column;
+  gap: 2.4rem;
+  width: 100%;
+}
+.result-team-section {
+  background: rgba(15, 18, 24, 0.85);
+  border: 1px solid #334155;
+  border-radius: 1.2rem;
+  overflow-x: auto;
+}
+.result-team-section.rad { border-color: rgba(95, 224, 90, 0.4); }
+.result-team-section.dire { border-color: rgba(255, 82, 82, 0.4); }
+.team-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 1rem 2rem;
+  background: rgba(0, 0, 0, 0.4);
+  font-weight: 800;
+  font-size: max(2.4rem, 13px);
+}
+.result-team-section.rad .team-header { color: #5fe05a; border-bottom: 1px solid rgba(95, 224, 90, 0.25); }
+.result-team-section.dire .team-header { color: #ff5252; border-bottom: 1px solid rgba(255, 82, 82, 0.25); }
+
+.result-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: max(1.9rem, 10px);
+}
+.result-table th {
+  padding: 0.8rem 1.2rem;
+  background: rgba(0, 0, 0, 0.2);
+  color: #94a3b8;
+  font-weight: 600;
+  text-align: center;
+  border-bottom: 1px solid #2d3748;
+}
+.result-table td {
+  padding: 0.8rem 1.2rem;
+  border-bottom: 1px solid #1e293b;
+  text-align: center;
+  vertical-align: middle;
+}
+.result-table tr.me { background: rgba(255, 255, 255, 0.08); }
+.result-table tr.mvp-row { background: rgba(245, 158, 11, 0.08); }
+
+.hero-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.4rem;
+}
+.hero-name { font-weight: 700; font-size: max(2.2rem, 11px); color: #f1f5f9; }
+.result-team-section.rad .hero-name { color: #86efac; }
+.result-team-section.dire .hero-name { color: #fca5a5; }
+.tag-me { color: #facc15; font-size: max(1.7rem, 9px); font-weight: normal; }
+
+.badges-row { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.badge {
+  font-size: max(1.5rem, 8px);
+  padding: 0.15rem 0.6rem;
+  border-radius: 0.4rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.badge-mvp { background: #b45309; color: #fef08a; border: 1px solid #fde047; }
+.badge-slayer { background: #991b1b; color: #fecaca; border: 1px solid #ef4444; }
+.badge-sieger { background: #075985; color: #bae6fd; border: 1px solid #38bdf8; }
+.badge-tycoon { background: #854d0e; color: #fef08a; border: 1px solid #eab308; }
+
+.kda-num { font-weight: 700; color: #f1f5f9; }
+.gold-text { color: #facc15; font-weight: 700; }
+
+/* 最终装备 6 格 */
+.items-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+.item-slot {
+  width: max(3.4rem, 20px);
+  height: max(3.4rem, 20px);
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid #475569;
+  border-radius: 0.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.item-slot canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+.item-slot.empty { background: rgba(0, 0, 0, 0.3); border-style: dashed; border-color: #334155; }
+
+.special-badges {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  margin-left: 0.4rem;
+}
+.special-badge {
+  font-size: max(1.3rem, 7px);
+  padding: 0.1rem 0.35rem;
+  border-radius: 0.3rem;
+  font-weight: 700;
+  opacity: 0.3;
+  color: #64748b;
+  border: 1px solid #475569;
+}
+.special-badge.shard.active { opacity: 1; background: #065f46; color: #a7f3d0; border-color: #34d399; }
+.special-badge.aegis.active { opacity: 1; background: #92400e; color: #fef08a; border-color: #fbbf24; }
+
+/* 数据统计条 */
+.stat-bars {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  min-width: max(18rem, 120px);
+}
+.stat-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  font-size: max(1.5rem, 8px);
+}
+.bar-lbl { width: max(3rem, 18px); color: #94a3b8; text-align: left; }
+.bar-track {
+  flex: 1;
+  height: max(0.9rem, 5px);
+  background: rgba(0, 0, 0, 0.5);
+  border-radius: 0.3rem;
+  overflow: hidden;
+}
+.bar-fill { height: 100%; border-radius: 0.3rem; }
+.bar-fill.hero-dmg { background: linear-gradient(90deg, #ef4444, #f87171); }
+.bar-fill.bld-dmg { background: linear-gradient(90deg, #f59e0b, #fbbf24); }
+.bar-fill.tkn-dmg { background: linear-gradient(90deg, #3b82f6, #60a5fa); }
+.bar-val { width: max(5rem, 32px); text-align: right; color: #cbd5e1; font-weight: 600; }
+
+.result-actions { margin-top: 1rem; }
 
 /* ---------- 暂停菜单：天赋树 + 设置 ---------- */
 .screen.pause { background: rgba(0,0,0,0.6); }

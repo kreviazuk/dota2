@@ -13,7 +13,7 @@ export interface HeroGameRecord {
   /** 含超时判定的结果 */
   judgedWon: boolean;
   kills: number; deaths: number; assists: number; lastHits: number; denies?: number;
-  heroDamage: number; buildingDamage: number; level: number; netWorth: number;
+  heroDamage: number; buildingDamage: number; damageTaken?: number; level: number; netWorth: number;
   casts: Record<string, number>;
   items?: string[];
   hasShard?: boolean;
@@ -56,7 +56,7 @@ export function recordsFromWorld(world: World, judged: Team | null): HeroGameRec
       won: winner === null ? null : winner === u.team,
       judgedWon: judgedWinner === u.team,
       kills: h.kills, deaths: h.deaths, assists: h.assists, lastHits: h.lastHits, denies: h.denies,
-      heroDamage: h.damageDealt.heroes, buildingDamage: h.damageDealt.buildings,
+      heroDamage: h.damageDealt.heroes, buildingDamage: h.damageDealt.buildings, damageTaken: h.damageTaken ?? 0,
       level: h.level, netWorth: netWorth(u),
       casts,
       items,

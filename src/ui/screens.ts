@@ -1,12 +1,11 @@
 import type { Match } from '../game/match';
 import type { Difficulty } from '../sim/core/types';
-import { Team } from '../sim/core/types';
 import type { Unit } from '../sim/entities/unit';
 import type { World } from '../sim/world';
-import { netWorth } from '../sim/systems/progress';
 import { getHeroDef } from '../sim/heroes/index';
 import { DIFFICULTY_NAMES } from '../ai/difficulty';
 import type { Prefs } from './settings';
+import { renderMatchResultScreen } from './matchResult';
 
 const el = (parent: HTMLElement, html: string, extra = ''): HTMLDivElement => {
   const d = document.createElement('div');
@@ -107,25 +106,5 @@ export function showPauseMenu(parent: HTMLElement, o: PauseOpts, onResume: () =>
 }
 
 export function showResultScreen(parent: HTMLElement, match: Match, onRestart: () => void, onMenu: () => void): HTMLDivElement {
-  const w = match.world;
-  const me = w.getUnit(match.playerUnitId);
-  const win = me ? w.winner === me.team : w.winner === Team.Radiant;
-  const mins = `${Math.floor(w.time / 60)}分${Math.floor(w.time % 60)}秒`;
-  const rows = w
-    .heroes()
-    .map((h) => {
-      const s = h.hero!;
-      const isMe = h.id === match.playerUnitId;
-      const cls = `${h.team === Team.Radiant ? 'rad' : 'dire'}${isMe ? ' me' : ''}`;
-      return `<tr class="${cls}"><td>${h.team === Team.Radiant ? '天辉' : '夜魇'} · ${esc(h.name)}${isMe ? '（你）' : ''}</td><td>${s.level}</td><td>${s.kills}/${s.deaths}/${s.assists}</td><td>${s.lastHits}</td><td>${Math.round(netWorth(h))}</td></tr>`;
-    })
-    .join('');
-  const s = el(parent, `
-    <div class="result-title ${win ? 'win' : 'lose'}">${win ? '胜利' : '失败'}</div>
-    <div class="subtitle">对局时长 ${mins}</div>
-    <table class="result-table"><tr><th>英雄</th><th>等级</th><th>击杀/死亡/助攻</th><th>补刀</th><th>净资产</th></tr>${rows}</table>
-    <div class="btn-row"><div class="btn again">再来一局</div><div class="btn secondary menu">返回主菜单</div></div>`);
-  s.querySelector('.again')!.addEventListener('click', () => { s.remove(); onRestart(); });
-  s.querySelector('.menu')!.addEventListener('click', () => { s.remove(); onMenu(); });
-  return s;
+  return renderMatchResultScreen(parent, match, onRestart, onMenu);
 }

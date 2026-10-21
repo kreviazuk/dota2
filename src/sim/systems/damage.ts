@@ -62,7 +62,10 @@ export function applyDamage(world: World, info: DamageInfo): number {
   if (info.nonLethal && t.hp - amt < 1) amt = Math.max(0, t.hp - 1);
   const hpLost = Math.min(amt, Math.max(0, t.hp));
   t.hp -= amt;
-  if (t.hero) t.hero.lastDamagedTime = world.time;
+  if (t.hero) {
+    t.hero.lastDamagedTime = world.time;
+    t.hero.damageTaken += hpLost;
+  }
   if (src && src.kind === 'hero' && src.team !== t.team) {
     t.lastHeroDamage = { heroId: src.id, time: world.time };
     t.heroDamageTimes.set(src.id, world.time);
@@ -95,6 +98,7 @@ function applyHitCountDamage(world: World, info: DamageInfo): number {
   info.preMitigation = 1;
   info.amount = 1;
   t.hp -= 1;
+  if (t.hero) t.hero.damageTaken += 1;
   if (src && src.hero && src.team !== t.team) src.hero.damageDealt.creeps += 1;
   world.events.emit({ type: 'damage', sourceId: src?.id ?? null, targetId: t.id, amount: 1, damageType: info.type, crit: false, isAttack: true });
   if (src) for (const m of src.modifiers.slice()) m.def.onDealtDamage?.(m, src, t, world, info);
