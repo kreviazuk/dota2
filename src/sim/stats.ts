@@ -2,6 +2,7 @@ import type { Unit } from './entities/unit';
 import type { World } from './world';
 import type { StatBonus, UnitState } from './modifiers';
 import { attackInterval, clamp, combineMultiplicative, scaledAttackPoint } from './formulas';
+import { getItemDef } from './items/definitions';
 
 export interface ComputedStats {
   str: number; agi: number; int: number;
@@ -108,6 +109,38 @@ export function recomputeStats(world: World, u: Unit): void {
       else addBonus(acc, d.stats, d.stacking === 'stacks' ? m.stacks : 1);
     }
   }
+
+  // 物品被动属性
+  let highestBootsMs = 0;
+  for (const item of u.inventory) {
+    if (!item) continue;
+    const def = getItemDef(item.id);
+    if (!def) continue;
+
+    if (def.stats) {
+      if (def.category === 'boots' && def.stats.moveSpeed) {
+        if (def.stats.moveSpeed > highestBootsMs) {
+          highestBootsMs = def.stats.moveSpeed;
+        }
+        const { moveSpeed: _, ...rest } = def.stats;
+        addBonus(acc, rest, 1);
+      } else {
+        addBonus(acc, def.stats, 1);
+      }
+    }
+
+    if (item.id === 'power_treads') {
+      const stat = item.selectedStat ?? 'str';
+      if (stat === 'str') acc.flat.str += 10;
+      else if (stat === 'agi') acc.flat.agi += 10;
+      else if (stat === 'int') acc.flat.int += 10;
+    }
+  }
+
+  if (highestBootsMs > 0) {
+    acc.flat.moveSpeed += highestBootsMs;
+  }
+
   const s = u.stats;
   const oldMaxHp = s.maxHp;
   const oldMaxMana = s.maxMana;

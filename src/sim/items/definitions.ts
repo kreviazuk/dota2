@@ -524,7 +524,7 @@ export const ITEM_DEFINITIONS: Record<string, ItemDef> = {
     category: 'boots',
     cost: 1400,
     components: ['boots_of_speed', 'gloves_of_haste', 'belt_of_strength'],
-    stats: { moveSpeed: 50, attackSpeed: 25, str: 10 },
+    stats: { moveSpeed: 50, attackSpeed: 25 },
     active: {
       name: '切换属性',
       description: '在力量、敏捷、智力之间循环切换，提供+10对应属性。',

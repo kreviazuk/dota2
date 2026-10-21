@@ -8,6 +8,7 @@ import { emptyStats } from '../stats';
 import type { AbilityInstance, CastState, ResolvedTarget } from '../heroes/types';
 import type { ForcedMotion } from '../systems/motion';
 import type { SummonState } from '../systems/summons';
+import type { ItemInstance } from '../items/types';
 
 export interface UnitBase {
   maxHp: number;
@@ -66,8 +67,11 @@ export interface HeroState {
   playerControlled: boolean;
   lastDamagedTime: number;
   creepAggroCd: number;
-  /** 物品总价值（P3 物品系统接入前恒为 0） */
+  /** 物品总价值 */
   itemValue: number;
+  /** 是否拥有阿哈利姆魔晶 */
+  hasShard: boolean;
+  shardTime: number;
   /** 对敌方实际造成的伤害（含技能，按扣掉的生命计，不含溢出） */
   damageDealt: { heroes: number; creeps: number; buildings: number };
   /** 技能 id → 施放次数（发 cast 事件的地方都 +1，开关只计打开；批量模拟统计用） */
@@ -77,7 +81,7 @@ export interface HeroState {
 export const newHeroState = (heroId: string, attrs: HeroAttrs, playerControlled: boolean, gold: number): HeroState => ({
   heroId, attrs, level: 1, xp: 0, gold, skillPoints: 1, attributeBonusLevel: 0, talents: [null, null, null, null],
   talentValueBonus: {}, talentValueMult: {}, respawnTimer: 0, kills: 0, deaths: 0, assists: 0, lastHits: 0, streak: 0, playerControlled,
-  lastDamagedTime: -999, creepAggroCd: 0, itemValue: 0, damageDealt: { heroes: 0, creeps: 0, buildings: 0 },
+  lastDamagedTime: -999, creepAggroCd: 0, itemValue: 0, hasShard: false, shardTime: -1, damageDealt: { heroes: 0, creeps: 0, buildings: 0 },
   abilityCasts: {},
 });
 
@@ -153,6 +157,8 @@ export class Unit {
   building?: BuildingState;
   /** kind = 'summon' 的单位：主人、到期时间、按次数死亡、跟随 */
   summon?: SummonState;
+  /** 6 格物品栏 */
+  inventory: (ItemInstance | null)[] = [null, null, null, null, null, null];
 
   constructor(i: UnitInit) {
     this.id = i.id;
@@ -182,5 +188,17 @@ export class Unit {
 
   ability(slot: AbilitySlot | 'innate'): AbilityInstance | undefined {
     return this.abilities.find((a) => a.def.slot === slot);
+  }
+
+  getItem(slot: number): ItemInstance | null {
+    return this.inventory[slot] ?? null;
+  }
+
+  hasItem(itemId: string): boolean {
+    return this.inventory.some((it) => it?.id === itemId);
+  }
+
+  findItemSlot(itemId: string): number {
+    return this.inventory.findIndex((it) => it?.id === itemId);
   }
 }

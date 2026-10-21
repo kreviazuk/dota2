@@ -14,6 +14,10 @@ export type SimEvent =
   | { type: 'respawn'; unitId: number }
   | { type: 'buildingDestroyed'; unitId: number; team: Team }
   | { type: 'wave'; team: Team; index: number }
+  | { type: 'itemBuy'; unitId: number; itemId: string; cost: number }
+  | { type: 'itemSell'; unitId: number; itemId: string; refund: number }
+  | { type: 'itemCombine'; unitId: number; itemId: string }
+  | { type: 'itemUsed'; unitId: number; itemId: string }
   | { type: 'fx'; kind: string; pos: Vec2; radius?: number; dir?: Vec2; duration?: number; unitId?: number; targetId?: number }
   | { type: 'victory'; winner: Team };
 

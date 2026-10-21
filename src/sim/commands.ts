@@ -8,6 +8,7 @@ import { cancelCast, canCast, issueCast, toggleAbility } from './systems/abiliti
 import { learnAbility } from './systems/progress';
 import { pickTalent } from './talents';
 import { canAttack, smartAttackTarget, lastHitTarget, buildingTarget } from './query';
+import { buyItem, sellItem } from './items/inventory';
 
 export type Command =
   | { type: 'move'; dir: Vec2 | null }
@@ -84,6 +85,12 @@ export function applyCommand(world: World, u: Unit, cmd: Command): void {
     case 'pickTalent':
       // 死亡时也可以选
       pickTalent(world, u, cmd.tier, cmd.side);
+      return;
+    case 'buy':
+      if (u.hero) buyItem(world, u, cmd.itemId);
+      return;
+    case 'sell':
+      if (u.hero) sellItem(world, u, cmd.index);
       return;
     case 'recall':
       if (!u.alive || !u.hero || isCommandLocked(u)) return;
