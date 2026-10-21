@@ -12,7 +12,7 @@ export interface HeroGameRecord {
   won: boolean | null;
   /** 含超时判定的结果 */
   judgedWon: boolean;
-  kills: number; deaths: number; assists: number; lastHits: number;
+  kills: number; deaths: number; assists: number; lastHits: number; denies?: number;
   heroDamage: number; buildingDamage: number; level: number; netWorth: number;
   casts: Record<string, number>;
   items?: string[];
@@ -23,7 +23,7 @@ export interface HeroGameRecord {
 export interface HeroSummary {
   heroId: string; games: number; wins: number; winRate: number; judgedWinRate: number;
   kills: number; deaths: number; assists: number;
-  heroDamage: number; buildingDamage: number; lastHits: number; level: number;
+  heroDamage: number; buildingDamage: number; lastHits: number; denies?: number; level: number;
   castsPerGame: Record<string, number>;
   topItems?: { itemId: string; count: number; rate: number }[];
   shardRate?: number;
@@ -55,7 +55,7 @@ export function recordsFromWorld(world: World, judged: Team | null): HeroGameRec
       team: sideOf(u.team),
       won: winner === null ? null : winner === u.team,
       judgedWon: judgedWinner === u.team,
-      kills: h.kills, deaths: h.deaths, assists: h.assists, lastHits: h.lastHits,
+      kills: h.kills, deaths: h.deaths, assists: h.assists, lastHits: h.lastHits, denies: h.denies,
       heroDamage: h.damageDealt.heroes, buildingDamage: h.damageDealt.buildings,
       level: h.level, netWorth: netWorth(u),
       casts,
@@ -100,7 +100,7 @@ export function summarizeHeroes(records: readonly HeroGameRecord[]): HeroSummary
       heroId, games: n, wins, winRate: wins / n, judgedWinRate: rs.filter((r) => r.judgedWon).length / n,
       kills: mean((r) => r.kills), deaths: mean((r) => r.deaths), assists: mean((r) => r.assists),
       heroDamage: mean((r) => r.heroDamage), buildingDamage: mean((r) => r.buildingDamage),
-      lastHits: mean((r) => r.lastHits), level: mean((r) => r.level),
+      lastHits: mean((r) => r.lastHits), denies: mean((r) => r.denies ?? 0), level: mean((r) => r.level),
       castsPerGame,
       topItems,
       shardRate: shardCount / n,

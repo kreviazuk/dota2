@@ -59,6 +59,10 @@ export function onUnitKilledEconomy(world: World, victim: Unit, killer: Unit | n
   if (victim.kind === 'building') {
     const st = victim.building;
     if (!st) return;
+    if (killer && killer.team === victim.team) {
+      if (killer.kind === 'hero' && killer.hero) killer.hero.denies++;
+      return;
+    }
     for (const h of world.heroes(enemyTeam(victim.team))) giveGold(world, h, st.goldTeam);
     if (killer && killer.kind === 'hero' && killer.team !== victim.team) giveGold(world, killer, st.goldLastHit);
     return;
@@ -71,6 +75,16 @@ export function onUnitKilledEconomy(world: World, victim: Unit, killer: Unit | n
   const xp = victim.bounty.xp * e.creepXpMult;
   if (gold <= 0 && xp <= 0) return;
   const enemies = world.heroes(enemyTeam(victim.team));
+  if (killer && killer.team === victim.team) {
+    if (killer.kind === 'hero' && killer.hero) {
+      killer.hero.denies++;
+    }
+    const takers = enemies.filter((h) => h.alive && dist(h.pos, victim.pos) <= e.xpShareRadius);
+    if (takers.length) {
+      for (const h of takers) giveXp(world, h, (xp * 0.5) / takers.length);
+    }
+    return;
+  }
   const lastHitter = killer && killer.kind === 'hero' && killer.team !== victim.team ? killer : null;
   if (lastHitter) {
     giveGold(world, lastHitter, gold);

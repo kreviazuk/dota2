@@ -14,6 +14,7 @@ import { decideItemUsage } from './itemUsage';
 import { enemyTowers, underEnemyTower } from './aiHelpers';
 import { canPickTalent } from '../sim/talents';
 import { AI_RULES, type AiCtx, type AiDecision, type AiRule, type HeroAiRules } from './usage/index';
+import { UtilityAI } from './utilityAI';
 
 /** AiCtx.enemyHeroes / allyHeroes 的搜索半径 */
 const CTX_RADIUS = 1500;
@@ -29,6 +30,7 @@ export class SimpleAI {
   private retreating = false;
   /** 脱离战斗（disengage 施法之后）撤退到这个时刻；期间按撤退处理，但不回城、到时间后恢复正常 */
   private disengageUntil = -Infinity;
+  readonly utility = new UtilityAI();
 
   /** rules 缺省为全部英雄的规则表（测试可以换成假规则） */
   constructor(readonly unitId: number, readonly skill: AiSkill, private readonly rules: HeroAiRules = AI_RULES) {}
@@ -81,6 +83,12 @@ export class SimpleAI {
     const itemCmd = decideItemUsage(world, me, ctx);
     if (itemCmd) out.push(itemCmd);
 
+    // 急救消耗品使用（脱战且血蓝不满）
+    const consumableAct = this.utility.evalUseConsumables(world, me);
+    if (consumableAct.score > 0 && consumableAct.command) {
+      out.push(consumableAct.command);
+    }
+
     if (retreating) {
       // 正在施放（或走向施放位置的）逃跑技能：不下移动指令，否则会把它打断
       const busyAb = me.cast?.ability ?? (me.order.kind === 'cast' ? me.order.ability : null);
@@ -126,6 +134,12 @@ export class SimpleAI {
     const lh = this.pickLastHit(world, me);
     if (lh) {
       out.push({ type: 'attack', mode: 'lastHit', targetId: lh.id });
+      return out;
+    }
+
+    const deny = this.pickDeny(world, me);
+    if (deny) {
+      out.push({ type: 'attack', mode: 'lastHit', targetId: deny.id });
       return out;
     }
 
@@ -223,6 +237,15 @@ export class SimpleAI {
 
   private pickLastHit(world: World, me: Unit): Unit | null {
     const creeps = enemiesInRadius(world, me.team, me.pos, me.stats.attackRange + 250).filter((u) => u.kind !== 'hero' && canAttack(me, u));
+    const killable = creeps.filter((c) => c.hp <= expectedAttackDamage(world, me, c) * 1.05);
+    if (!killable.length || !world.rng.chance(this.skill.lastHitSkill)) return null;
+    return nearestOf(me.pos, killable);
+  }
+
+  private pickDeny(world: World, me: Unit): Unit | null {
+    const creeps = alliesInRadius(world, me.team, me.pos, me.stats.attackRange + 250).filter(
+      (u) => u.kind === 'creep' && u.hp < u.stats.maxHp * 0.5 && canAttack(me, u, true),
+    );
     const killable = creeps.filter((c) => c.hp <= expectedAttackDamage(world, me, c) * 1.05);
     if (!killable.length || !world.rng.chance(this.skill.lastHitSkill)) return null;
     return nearestOf(me.pos, killable);

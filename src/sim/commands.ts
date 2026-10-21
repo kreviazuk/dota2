@@ -62,7 +62,7 @@ export function applyCommand(world: World, u: Unit, cmd: Command): void {
     case 'attack': {
       if (!u.alive || isCommandLocked(u)) return;
       let t = cmd.targetId !== undefined ? world.getUnit(cmd.targetId) ?? null : null;
-      if (t && !canAttack(u, t)) t = null;
+      if (t && !canAttack(u, t, true)) t = null;
       if (!t && cmd.targetId === undefined)
         t = cmd.mode === 'lastHit' ? lastHitTarget(world, u) : cmd.mode === 'building' ? buildingTarget(world, u) : smartAttackTarget(world, u);
       if (!t) return;

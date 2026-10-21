@@ -25,6 +25,22 @@ describe('creep bounties', () => {
     expect(a.hero!.xp).toBeCloseTo(45); expect(b.hero!.xp).toBeCloseTo(45); expect(far.hero!.xp).toBe(0);
     expect(a.hero!.lastHits).toBe(1);
   });
+
+  it('denying an allied creep gives 0 gold, +1 deny, and enemy gets 50% xp', () => {
+    const w = makeWorld();
+    const denier = createHero(w, 'testhero', Team.Radiant, false);
+    const enemy = createHero(w, 'testhero', Team.Dire, false);
+    place(denier, 1500, 5000); place(enemy, 1500, 5100);
+    const alliedCreep = spawnDummy(w, { team: Team.Radiant, pos: { x: 1500, y: 5050 }, bounty: { gold: 40, xp: 60 } });
+    const g0 = denier.hero!.gold;
+    const xp0 = enemy.hero!.xp;
+    killUnit(w, alliedCreep, denier);
+    expect(denier.hero!.denies).toBe(1);
+    expect(denier.hero!.lastHits).toBe(0);
+    expect(denier.hero!.gold - g0).toBe(0);
+    // Normal XP would be 60 * 1.5 = 90. When denied, enemy gets 50% = 45
+    expect(enemy.hero!.xp - xp0).toBeCloseTo(45);
+  });
 });
 
 describe('hero kills', () => {

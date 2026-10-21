@@ -17,9 +17,16 @@ export const isDisabled = (u: Unit): boolean => u.hasState('stunned') || !!u.mot
 export const isHiddenFrom = (u: Unit, team: Team): boolean => u.team !== team && u.hasState('hidden');
 
 /** 能否被 attacker 普攻 */
-export const canAttack = (attacker: Unit, t: Unit): boolean =>
-  isAliveUnit(t) && t.team !== attacker.team && !t.hasState('invulnerable') && !t.hasState('untargetable') &&
-  !isHiddenFrom(t, attacker.team);
+export const canAttack = (attacker: Unit, t: Unit, allowDeny = false): boolean => {
+  if (!isAliveUnit(t) || t.hasState('invulnerable') || t.hasState('untargetable') || isHiddenFrom(t, attacker.team)) {
+    return false;
+  }
+  if (t.team !== attacker.team) return true;
+  if (allowDeny && t.team === attacker.team && t.kind === 'creep' && t.hp < t.stats.maxHp * 0.5) {
+    return true;
+  }
+  return false;
+};
 
 /**
  * 只受普攻影响的单位：按被攻击次数计算的召唤物（治疗守卫，D17）。技能不能选它为目标、范围技能不影响它

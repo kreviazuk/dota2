@@ -51,7 +51,7 @@ export function currentAttackTarget(world: World, u: Unit): Unit | null {
   }
   if (u.order.kind === 'attack') {
     const t = world.getUnit(u.order.targetId);
-    if (t && canAttack(u, t)) return t;
+    if (t && canAttack(u, t, true)) return t;
     u.order = { kind: 'idle' };
   }
   if (u.order.kind !== 'idle' || u.kind !== 'hero' || !u.autoAttack) return null;
