@@ -107,6 +107,20 @@ export interface BuildingState {
   goldLastHit: number;
 }
 
+export type EliteType =
+  | 'centaur_conqueror'
+  | 'alpha_wolf'
+  | 'satyr_hellcaller'
+  | 'ancient_black_dragon'
+  | 'ancient_rock_golem'
+  | 'golem_shard';
+
+export interface EliteState {
+  type: EliteType;
+  laneOffset: number;
+  abilityCooldowns: Record<string, number>;
+}
+
 export interface UnitInit {
   id: number;
   kind: UnitKind;
@@ -154,6 +168,7 @@ export class Unit {
   autoAttack = true;
   hero?: HeroState;
   creep?: CreepState;
+  elite?: EliteState;
   building?: BuildingState;
   /** kind = 'summon' 的单位：主人、到期时间、按次数死亡、跟随 */
   summon?: SummonState;

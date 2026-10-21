@@ -4,6 +4,7 @@ import { Team, TEAMS } from '../core/types';
 import type { Vec2 } from '../core/vec2';
 import { forwardY, layoutFor, MAP } from '../data/map';
 import { canAttack, edgeDist, enemiesInRadius, nearestOf } from '../query';
+import { getUnlockedElites, spawnElite, type EliteType } from '../entities/elites';
 
 const CREEP_NAMES: Record<CreepType, string> = {
   melee: '近战兵', ranged: '远程兵', siege: '攻城车', superMelee: '超级近战兵', superRanged: '超级远程兵',
@@ -58,6 +59,14 @@ export function updateSpawner(world: World, dt: number): void {
   if (!world.config.spawnCreeps) return;
   const sp = world.spawner;
   if (world.time + 1e-9 < sp.nextWaveTime) return;
+  const hasElite = world.time >= 180 && (world.time >= 720 ? sp.waveIndex % 3 === 0 : sp.waveIndex % 4 === 2);
+  let eliteType: EliteType | null = null;
+  if (hasElite) {
+    const unlocked = getUnlockedElites(world.time);
+    if (unlocked.length > 0) {
+      eliteType = unlocked[world.rng.int(0, unlocked.length - 1)];
+    }
+  }
   for (const team of TEAMS) {
     const comp = waveComposition(world, team, sp.waveIndex);
     const L = layoutFor(team);
@@ -69,6 +78,9 @@ export function updateSpawner(world: World, dt: number): void {
       rows[row] = idx + 1;
       const off = ROW_OFFSETS[idx % ROW_OFFSETS.length];
       spawnCreep(world, team, type, { x: L.spawn.x + off, y: L.spawn.y - fy * row * 60 }, off * 0.8, sp.waveIndex === 0);
+    }
+    if (eliteType) {
+      spawnElite(world, team, eliteType, { x: L.spawn.x, y: L.spawn.y - fy * 3 * 60 }, 0, world.teams[team].eliteMult);
     }
     world.events.emit({ type: 'wave', team, index: sp.waveIndex });
   }
