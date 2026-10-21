@@ -173,13 +173,13 @@ P2 完成：10 名英雄全部可选（斧王、斯温、帕吉、主宰、幻�
   - Step 6：`npm run sim -- --games 10 --seed 1` 10 局全部推掉遗迹（天辉 3 / 夜魇 7，13:22–35:14，0 超时），没有"未使用的技能"。
   - Step 7 修复（2 个提交 `fix: P2 browser verification fixes`）：暂停时收起天赋弹窗；斯温神之力量描边 / 红色调调淡；技能和持续伤害的受击闪光强度降到 0.4（普攻和暴击仍是 1）；推着摇杆时施法后继续走（`heldMoveCommand`，新增测试）；天赋小按钮和"稍后"改用 click（防止误选天赋）。新增 2 个测试，共 486 个。
 
-## P3 物品与商店：进行中 (1 / 8)
+## P3 物品与商店：进行中 (2 / 8)
 实施计划：`docs/superpowers/plans/2026-10-21-p3-items.md`（8 个任务）。
 
 | 任务 | 内容 | 状态 |
 |---|---|---|
 | 1 | 物品数据模型、价格体系与合成配方表 | ✅ |
-| 2 | 6格物品栏系统、经济买卖、10秒退款与自动合成 | ⏳ |
+| 2 | 6格物品栏系统、经济买卖、10秒退款与自动合成 | ✅ |
 | 3 | 物品被动属性、攻击特效与防御机制 | ⏳ |
 | 4 | 物品主动技能框架与核心主动装备实现 | ⏳ |
 | 5 | 10 名英雄阿哈利姆神杖与魔晶效果及 X2 新技能 | ⏳ |
@@ -188,6 +188,7 @@ P2 完成：10 名英雄全部可选（斧王、斯温、帕吉、主宰、幻�
 | 8 | 混合阵容批量模拟、平衡基线记录与全面验证 | ⏳ |
 
 - Task 1（2026-10-21）：`src/sim/items/types.ts` 定义 `ItemCategory`、`ItemDef`、`ItemActiveDef`、`ItemPassiveDef`、`ItemInstance`；`src/sim/items/definitions.ts` 完整录入 7.41f 核心物品（5 种消耗品、17 件基础属性件、37 件配件与鞋类、进阶装备大件及阿哈利姆神杖/魔晶），提供 `getItemDef`、`getAllItemDefs`、`getItemsByCategory`、`getRecipe`、`isFinishedItem`、`calculateItemCost`。新增 `tests/items/definitions.test.ts`（6 个测试），验证所有合成件总价格与组件+卷轴价格严格一致，无循环依赖。共 501 个测试全部通过。
+- Task 2（2026-10-21）：`Unit` 挂载 6 格物品栏 `inventory` 及 `getItem` / `hasItem` / `findItemSlot`；`src/sim/items/inventory.ts` 实现 `buyItem`（支持基础散件、成品缺件自动补齐合成、消耗品堆叠不占多格、阿哈利姆魔晶 480 秒后直接使用生效）、`sellItem`（10秒内未使用的物品 100% 全额原价退款，超时 50% 折价出售）、`checkAndCombine`（自动合并 0 卷轴费用的成品）、`calculateInventoryValue`（实时更新 `hero.itemValue` 与净资产）；`commands.ts` 接入 `buy` 与 `sell` 指令；`stats.ts` 接入物品被动属性累计与靴子移速不叠加规则；`events.ts` 新增 `itemBuy` / `itemSell` / `itemCombine` 事件。新增 `tests/items/inventory.test.ts`（9 个测试），共 510 个测试全部通过。
 
 ## 后续阶段
 P4 三层 AI、精英怪、结算界面细化（选人流程已在 P2 提前完成，决定 D2）→ P5 平衡调参（P2 基线的胜率异常、对局时长）→ P6 特效音效和打包优化。详见设计文档 §14。
