@@ -3,10 +3,11 @@ import type { ModifierDef } from '../modifiers';
 import { addModifier, findModifier, removeModifier } from '../modifiers';
 import { applyDamage } from '../systems/damage';
 import { abilityChannelTime, abilityManaCost, abilityValue } from '../systems/abilities';
-import { applySlow } from '../status';
+import { applyControl, applySlow } from '../status';
 import { addShield } from '../shields';
 import { enemiesInRadius } from '../query';
 import { dist } from '../core/vec2';
+import { hasScepter } from './scepterShard';
 
 // ---------- Q 冰霜新星 ----------
 const crystalNova: AbilityDef = {
@@ -153,6 +154,15 @@ const freezingField: AbilityDef = {
   onCast: (ctx) => {
     const { world, caster, ability } = ctx;
     ability.data.ffAcc = 0;
+    const scepter = hasScepter(caster);
+    ability.def.channelAllowsMove = scepter;
+    if (scepter) {
+      addModifier(world, caster, {
+        id: 'cm_scepter_channel_slow',
+        name: '极寒引导减速',
+        stats: { moveSpeedPct: -0.75 },
+      }, { duration: abilityChannelTime(caster, ability) + 0.1 });
+    }
     // 引导结束时移除；时长只是保险
     addModifier(world, caster, FREEZING_FIELD, {
       sourceId: caster.id, abilityLevel: ability.level, duration: abilityChannelTime(caster, ability) + 0.1,
@@ -163,6 +173,19 @@ const freezingField: AbilityDef = {
     const { world, caster, ability } = ctx;
     const interval = ctx.v('interval');
     ability.data.ffAcc = (ability.data.ffAcc ?? 0) + dt;
+
+    if (hasScepter(caster)) {
+      for (const e of enemiesInRadius(world, caster.team, caster.pos, ctx.v('radius'), { spell: true })) {
+        const key = `cm_ff_${e.id}`;
+        ability.data[key] = (ability.data[key] ?? 0) + dt;
+        if (ability.data[key] >= 2.5) {
+          ability.data[key] = -999;
+          applyControl(world, e, 'root', { source: caster, duration: 2.0 });
+          applyControl(world, e, 'disarm', { source: caster, duration: 2.0 });
+        }
+      }
+    }
+
     while (ability.data.ffAcc >= interval - 1e-6) {
       ability.data.ffAcc -= interval;
       const a = world.rng.range(0, Math.PI * 2);
@@ -176,7 +199,12 @@ const freezingField: AbilityDef = {
       world.events.emit({ type: 'fx', kind: 'cm_ff_blast', pos: p, radius, unitId: caster.id });
     }
   },
-  onChannelEnd: (ctx) => endFreezingField(ctx),
+  onChannelEnd: (ctx) => {
+    ctx.ability.def.channelAllowsMove = false;
+    const slowMod = findModifier(ctx.caster, 'cm_scepter_channel_slow');
+    if (slowMod) removeModifier(ctx.world, ctx.caster, slowMod);
+    endFreezingField(ctx);
+  },
 };
 
 // ---------- 先天 冰川护体 ----------

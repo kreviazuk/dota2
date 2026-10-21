@@ -8,6 +8,8 @@ import { abilityCastRange, abilityValue } from '../systems/abilities';
 import { spawnEffect, spawnProjectile } from '../systems/projectiles';
 import { applyControl } from '../status';
 import { enemiesInRadius, isTargetableBy, nearestOf } from '../query';
+import { recomputeStats } from '../stats';
+import { hasShard } from './scepterShard';
 
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * Math.max(0, Math.min(1, t));
 
@@ -120,6 +122,13 @@ const lagunaBlade: AbilityDef = {
     const { world, caster } = ctx;
     const t = ctx.target.unit;
     if (!t) return;
+    if (hasShard(caster)) {
+      const mod = addModifier(world, caster, FIERY_SOUL_STACK, { sourceId: caster.id, duration: 10 });
+      if (mod) {
+        mod.stacks = 12;
+        recomputeStats(world, caster);
+      }
+    }
     const damage = ctx.v('damage');
     world.events.emit({ type: 'fx', kind: 'lina_laguna', pos: { x: t.pos.x, y: t.pos.y }, unitId: caster.id, targetId: t.id });
     world.after(ctx.v('delay'), (w) => {

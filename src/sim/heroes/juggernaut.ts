@@ -12,6 +12,7 @@ import { prdRoll } from '../prd';
 import { effectiveAttackSpeed } from '../formulas';
 import { alliesInRadius, enemiesInRadius, isTargetableBy, unitsInRadius } from '../query';
 import { add, fromAngle, normalize, scale, sub } from '../core/vec2';
+import { hasShard } from './scepterShard';
 
 // ---------- E 剑舞 ----------
 /** 剑舞是否生效：学会了且没有被破坏 */
@@ -110,14 +111,15 @@ const healingWard: AbilityDef = {
   values: { heal: [0.02, 0.03, 0.04, 0.05], radius: [400], duration: [18, 20, 22, 24], wardSpeed: [325], follow: [150] },
   onCast: (ctx) => {
     const { world, caster } = ctx;
+    const shard = hasShard(caster);
     const ward = spawnSummon(world, caster, {
       defId: 'jugg_healing_ward', name: '治疗守卫', pos: add(caster.pos, scale(fromAngle(caster.facing), 80)), radius: 20,
-      duration: ctx.v('duration'), hitsToKill: 1, follow: ctx.v('follow'), base: { moveSpeed: ctx.v('wardSpeed') },
+      duration: ctx.v('duration'), hitsToKill: shard ? 2 : 1, follow: ctx.v('follow'), base: { moveSpeed: ctx.v('wardSpeed') },
       modifiers: [WARD_HEAL],
     });
     const m = findModifier(ward, WARD_HEAL.id);
     if (m) {
-      m.data.heal = ctx.v('heal');
+      m.data.heal = ctx.v('heal') + (shard ? 0.015 : 0);
       m.data.radius = ctx.v('radius');
     }
     world.events.emit({ type: 'fx', kind: 'jugg_healing_ward', pos: { x: ward.pos.x, y: ward.pos.y }, unitId: ward.id });

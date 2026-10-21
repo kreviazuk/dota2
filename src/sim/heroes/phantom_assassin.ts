@@ -11,6 +11,7 @@ import { applySlow } from '../status';
 import { prdRoll } from '../prd';
 import { edgeDist, enemiesInRadius, isTargetableBy, nearestOf, unitsInRadius } from '../query';
 import { add, dist, fromAngle, normalize, scale, sub } from '../core/vec2';
+import { hasShard } from './scepterShard';
 
 // ---------- Q 窒碍短匕 ----------
 /** 飞刀命中：一次立即结算、必定命中的攻击（攻击力 × 比例 + 基础伤害，触发攻击特效），然后减速 */
@@ -199,6 +200,9 @@ const blur: AbilityDef = {
   values: { duration: [30], delay: [0.8], revealRadius: [500], moveSpeed: [0.095], moveSpeedPerLevel: [0.005] },
   onCast: (ctx) => {
     const { world, caster } = ctx;
+    if (hasShard(caster)) {
+      ctx.ability.cooldown = Math.max(0, ctx.ability.cooldown - 10);
+    }
     disjointProjectiles(world, caster);
     addModifier(world, caster, BLUR, {
       sourceId: caster.id, duration: ctx.v('duration'),

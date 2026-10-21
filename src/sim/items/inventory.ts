@@ -5,6 +5,7 @@ import { getItemDef, ITEM_DEFINITIONS } from './definitions';
 import { giveGold } from '../systems/progress';
 import { recomputeStats } from '../stats';
 import { syncItemPassives } from './passives';
+import { syncScepterAndShard } from '../heroes/scepterShard';
 
 export interface ResolveResult {
   missingItems: string[];
@@ -105,6 +106,7 @@ export function buyItem(world: World, unit: Unit, itemId: string): { success: bo
     unit.hero.itemValue = calculateInventoryValue(unit);
 
     world.events.emit({ type: 'itemBuy', unitId: unit.id, itemId, cost: 1400 });
+    syncScepterAndShard(world, unit);
     recomputeStats(world, unit);
     return { success: true };
   }
@@ -190,6 +192,7 @@ export function buyItem(world: World, unit: Unit, itemId: string): { success: bo
   checkAndCombine(world, unit);
 
   syncItemPassives(world, unit);
+  syncScepterAndShard(world, unit);
   recomputeStats(world, unit);
   return { success: true };
 }
@@ -233,6 +236,7 @@ export function sellItem(world: World, unit: Unit, slotIndex: number): { success
 
   world.events.emit({ type: 'itemSell', unitId: unit.id, itemId: item.id, refund });
   syncItemPassives(world, unit);
+  syncScepterAndShard(world, unit);
   recomputeStats(world, unit);
 
   return { success: true, refund };
@@ -299,6 +303,7 @@ export function checkAndCombine(world: World, unit: Unit): boolean {
       unit.hero.itemValue = calculateInventoryValue(unit);
     }
     syncItemPassives(world, unit);
+    syncScepterAndShard(world, unit);
     recomputeStats(world, unit);
   }
 

@@ -8,6 +8,9 @@ import { spawnProjectile } from '../systems/projectiles';
 import { applyControl } from '../status';
 import { alliesInRadius, enemiesInRadius } from '../query';
 import { add, normalize, scale, sub } from '../core/vec2';
+import { blinkTo } from '../systems/motion';
+import { addShield } from '../shields';
+import { hasScepter, hasShard } from './scepterShard';
 
 // ---------- Q 风暴之拳 ----------
 const stormHammer: AbilityDef = {
@@ -21,15 +24,20 @@ const stormHammer: AbilityDef = {
     const t = ctx.target.unit;
     if (!t) return;
     // 数值在出手时确定（飞行途中升级、选天赋不影响这一锤）
-    const damage = ctx.v('damage');
+    const scepter = hasScepter(caster);
+    const damage = ctx.v('damage') + (scepter ? 180 : 0);
     const stun = ctx.v('stun');
     const radius = ctx.v('radius');
+    const speed = ctx.v('speed') * (scepter ? 1.25 : 1);
     const dir = normalize(sub(t.pos, caster.pos));
     spawnProjectile(world, {
-      team: caster.team, sourceId: caster.id, pos: add(caster.pos, scale(dir, caster.radius)), speed: ctx.v('speed'),
+      team: caster.team, sourceId: caster.id, pos: add(caster.pos, scale(dir, caster.radius)), speed,
       kind: 'homing', targetId: t.id, visual: 'sven_hammer',
       // 命中：以目标为圆心，范围内所有敌方非建筑单位受到魔法伤害并眩晕（斯温中途死亡也照常生效）
       onHit: (w, target) => {
+        if (scepter && caster.alive) {
+          blinkTo(w, caster, target.pos);
+        }
         for (const e of enemiesInRadius(w, caster.team, target.pos, radius, { spell: true })) {
           applyDamage(w, { source: caster, target: e, amount: damage, type: 'magical', isAttack: false, abilityId: 'sven_storm_hammer' });
           if (e.alive) applyControl(w, e, 'stun', { source: caster, duration: stun });
@@ -78,10 +86,20 @@ const warcry: AbilityDef = {
   values: { armor: [5, 8, 11, 14], speed: [6, 9, 12, 15], duration: [8], radius: [700] },
   onCast: (ctx) => {
     const { world, caster } = ctx;
-    const radius = ctx.v('radius');
+    const shard = hasShard(caster);
+    const radius = shard ? 900 : ctx.v('radius');
     const data = { armor: ctx.v('armor'), speed: ctx.v('speed') };
     for (const ally of alliesInRadius(world, caster.team, caster.pos, radius, { heroesOnly: true })) {
       addModifier(world, ally, WARCRY, { sourceId: caster.id, duration: ctx.v('duration'), data });
+      if (shard) {
+        addShield(world, ally, {
+          id: 'sven_warcry_shard',
+          amount: 300,
+          duration: ctx.v('duration'),
+          types: ['physical'],
+          sourceId: caster.id,
+        });
+      }
     }
     world.events.emit({ type: 'fx', kind: 'sven_warcry', pos: { x: caster.pos.x, y: caster.pos.y }, radius, unitId: caster.id });
   },

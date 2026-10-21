@@ -13,6 +13,7 @@ import { applyControl, applySlow } from '../status';
 import { prdRoll } from '../prd';
 import { isHiddenFrom, unitsInRadius } from '../query';
 import { dist, fromAngle, normalize, rotate, sub } from '../core/vec2';
+import { hasScepter, MOD_DROW_HYPOTHERMIA } from './scepterShard';
 
 // ---------- Q 霜冻之箭 ----------
 /** 霜冻减速（普攻和数箭齐发共用）：读卓尔当前的霜冻之箭数值 */
@@ -42,6 +43,10 @@ const FROST_ARROWS: ModifierDef = {
     const q = owner.ability('Q');
     if (!q || !info.attack?.flags.frost) return;
     applyFrostSlow(world, owner, target, q);
+    if (hasScepter(owner) && target.alive) {
+      addModifier(world, target, MOD_DROW_HYPOTHERMIA, { sourceId: owner.id, duration: 7.0, stacks: 1 });
+      applyDamage(world, { source: owner, target, amount: 18, type: 'physical', isAttack: false, abilityId: 'drow_hypothermia' });
+    }
   },
 };
 

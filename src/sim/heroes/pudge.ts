@@ -12,6 +12,7 @@ import { enemiesInRadius } from '../query';
 import { recomputeStats } from '../stats';
 import { clampToWalkable } from '../data/map';
 import { add, copy, dist, fromAngle, normalize, scale, sub } from '../core/vec2';
+import { hasScepter, hasShard } from './scepterShard';
 
 // ---------- Q 肉钩 ----------
 /** 出钩后帕吉不能行动（钩子飞过最大距离的 selfRootPct 或提前命中时移除；时长只是保险） */
@@ -61,13 +62,23 @@ const meatHook: AbilityDef = {
       phase = 'back';
       w.events.emit({ type: 'fx', kind: 'pudge_hook_hit', pos: copy(u.pos), unitId: caster.id, targetId: u.id });
       const enemy = u.team !== caster.team;
+      // 友方单位：减半冷却（魔晶）
+      if (!enemy && hasShard(caster)) {
+        ab.cooldown *= 0.5;
+      }
       // 敌方小兵：直接击杀，钩子空着收回
       if (enemy && u.kind === 'creep') {
         killUnit(w, u, caster);
         return;
       }
-      // 敌方英雄 / 精英：纯粹伤害（减益免疫时为 0，但照样拖回）
-      if (enemy) applyDamage(w, { source: caster, target: u, amount: damage, type: 'pure', isAttack: false, abilityId: 'pudge_meat_hook' });
+      // 敌方英雄 / 精英：纯粹伤害（魔晶附加拖拽距离 20% 伤害）
+      if (enemy) {
+        let totalDmg = damage;
+        if (hasShard(caster)) {
+          totalDmg += dist(u.pos, caster.pos) * 0.20;
+        }
+        applyDamage(w, { source: caster, target: u, amount: totalDmg, type: 'pure', isAttack: false, abilityId: 'pudge_meat_hook' });
+      }
       if (!u.alive) return;
       // 钩尖贴到目标身上，之后目标跟着钩尖走
       pos.x = u.pos.x;
@@ -146,7 +157,7 @@ const meatHook: AbilityDef = {
 /** 腐烂范围内敌人的减速（光环子 Modifier，数值每 tick 由 childData 写入） */
 const ROT_SLOW: ModifierDef = {
   id: 'pudge_rot_slow', name: '腐烂', debuff: true,
-  stats: (m) => ({ moveSpeedPct: -(m.data.slow ?? 0) }),
+  stats: (m) => ({ moveSpeedPct: -(m.data.slow ?? 0), hpRegenAmp: m.data.scepter ? -0.20 : 0 }),
 };
 
 const rotValue = (owner: Unit, key: string): number => {
@@ -158,8 +169,10 @@ const ROT: ModifierDef = {
   id: 'pudge_rot', name: '腐烂', dispel: 'none', interval: 0.2,
   // 每 0.2 秒：范围内敌方非建筑单位受到 dps × 0.2 魔法伤害，帕吉自己也受到同样的伤害（不会致死，不吃技能增强 / 吸血）
   onInterval: (_m, owner, world) => {
-    const amount = rotValue(owner, 'dps') * 0.2;
-    for (const u of enemiesInRadius(world, owner.team, owner.pos, rotValue(owner, 'radius'), { spell: true })) {
+    const scepter = hasScepter(owner);
+    const amount = (rotValue(owner, 'dps') + (scepter ? 90 : 0)) * 0.2;
+    const radius = scepter ? 450 : rotValue(owner, 'radius');
+    for (const u of enemiesInRadius(world, owner.team, owner.pos, radius, { spell: true })) {
       applyDamage(world, { source: owner, target: u, amount, type: 'magical', isAttack: false, abilityId: 'pudge_rot' });
     }
     if (owner.alive) {
@@ -174,10 +187,10 @@ const ROT: ModifierDef = {
     if (ab) ab.toggled = false;
   },
   aura: {
-    radius: (owner) => rotValue(owner, 'radius'),
+    radius: (owner) => (hasScepter(owner) ? 450 : rotValue(owner, 'radius')),
     team: 'enemy',
     child: ROT_SLOW,
-    childData: (owner) => ({ slow: rotValue(owner, 'slow') / 100 }),
+    childData: (owner) => ({ slow: rotValue(owner, 'slow') / 100, scepter: hasScepter(owner) ? 1 : 0 }),
   },
 };
 

@@ -10,6 +10,7 @@ import { newAbilityInstance, syncPassives } from './abilities';
 import { giveGold } from './progress';
 import { disjointProjectiles } from './projectiles';
 import { isDisabled } from '../query';
+import { hasShard } from '../heroes/scepterShard';
 
 export function heroSpawnPoint(world: World, team: Team, index: number): Vec2 {
   void world;
@@ -89,7 +90,11 @@ export function updateHeroes(world: World, dt: number): void {
 }
 
 export function onHeroKilled(world: World, victim: Unit, killer: Unit | null): void {
-  void killer;
   if (!victim.hero) return;
   victim.hero.respawnTimer = respawnTime(victim.hero.level, world.balance);
+  if (killer && killer.defId === 'phantom_assassin' && hasShard(killer)) {
+    for (const ab of killer.abilities) {
+      if (ab.cooldown > 0) ab.cooldown *= 0.40; // 击杀英雄推进 60% 冷却
+    }
+  }
 }

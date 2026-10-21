@@ -1,10 +1,13 @@
 import type { AbilityDef, HeroDef } from './types';
 import type { ModifierDef } from '../modifiers';
+import type { Unit } from '../entities/unit';
+import type { World } from '../world';
 import { addModifier, removeModifier } from '../modifiers';
 import { applyDamage, killUnit } from '../systems/damage';
 import { abilityCastRange, abilityValue, cancelCast } from '../systems/abilities';
 import { alliesInRadius, enemiesInRadius, isAliveUnit, isTargetableBy, nearestOf } from '../query';
 import { dot, fromAngle, normalize, sub } from '../core/vec2';
+import { hasScepter, hasShard, MOD_AXE_HELIX_DEBUFF } from './scepterShard';
 
 // ---------- Q 狂战士之吼 ----------
 const TAUNT: ModifierDef = {
@@ -30,6 +33,9 @@ const berserkersCall: AbilityDef = {
     for (const e of enemiesInRadius(world, caster.team, caster.pos, radius, { spell: true })) {
       if (e.creep?.protectedUntilContact || e.hasState('hidden')) continue;
       if (!addModifier(world, e, TAUNT, { sourceId: caster.id, duration, ignoreImmunity: true })) continue;
+      if (hasShard(caster)) {
+        addModifier(world, e, HUNGER, { sourceId: caster.id, duration: 12, data: { dps: 24, slow: 30 } });
+      }
       if (e.cast) cancelCast(world, e, true);
       // 嘲讽覆盖原有指令（包括回城、走向施法目标）
       e.order = { kind: 'idle' };
@@ -89,6 +95,31 @@ const T10A_HUNGER_SPEED: ModifierDef = {
   },
 };
 
+function triggerHelix(m: any, owner: Unit, world: World): void {
+  if (!owner.alive || owner.hasState('breakPassives')) return;
+  const ab = owner.ability('E');
+  if (!ab || ab.level <= 0) return;
+  if (m.data.level !== ab.level) {
+    m.data.level = ab.level;
+    m.data.count = 0;
+  }
+  m.data.count = (m.data.count ?? 0) + 1;
+  const scepter = hasScepter(owner);
+  if (m.data.count < abilityValue(owner, ab, 'hits') || (!scepter && world.time < (m.data.readyAt ?? 0))) return;
+  m.data.count = 0;
+  m.data.readyAt = scepter ? 0 : world.time + abilityValue(owner, ab, 'cooldown');
+  const radius = abilityValue(owner, ab, 'radius');
+  const dmg = abilityValue(owner, ab, 'damage');
+  for (const e of enemiesInRadius(world, owner.team, owner.pos, radius, { spell: true })) {
+    if (e.hasState('debuffImmune')) continue;
+    applyDamage(world, { source: owner, target: e, amount: dmg, type: 'pure', isAttack: false, abilityId: 'axe_counter_helix', reflected: true });
+    if (scepter) {
+      addModifier(world, e, MOD_AXE_HELIX_DEBUFF, { sourceId: owner.id, duration: 6.0 });
+    }
+  }
+  world.events.emit({ type: 'fx', kind: 'axe_helix', pos: { ...owner.pos }, radius, unitId: owner.id });
+}
+
 // ---------- E 反击螺旋 ----------
 const HELIX: ModifierDef = {
   id: 'axe_counter_helix', hidden: true, persistOnDeath: true, dispel: 'none',
@@ -96,25 +127,9 @@ const HELIX: ModifierDef = {
   onDeath: (m) => {
     m.data.count = 0;
   },
-  onAttacked: (m, owner, _attacker, world) => {
-    if (!owner.alive || owner.hasState('breakPassives')) return;
-    const ab = owner.ability('E');
-    if (!ab || ab.level <= 0) return;
-    if (m.data.level !== ab.level) {
-      m.data.level = ab.level;
-      m.data.count = 0;
-    }
-    m.data.count = (m.data.count ?? 0) + 1;
-    if (m.data.count < abilityValue(owner, ab, 'hits') || world.time < (m.data.readyAt ?? 0)) return;
-    m.data.count = 0;
-    m.data.readyAt = world.time + abilityValue(owner, ab, 'cooldown');
-    const radius = abilityValue(owner, ab, 'radius');
-    const dmg = abilityValue(owner, ab, 'damage');
-    for (const e of enemiesInRadius(world, owner.team, owner.pos, radius, { spell: true })) {
-      if (e.hasState('debuffImmune')) continue;
-      applyDamage(world, { source: owner, target: e, amount: dmg, type: 'pure', isAttack: false, abilityId: 'axe_counter_helix', reflected: true });
-    }
-    world.events.emit({ type: 'fx', kind: 'axe_helix', pos: { ...owner.pos }, radius, unitId: owner.id });
+  onAttacked: (m, owner, _attacker, world) => triggerHelix(m, owner, world),
+  onAttackLanded: (m, owner, _target, world) => {
+    if (hasScepter(owner)) triggerHelix(m, owner, world);
   },
 };
 

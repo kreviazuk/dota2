@@ -3,7 +3,7 @@ import type { ModifierDef } from '../modifiers';
 import type { Unit } from '../entities/unit';
 import type { World } from '../world';
 import { addModifier, findModifier } from '../modifiers';
-import { applyDamage } from '../systems/damage';
+import { applyDamage, heal } from '../systems/damage';
 import { rollAttackDamage } from '../systems/attack';
 import { abilityValue } from '../systems/abilities';
 import { spawnProjectile } from '../systems/projectiles';
@@ -11,6 +11,7 @@ import { applyFear, applySlow } from '../status';
 import { enemiesInRadius, isHiddenFrom } from '../query';
 import { recomputeStats } from '../stats';
 import { add, copy, dist, fromAngle, normalize, scale, sub } from '../core/vec2';
+import { hasScepter, hasShard } from './scepterShard';
 
 const lerp = (a: number, b: number, t: number): number => a + (b - a) * Math.max(0, Math.min(1, t));
 
@@ -60,8 +61,25 @@ export function releaseRequiem(world: World, sf: Unit, ab: AbilityInstance, n: n
       team: sf.team, sourceId: sf.id, pos: copy(sf.pos), speed, kind: 'linear', dir, maxDistance: distance,
       width: w0 / 2, pierce: true, visual: 'sf_requiem_line',
       // 碰撞半径随飞行距离从 125/2 变宽到 300/2
-      update: (_w, p) => {
+      update: (w, p) => {
         p.width = lerp(w0, w1, p.traveled / distance) / 2;
+        if (hasScepter(sf) && p.traveled >= distance - 1e-6 && !p.data?.returning) {
+          p.data = { returning: 1 };
+          w.after(0.1, (w2) => {
+            if (!sf.alive) return;
+            spawnProjectile(w2, {
+              team: sf.team, sourceId: sf.id, pos: copy(p.pos), speed, kind: 'homing', targetId: sf.id,
+              width: w1 / 2, pierce: true, visual: 'sf_requiem_line',
+              onHit: (_w3, t) => {
+                if (t.id === sf.id) {
+                  heal(w2, sf, damage * 0.40);
+                } else if (t.team !== sf.team) {
+                  applyDamage(w2, { source: sf, target: t, amount: damage * 0.40, type: 'magical', isAttack: false, abilityId: 'sf_requiem_return' });
+                }
+              },
+            });
+          });
+        }
         return false;
       },
       onHit: (w, t) => {
@@ -142,6 +160,12 @@ const shadowraze: AbilityDef = {
         source: caster, target: u, amount: damage + stackDamage * stacks, type: 'magical', isAttack: false, abilityId: 'sf_shadowraze',
       });
       if (!u.alive) continue;
+      if (hasShard(caster) && u.kind === 'hero') {
+        applySlow(world, u, { source: caster, key: 'sf_raze_shard', duration: 3.0, moveSlow: 0.12 });
+        for (let i = 0; i < ctx.ability.chargeTimers.length; i++) {
+          ctx.ability.chargeTimers[i] = Math.max(0, ctx.ability.chargeTimers[i] - 2);
+        }
+      }
       addModifier(world, u, RAZE_STACK, { sourceId: caster.id, duration: stackDuration });
       // 25 级右天赋：再造成一次攻击力的物理伤害（不是普攻，不触发攻击特效）
       if (withAttack) {
@@ -267,6 +291,9 @@ const requiem: AbilityDef = {
   aimShape: (caster, ab) => ({ radius: abilityValue(caster, ab, 'distance') }),
   onCast: (ctx) => {
     const { world, caster, ability } = ctx;
+    if (hasScepter(caster)) {
+      ability.cooldown = Math.max(0, ability.cooldown - 30);
+    }
     releaseRequiem(world, caster, ability, Math.min(getSouls(caster), ctx.v('maxLines')), true);
   },
 };
