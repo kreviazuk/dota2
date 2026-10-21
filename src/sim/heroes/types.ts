@@ -57,6 +57,7 @@ export interface AiSkill {
   lastHitSkill: number;
   focus: number;
   retreatHp: number;
+  comboChance?: number;
 }
 
 export interface AbilityDef {

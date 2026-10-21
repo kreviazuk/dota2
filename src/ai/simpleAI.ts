@@ -15,6 +15,7 @@ import { enemyTowers, underEnemyTower } from './aiHelpers';
 import { canPickTalent } from '../sim/talents';
 import { AI_RULES, type AiCtx, type AiDecision, type AiRule, type HeroAiRules } from './usage/index';
 import { UtilityAI } from './utilityAI';
+import { MicroAI } from './microAI';
 
 /** AiCtx.enemyHeroes / allyHeroes 的搜索半径 */
 const CTX_RADIUS = 1500;
@@ -31,6 +32,7 @@ export class SimpleAI {
   /** 脱离战斗（disengage 施法之后）撤退到这个时刻；期间按撤退处理，但不回城、到时间后恢复正常 */
   private disengageUntil = -Infinity;
   readonly utility = new UtilityAI();
+  readonly micro = new MicroAI();
 
   /** rules 缺省为全部英雄的规则表（测试可以换成假规则） */
   constructor(readonly unitId: number, readonly skill: AiSkill, private readonly rules: HeroAiRules = AI_RULES) {}
@@ -114,6 +116,17 @@ export class SimpleAI {
       this.tryRules(world, ctx, rules.filter((r) => r.rule.whileCasting), out);
       return out;
     }
+
+    // 优先尝试微操连招序列（斧王跳吼、莉娜吹风光击阵、帕吉钩咬、斯温吼大突击）
+    if (this.rules === AI_RULES && enemyHeroes.length > 0) {
+      const bestEnemy = enemyHeroes[0];
+      const comboCmd = this.micro.tryCombo(world, me, bestEnemy, this.skill);
+      if (comboCmd) {
+        out.push(comboCmd);
+        return out;
+      }
+    }
+
     if (this.tryRules(world, ctx, rules, out)) return out;
     if (me.order.kind === 'cast') return out;
 
