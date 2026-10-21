@@ -701,3 +701,45 @@ registerModifier2D('sf_necromastery', (ctx, u, _m, x, y, t) => {
     ctx.fill();
   }
 });
+
+// ---------- 精英怪与肉山 ----------
+registerProjectile2D('satyr_shockwave', { color: '#ba68c8', size: 14, shape: 'wave', tip: '#f3e5f5' });
+
+registerFx2D('centaur_war_stomp', (fx, e, _w, cam) => {
+  const r = e.radius ?? 250;
+  fx.ring(e.pos.x, e.pos.y, 20, r, 'rgba(234,179,8,', 0.45, 18);
+  fx.burst(e.pos.x, e.pos.y - 15, 24, 'rgba(120,53,15,0.95)', 240, 7, 0.45, false);
+  if (cam.visible(e.pos)) cam.shake(6);
+});
+
+registerFx2D('satyr_shockwave', (fx, e) => {
+  fx.ring(e.pos.x, e.pos.y, 10, 80, 'rgba(186,104,200,', 0.35, 10);
+  fx.burst(e.pos.x, e.pos.y - 15, 14, 'rgba(206,147,216,0.9)', 160, 5, 0.35, false);
+});
+
+registerFx2D('dragon_fireball', (fx, e, _w, cam) => {
+  const r = e.radius ?? 180;
+  fx.ring(e.pos.x, e.pos.y, 15, r, 'rgba(239,68,68,', 0.5, 16);
+  fx.burst(e.pos.x, e.pos.y - 15, 20, 'rgba(249,115,22,0.95)', 200, 6, 0.45, false);
+  if (cam.visible(e.pos)) cam.shake(4);
+});
+
+registerFx2D('roshan_slam', (fx, e, _w, cam) => {
+  const r = e.radius ?? 350;
+  fx.ring(e.pos.x, e.pos.y, 30, r, 'rgba(217,119,6,', 0.6, 26);
+  fx.burst(e.pos.x, e.pos.y - 20, 32, 'rgba(69,26,3,0.95)', 320, 8, 0.55, false);
+  if (cam.visible(e.pos)) cam.shake(12);
+});
+
+registerFx2D('roshan_spawn', (fx, e, _w, cam) => {
+  fx.ring(e.pos.x, e.pos.y, 40, 450, 'rgba(245,158,11,', 0.8, 30);
+  fx.burst(e.pos.x, e.pos.y - 30, 40, 'rgba(255,213,79,0.95)', 400, 8, 0.7, false);
+  if (cam.visible(e.pos)) cam.shake(14);
+});
+
+registerFx2D('roshan_death', (fx, e, _w, cam) => {
+  fx.ring(e.pos.x, e.pos.y, 30, 380, 'rgba(220,38,38,', 0.8, 28);
+  fx.burst(e.pos.x, e.pos.y - 20, 40, 'rgba(251,191,36,0.95)', 360, 8, 0.8, false);
+  if (cam.visible(e.pos)) cam.shake(10);
+});
+

@@ -4,6 +4,8 @@ import { GeoBuilder } from '../geo';
 import { PAL, teamColor, teamDark, teamLight } from '../materials';
 import { type AnimTracker, smooth01 } from '../anim';
 import { bone, cachedGeo } from './rig';
+export { isEliteType, buildEliteRig, poseElite, eliteScale, eliteHeadHeight } from './elites';
+import { isEliteType, buildEliteRig, poseElite, eliteScale, eliteHeadHeight } from './elites';
 
 /**
  * 小兵模型。为了让一波兵只花很少的绘制调用，小兵不在场景里挂网格：
@@ -27,11 +29,13 @@ const SKIN_D = 0x8a6a5a;
 const isSuperType = (t: string) => t === 'superMelee' || t === 'superRanged';
 
 export function creepScale(type: string): number {
+  if (isEliteType(type)) return eliteScale(type);
   return isSuperType(type) ? 1.2 : type === 'siege' ? 1.05 : 1;
 }
 
 /** 血条锚点（头顶）高度 */
 export function creepHeadHeight(type: string): number {
+  if (isEliteType(type)) return eliteHeadHeight(type);
   return (type === 'siege' ? 95 : type === 'ranged' || type === 'superRanged' ? 112 : 110) * creepScale(type);
 }
 
@@ -183,6 +187,9 @@ export interface CreepRig {
 }
 
 export function buildCreepRig(type: string, team: number): CreepRig {
+  if (isEliteType(type)) {
+    return buildEliteRig(type, team);
+  }
   const root = new Group();
   root.scale.setScalar(creepScale(type));
   const body = bone(root, 'body');
@@ -232,6 +239,10 @@ const lerp = (a: number, b: number, t: number) => a + (b - a) * t;
 
 /** 小兵的姿势（直接写骨骼旋转；比英雄简单，没有状态混合） */
 export function poseCreep(rig: CreepRig, tr: AnimTracker, t: number, wheelDist: number): void {
+  if (isEliteType(rig.type)) {
+    poseElite(rig, tr, t);
+    return;
+  }
   const b = rig.bones;
   const run = tr.state === 'run' ? Math.min(1, tr.speed / 250) : 0;
   const s = Math.sin(tr.runPhase);

@@ -365,7 +365,8 @@ class CreepView {
   lift = 0;
   gone = false;
   constructor(readonly u: Unit) {
-    this.rig = buildCreepRig(u.creep?.type ?? 'melee', u.team);
+    const type = u.elite?.type ?? (u.defId === 'roshan' ? 'roshan' : u.creep?.type ?? 'melee');
+    this.rig = buildCreepRig(type, u.team);
     this.facing = u.facing;
     this.x = u.pos.x;
     this.y = u.pos.y;
@@ -932,7 +933,8 @@ export class Renderer3D implements GameRenderer {
       const t = u.building!.type;
       return t === 'tower' ? towerHeight(u.building!.tier) + 60 : t === 'ancient' ? 330 : 180;
     }
-    return creepHeadHeight(u.creep?.type ?? 'melee');
+    const type = u.elite?.type ?? (u.defId === 'roshan' ? 'roshan' : u.creep?.type ?? 'melee');
+    return creepHeadHeight(type);
   };
 
   consume(events: SimEvent[], world: World, followId: number | null): void {

@@ -224,7 +224,7 @@ export function spawnElite(
   team: Team,
   type: EliteType,
   pos: Vec2,
-  laneOffset: number,
+  laneOffset = 0,
   diffMult = 1.0,
 ): Unit {
   const cfg = ELITE_CONFIGS[type];

@@ -46,7 +46,151 @@ export function drawShadow(ctx: CanvasRenderingContext2D, x: number, y: number, 
   ctx.fill();
 }
 
+export function drawElite2D(ctx: CanvasRenderingContext2D, u: Unit, x: number, y: number, t: number): void {
+  const type = u.elite?.type ?? u.defId;
+  const r = u.radius * 1.15;
+
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.rotate(u.facing);
+
+  if (type === 'roshan') {
+    // 肉山：巨大熔岩岩石巨魔躯体
+    ctx.fillStyle = '#2b1d16';
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 1.1, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 熔岩背甲
+    ctx.fillStyle = '#5c3a28';
+    ctx.beginPath();
+    ctx.arc(-r * 0.2, 0, r * 0.85, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 双角与头颅
+    ctx.fillStyle = '#140c08';
+    ctx.beginPath();
+    ctx.arc(r * 0.4, 0, r * 0.5, 0, Math.PI * 2);
+    ctx.fill();
+    for (const sy of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(r * 0.3, sy * r * 0.35);
+      ctx.lineTo(r * 0.9, sy * r * 0.85);
+      ctx.lineTo(r * 0.6, sy * r * 0.2);
+      ctx.closePath();
+      ctx.fill();
+    }
+    // 金色熔岩眼
+    ctx.fillStyle = '#ffa000';
+    ctx.fillRect(r * 0.5, -r * 0.2, 4, 3);
+    ctx.fillRect(r * 0.5, r * 0.15, 4, 3);
+
+    // 金色 Boss 光环
+    ctx.strokeStyle = `rgba(242, 201, 76, ${0.7 + 0.3 * Math.sin(t * 4)})`;
+    ctx.lineWidth = 4;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 1.25, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (type === 'centaur_conqueror') {
+    // 半人马：四足身躯 + 巨斧
+    ctx.fillStyle = '#5c2d16';
+    ctx.fillRect(-r * 0.9, -r * 0.55, r * 1.4, r * 1.1);
+    ctx.fillStyle = '#8a4b2a';
+    ctx.beginPath();
+    ctx.arc(r * 0.2, 0, r * 0.65, 0, Math.PI * 2);
+    ctx.fill();
+    // 巨斧
+    ctx.fillStyle = '#9e9e9e';
+    ctx.fillRect(r * 0.4, r * 0.4, r * 0.7, r * 0.25);
+    // 阵营金边光圈
+    ctx.strokeStyle = '#f2c94c';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 1.1, 0, Math.PI * 2);
+    ctx.stroke();
+  } else if (type === 'alpha_wolf') {
+    // 头狼：流线型狼躯 + 尖耳 + 金牙
+    ctx.fillStyle = '#374151';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 0.9, r * 0.55, 0, 0, Math.PI * 2);
+    ctx.fill();
+    // 狼头
+    ctx.fillStyle = '#1f2937';
+    ctx.beginPath();
+    ctx.moveTo(r * 0.4, -r * 0.35);
+    ctx.lineTo(r * 1.1, 0);
+    ctx.lineTo(r * 0.4, r * 0.35);
+    ctx.closePath();
+    ctx.fill();
+    // 尖耳
+    for (const sy of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(r * 0.2, sy * r * 0.3);
+      ctx.lineTo(r * 0.1, sy * r * 0.7);
+      ctx.lineTo(r * 0.4, sy * r * 0.4);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else if (type === 'satyr_hellcaller') {
+    // 萨特：暗紫魔身 + 羊角 + 法杖
+    ctx.fillStyle = '#4a154b';
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.75, 0, Math.PI * 2);
+    ctx.fill();
+    // 紫色法杖
+    ctx.fillStyle = '#ba68c8';
+    ctx.beginPath();
+    ctx.arc(r * 0.5, r * 0.5, r * 0.3, 0, Math.PI * 2);
+    ctx.fill();
+  } else if (type === 'ancient_black_dragon') {
+    // 黑龙：展翅双翼 + 龙首
+    ctx.fillStyle = '#18181b';
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.8, 0, Math.PI * 2);
+    ctx.fill();
+    // 龙首
+    ctx.fillStyle = '#27272a';
+    ctx.beginPath();
+    ctx.moveTo(r * 0.3, -r * 0.4);
+    ctx.lineTo(r * 1.2, 0);
+    ctx.lineTo(r * 0.3, r * 0.4);
+    ctx.closePath();
+    ctx.fill();
+    // 展开黑红龙翼
+    ctx.fillStyle = '#7f1d1d';
+    for (const sy of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.lineTo(-r * 0.5, sy * r * 1.4);
+      ctx.lineTo(r * 0.3, sy * r * 1.1);
+      ctx.closePath();
+      ctx.fill();
+    }
+  } else {
+    // 岩石傀儡 (ancient_rock_golem & golem_shard)
+    ctx.fillStyle = '#57534e';
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.85, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#78716c';
+    ctx.beginPath();
+    ctx.arc(r * 0.2, 0, r * 0.55, 0, Math.PI * 2);
+    ctx.fill();
+    // 蔚蓝能量石核
+    ctx.fillStyle = '#06b6d4';
+    ctx.beginPath();
+    ctx.arc(0, 0, r * 0.25, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
 export function drawCreep(ctx: CanvasRenderingContext2D, u: Unit, x: number, y: number, t: number): void {
+  if (u.kind === 'elite' || u.elite || u.defId === 'roshan') {
+    drawElite2D(ctx, u, x, y, t);
+    return;
+  }
   const c = TEAM_COLORS[u.team];
   const type = u.creep?.type ?? 'melee';
   const r = u.radius * 1.2;
@@ -252,18 +396,25 @@ export function drawBars(ctx: CanvasRenderingContext2D, u: Unit, x: number, y: n
   const ally = u.team === viewerTeam;
   const isHero = u.kind === 'hero';
   const isBuilding = u.kind === 'building';
+  const isElite = u.kind === 'elite' || !!u.elite || u.defId === 'roshan';
+  const isRoshan = u.defId === 'roshan';
   const ui = opts.uiScale ?? 1;
-  const s = isHero ? ui : 1 + (ui - 1) * 0.5;
-  const w = (isHero ? 110 : isBuilding ? 170 : 46) * s;
-  const h = (isHero ? 13 : isBuilding ? 12 : 6) * s;
-  const top = opts.top !== undefined ? opts.top : isBuilding ? y - (u.building!.type === 'ancient' ? 170 : 150) : y - u.radius * 1.3 - (isHero ? 44 : 20) * s;
+  const s = isHero ? ui : isRoshan ? ui * 1.2 : isElite ? ui * 1.1 : 1 + (ui - 1) * 0.5;
+  const w = (isRoshan ? 140 : isHero ? 110 : isBuilding ? 170 : isElite ? 75 : 46) * s;
+  const h = (isRoshan ? 14 : isHero ? 13 : isBuilding ? 12 : isElite ? 9 : 6) * s;
+  const top = opts.top !== undefined ? opts.top : isBuilding ? y - (u.building!.type === 'ancient' ? 170 : 150) : y - u.radius * 1.3 - (isHero ? 44 : isRoshan ? 35 : 20) * s;
   const maxHp = Math.max(1, u.stats.maxHp);
   const pct = Math.max(0, Math.min(1, u.hp / maxHp));
   const manaH = 5 * s;
   const pad = 2 * s;
   ctx.fillStyle = 'rgba(0,0,0,0.75)';
   ctx.fillRect(x - w / 2 - pad, top - pad, w + pad * 2, h + pad * 2 + (isHero ? manaH + pad : 0));
-  ctx.fillStyle = isPlayer ? '#5fe05a' : ally ? '#3fae4a' : '#d33b2f';
+  if (isRoshan || isElite) {
+    ctx.strokeStyle = '#f2c94c';
+    ctx.lineWidth = 1.5 * s;
+    ctx.strokeRect(x - w / 2 - pad, top - pad, w + pad * 2, h + pad * 2);
+  }
+  ctx.fillStyle = isPlayer ? '#5fe05a' : ally ? '#3fae4a' : isRoshan ? '#d97706' : '#d33b2f';
   ctx.fillRect(x - w / 2, top, w * pct, h);
   // 护盾：白色段接在当前血量后面
   const sh = shieldTotal(u);

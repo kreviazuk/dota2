@@ -22,3 +22,5 @@ import '../models/pudge';
 import './pudge';
 import '../models/shadow_fiend';
 import './shadow_fiend';
+import '../models/elites';
+import './elites';
