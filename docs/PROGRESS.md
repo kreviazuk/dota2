@@ -190,14 +190,14 @@ P2 完成：10 名英雄全部可选（斧王、斯温、帕吉、主宰、幻�
 - Task 1（2026-10-21）：`src/sim/items/types.ts` 定义 `ItemCategory`、`ItemDef`、`ItemActiveDef`、`ItemPassiveDef`、`ItemInstance`；`src/sim/items/definitions.ts` 完整录入 7.41f 核心物品（5 种消耗品、17 件基础属性件、37 件配件与鞋类、进阶装备大件及阿哈利姆神杖/魔晶），提供 `getItemDef`、`getAllItemDefs`、`getItemsByCategory`、`getRecipe`、`isFinishedItem`、`calculateItemCost`。新增 `tests/items/definitions.test.ts`（6 个测试），验证所有合成件总价格与组件+卷轴价格严格一致，无循环依赖。共 501 个测试全部通过。
 - Task 2（2026-10-21）：`Unit` 挂载 6 格物品栏 `inventory` 及 `getItem` / `hasItem` / `findItemSlot`；`src/sim/items/inventory.ts` 实现 `buyItem`（支持基础散件、成品缺件自动补齐合成、消耗品堆叠不占多格、阿哈利姆魔晶 480 秒后直接使用生效）、`sellItem`（10秒内未使用的物品 100% 全额原价退款，超时 50% 折价出售）、`checkAndCombine`（自动合并 0 卷轴费用的成品）、`calculateInventoryValue`（实时更新 `hero.itemValue` 与净资产）；`commands.ts` 接入 `buy` 与 `sell` 指令；`stats.ts` 接入物品被动属性累计与靴子移速不叠加规则；`events.ts` 新增 `itemBuy` / `itemSell` / `itemCombine` 事件。新增 `tests/items/inventory.test.ts`（9 个测试），共 510 个测试全部通过。
 
-## P4 AI 与内容：进行中 (2 / 8)
+## P4 AI 与内容：进行中 (3 / 8)
 实施计划：`docs/superpowers/plans/2026-10-21-p4-ai-content.md`（8 个任务）。
 
 | 任务 | 内容 | 状态 |
 |---|---|---|
 | 1 | 精英怪系统核心逻辑与数据（半人马、头狼、萨特、黑龙、岩石傀儡） | ✅ |
 | 2 | 肉山 BOSS 战、刷新机制与不朽之守护 (Aegis) | ✅ |
-| 3 | 三层 AI 架构——团队宏观战略层 (Team Strategy) | ⏳ |
+| 3 | 三层 AI 架构——团队宏观战略层 (Team Strategy) | ✅ |
 | 4 | 三层 AI 架构——个人战术打分层 (Utility AI) 与对线正反补 | ⏳ |
 | 5 | 三层 AI 架构——微操连招、预判施法与多难度校准 | ⏳ |
 | 6 | 精英怪与肉山的美术渲染（Three.js 3D & Canvas 2D） | ⏳ |
@@ -206,6 +206,7 @@ P2 完成：10 名英雄全部可选（斧王、斯温、帕吉、主宰、幻�
 
 - Task 1（2026-10-21）：`src/sim/entities/elites.ts` 定义 5 种精英怪（半人马征服者、头狼、萨特苦难者、远古黑龙、远古岩石傀儡）及小傀儡；实现每分钟 +4% 生命与攻击成长；实现头狼统御光环（+20% 基础攻击）与 30% 暴击，岩石傀儡花岗岩光环（+150 生命）与死亡分裂双小傀儡；实现半人马战争践踏（250 范围 100 伤害 + 1.5s 眩晕）、萨特震荡波（800 距离 160 魔法伤害穿透）、黑龙火海（250 范围持续 5 秒灼烧）；`src/sim/systems/creeps.ts` 在 3:00 起每 4 波、12:00 起每 3 波随兵线刷出精英怪；`src/sim/world.ts` 接入 `updateEliteAI` 与 `onEliteKilled` 分裂监听。新增 `tests/sim/elites.test.ts`（8 个测试全部通过，测试套件共 565 个测试全绿）。
 - Task 2（2026-10-21）：`src/sim/entities/roshan.ts` 实现河道远古巨魔肉山（6000 基础生命随时间成长、20 点高护甲、55% 魔抗法术护盾、350 范围 120 伤害+50% 减速巨力重击、超过 550 距离脱战后撤回血）；15:00 首次降临并于击杀后 300 秒（5 分钟）重生；`src/sim/items/aegis.ts` 实现不朽之守护机制（英雄承受致死伤害时免死并进入 5 秒原地重生等待，满血满蓝复活；5 分钟未触发到期化为治疗药膏）；`damage.ts` 接入致死拦截与无损复活流程。新增 `tests/sim/roshan.test.ts`（7 个测试全部通过，测试套件共 572 个测试全绿）。
+- Task 3（2026-10-21）：`src/ai/teamAI.ts` 实现团队宏观战略层（每 1.0 秒周期动态运行一次）；评估双方存活人数、前线兵线、防御塔威胁状态及肉山刷新情况；状态机自适应切换 6 大模式（对线 `laning`、推进 `pushing`、防守 `defending`、撤退 `retreating`、团战 `teamfight`、打肉山 `roshan`）；输出队伍建议集结线 `rallyPoint` 与团队优先集火目标 `priorityTargetId`。新增 `tests/ai/teamAi.test.ts`（6 个测试全部通过，测试套件共 578 个测试全绿）。
 
 ## 后续阶段
 P4 三层 AI、精英怪、结算界面细化（选人流程已在 P2 提前完成，决定 D2）→ P5 平衡调参（P2 基线的胜率异常、对局时长）→ P6 特效音效和打包优化。详见设计文档 §14。
