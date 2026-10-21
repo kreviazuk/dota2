@@ -17,6 +17,7 @@ import { updateAbilities } from './systems/abilities';
 import { updateItems } from './systems/items';
 import { updateSpawner, updateCreepAI } from './systems/creeps';
 import { updateEliteAI, onEliteKilled } from './entities/elites';
+import { updateRoshan, onRoshanKilled } from './entities/roshan';
 import { updateHeroes, onHeroKilled } from './systems/heroes';
 import { onUnitKilledEconomy } from './systems/economy';
 import { updateMotion } from './systems/motion';
@@ -62,7 +63,7 @@ export class World {
   effects: AreaEffect[] = [];
   winner: Team | null = null;
   spawner: { nextWaveTime: number; waveIndex: number };
-  readonly teams: Record<Team, TeamState> = { [Team.Radiant]: newTeamState(), [Team.Dire]: newTeamState() };
+  readonly teams: Record<Team, TeamState> = { [Team.Radiant]: newTeamState(), [Team.Dire]: newTeamState(), [Team.Neutral]: newTeamState() };
   readonly systems: SystemFn[] = [];
   readonly killListeners: KillListener[] = [];
   /** world.after() 的计时器，按 (触发时间, 加入顺序) 排好序 */
@@ -81,10 +82,10 @@ export class World {
     // 系统执行顺序（后续任务在对应位置插入）：
     // spawner → heroes → auras → buildings → creepAI → abilities → attacks → motion → movement → projectiles → effects → timers → summons → regen
     this.systems.push(
-      updateSpawner, updateHeroes, updateAuras, updateBuildings, updateCreepAI, updateEliteAI, updateAbilities, updateItems, updateAttacks, updateMotion,
+      updateSpawner, updateHeroes, updateAuras, updateBuildings, updateCreepAI, updateEliteAI, updateRoshan, updateAbilities, updateItems, updateAttacks, updateMotion,
       updateMovement, updateProjectiles, updateEffects, updateTimers, updateSummons, updateRegen,
     );
-    this.killListeners.push(onBuildingKilled, onUnitKilledEconomy, onHeroKilled, onEliteKilled);
+    this.killListeners.push(onBuildingKilled, onUnitKilledEconomy, onHeroKilled, onEliteKilled, onRoshanKilled);
   }
 
   allocId(): number {

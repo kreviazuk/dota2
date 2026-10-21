@@ -11,6 +11,7 @@ import { lookupModifier2D, lookupProjectile2D, lookupSummon2D } from './fx2d';
 export const TEAM_COLORS: Record<Team, { main: string; light: string; dark: string; rgb: string }> = {
   [Team.Radiant]: { main: '#4caf50', light: '#a8f0a0', dark: '#1f5e25', rgb: '120,255,140' },
   [Team.Dire]: { main: '#d9483b', light: '#ffa090', dark: '#6b1a14', rgb: '255,90,70' },
+  [Team.Neutral]: { main: '#c49a45', light: '#e5be6b', dark: '#6e511c', rgb: '196,154,69' },
 };
 
 /** 斩杀线：观察者（玩家英雄）学会淘汰之刃后，敌方英雄血量低于 threshold 时血条上显示斧头标记 */

@@ -309,3 +309,38 @@ export function checkAndCombine(world: World, unit: Unit): boolean {
 
   return combinedAny;
 }
+
+/** 直接给予单位物品（免费，用于不朽盾过期化为药膏等） */
+export function grantItem(world: World, unit: Unit, itemId: string): boolean {
+  if (!unit.alive) return false;
+  const def = getItemDef(itemId);
+  if (!def) return false;
+
+  if (def.stackable) {
+    const existingSlot = unit.findItemSlot(itemId);
+    if (existingSlot >= 0) {
+      const slotItem = unit.inventory[existingSlot]!;
+      slotItem.charges = (slotItem.charges ?? 1) + (def.initialCharges ?? 1);
+      if (unit.hero) unit.hero.itemValue = calculateInventoryValue(unit);
+      syncItemPassives(world, unit);
+      recomputeStats(world, unit);
+      return true;
+    }
+  }
+
+  const freeSlot = unit.inventory.indexOf(null);
+  if (freeSlot < 0) return false;
+
+  unit.inventory[freeSlot] = {
+    id: itemId,
+    cooldownRemaining: 0,
+    charges: def.initialCharges,
+    buyTime: world.time,
+    costPaid: 0,
+  };
+
+  if (unit.hero) unit.hero.itemValue = calculateInventoryValue(unit);
+  syncItemPassives(world, unit);
+  recomputeStats(world, unit);
+  return true;
+}
