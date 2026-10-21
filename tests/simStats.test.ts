@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  heroTable, recordsFromWorld, summarizeHeroes, unusedAbilities, winRateOutliers,
+  heroTable, itemTable, recordsFromWorld, summarizeHeroes, unusedAbilities, winRateOutliers,
   type HeroGameRecord, type HeroSummary,
 } from '../src/game/simStats';
 import { Match } from '../src/game/match';
@@ -104,5 +104,26 @@ describe('simStats', () => {
     const crow = colored.split('\n').filter((l) => l.includes('斧王'));
     expect(crow[0]).toContain('\x1b[31m');
     expect(colored.split('\n').find((l) => l.includes('莉娜'))).not.toContain('\x1b[31m');
+  });
+
+  it('summarizeHeroes and itemTable aggregate item purchases and shard rates', () => {
+    const records = [
+      rec('axe', 'radiant', true, { items: ['blink_dagger', 'blade_mail'], hasShard: true }),
+      rec('axe', 'dire', false, { items: ['blink_dagger', 'vanguard'], hasShard: false }),
+      rec('lina', 'radiant', true, { items: ['arcane_boots'], hasShard: false }),
+    ];
+    const sums = summarizeHeroes(records);
+    const axe = sums.find((s) => s.heroId === 'axe')!;
+    expect(axe.shardRate).toBeCloseTo(0.5);
+    expect(axe.topItems).toEqual([
+      { itemId: 'blink_dagger', count: 2, rate: 1 },
+      { itemId: 'blade_mail', count: 1, rate: 0.5 },
+      { itemId: 'vanguard', count: 1, rate: 0.5 },
+    ]);
+
+    const table = itemTable(sums);
+    expect(table).toContain('魔晶购买率');
+    expect(table).toContain('闪烁匕首 (100%)');
+    expect(table).toContain('50.0%');
   });
 });

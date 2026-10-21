@@ -3,6 +3,7 @@ import { Team } from '../sim/core/types';
 import { netWorth } from '../sim/systems/progress';
 import { getHeroDef, hasHero } from '../sim/heroes/index';
 import type { AbilityDef } from '../sim/heroes/types';
+import { ITEM_DEFINITIONS } from '../sim/items/definitions';
 
 /** 批量模拟里一个英雄在一局中的数据 */
 export interface HeroGameRecord {
@@ -14,6 +15,8 @@ export interface HeroGameRecord {
   kills: number; deaths: number; assists: number; lastHits: number;
   heroDamage: number; buildingDamage: number; level: number; netWorth: number;
   casts: Record<string, number>;
+  items?: string[];
+  hasShard?: boolean;
 }
 
 /** 一个英雄在全部对局里的汇总（K/D/A 等都是场均） */
@@ -22,6 +25,8 @@ export interface HeroSummary {
   kills: number; deaths: number; assists: number;
   heroDamage: number; buildingDamage: number; lastHits: number; level: number;
   castsPerGame: Record<string, number>;
+  topItems?: { itemId: string; count: number; rate: number }[];
+  shardRate?: number;
 }
 
 /** 主动技能（会发 cast 事件的）：非被动；开关也算 */
@@ -44,6 +49,7 @@ export function recordsFromWorld(world: World, judged: Team | null): HeroGameRec
     const casts: Record<string, number> = {};
     for (const id of activeAbilityIds(h.heroId)) casts[id] = 0;
     for (const [id, n] of Object.entries(h.abilityCasts)) casts[id] = n;
+    const items = (u.inventory ?? []).filter((it): it is NonNullable<typeof it> => it !== null).map((it) => it.id);
     return {
       heroId: h.heroId,
       team: sideOf(u.team),
@@ -53,6 +59,8 @@ export function recordsFromWorld(world: World, judged: Team | null): HeroGameRec
       heroDamage: h.damageDealt.heroes, buildingDamage: h.damageDealt.buildings,
       level: h.level, netWorth: netWorth(u),
       casts,
+      items,
+      hasShard: !!h.hasShard,
     };
   });
 }
@@ -73,12 +81,29 @@ export function summarizeHeroes(records: readonly HeroGameRecord[]): HeroSummary
     for (const r of rs) for (const [id, c] of Object.entries(r.casts)) castsPerGame[id] = (castsPerGame[id] ?? 0) + c;
     for (const id of Object.keys(castsPerGame)) castsPerGame[id] /= n;
     const wins = rs.filter((r) => r.won === true).length;
+
+    const itemCounts = new Map<string, number>();
+    let shardCount = 0;
+    for (const r of rs) {
+      if (r.hasShard) shardCount++;
+      if (r.items) {
+        for (const itemId of r.items) {
+          itemCounts.set(itemId, (itemCounts.get(itemId) ?? 0) + 1);
+        }
+      }
+    }
+    const topItems = Array.from(itemCounts.entries())
+      .map(([itemId, count]) => ({ itemId, count, rate: count / n }))
+      .sort((a, b) => b.count - a.count || a.itemId.localeCompare(b.itemId));
+
     out.push({
       heroId, games: n, wins, winRate: wins / n, judgedWinRate: rs.filter((r) => r.judgedWon).length / n,
       kills: mean((r) => r.kills), deaths: mean((r) => r.deaths), assists: mean((r) => r.assists),
       heroDamage: mean((r) => r.heroDamage), buildingDamage: mean((r) => r.buildingDamage),
       lastHits: mean((r) => r.lastHits), level: mean((r) => r.level),
       castsPerGame,
+      topItems,
+      shardRate: shardCount / n,
     });
   }
   return out.sort((a, b) => b.judgedWinRate - a.judgedWinRate || (a.heroId < b.heroId ? -1 : a.heroId > b.heroId ? 1 : 0));
@@ -120,6 +145,26 @@ export function heroTable(sums: readonly HeroSummary[], flagged: ReadonlySet<str
     ];
     const line = `| ${row.join(' | ')} |`;
     lines.push(bad && color ? `\x1b[31m${line}\x1b[0m` : line);
+  }
+  return lines.join('\n');
+}
+
+/** "各英雄装备与魔晶购买"表（终端 / Markdown 共用） */
+export function itemTable(sums: readonly HeroSummary[]): string {
+  const lines = [
+    '| 英雄 | 场次 | 魔晶购买率 | 主要装备 (持有率) |',
+    '|---|---|---|---|',
+  ];
+  for (const s of sums) {
+    const shard = s.shardRate !== undefined ? pct(s.shardRate) : '-';
+    const top = (s.topItems ?? [])
+      .slice(0, 5)
+      .map((t) => {
+        const name = ITEM_DEFINITIONS[t.itemId]?.name ?? t.itemId;
+        return `${name} (${(t.rate * 100).toFixed(0)}%)`;
+      })
+      .join('，') || '（无）';
+    lines.push(`| ${heroName(s.heroId)} | ${s.games} | ${shard} | ${top} |`);
   }
   return lines.join('\n');
 }

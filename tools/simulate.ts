@@ -11,7 +11,7 @@ import { getHeroDef } from '../src/sim/heroes/index';
 import { availableHeroes } from '../src/game/roster';
 import { draftTeams } from '../src/game/draft';
 import {
-  heroTable, recordsFromWorld, summarizeHeroes, unusedAbilities, winRateOutliers,
+  heroTable, itemTable, recordsFromWorld, summarizeHeroes, unusedAbilities, winRateOutliers,
   type HeroGameRecord, type HeroSummary,
 } from '../src/game/simStats';
 
@@ -232,6 +232,9 @@ function summarize(a: Args, results: GameResult[], color: boolean): { sections: 
     ? red(`含判定胜率偏离 50% 超过 8 个百分点（≥ 20 场）：${outliers.map(heroName).join('、')}`)
     : '没有含判定胜率偏离 50% 超过 8 个百分点（≥ 20 场）的英雄');
   sections.push({ title: '各英雄出场胜率', lines: heroLines, table: true });
+
+  const itemLines = itemTable(sums).split('\n');
+  sections.push({ title: '各英雄装备与魔晶购买', lines: itemLines, table: true });
 
   const casts = ['| 英雄 | 场均施放次数 |', '|---|---|'];
   for (const s of sums) {
