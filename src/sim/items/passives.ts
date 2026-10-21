@@ -425,6 +425,20 @@ export const ITEM_PASSIVE_MODIFIERS: Record<string, ModifierDef> = {
     },
   },
 
+  blink_dagger: {
+    id: 'mod_item_blink_dagger',
+    hidden: true,
+    onIncomingDamage: (_m, u, _w, info) => {
+      if (info.source && info.source.kind === 'hero' && info.source.team !== u.team && info.amount > 0) {
+        const slot = u.findItemSlot('blink_dagger');
+        if (slot >= 0) {
+          const it = u.inventory[slot];
+          if (it) it.cooldownRemaining = Math.max(it.cooldownRemaining ?? 0, 3.0);
+        }
+      }
+    },
+  },
+
   // ================= 光环类物品 =================
 
   buckler: {

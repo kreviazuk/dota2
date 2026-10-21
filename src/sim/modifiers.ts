@@ -151,8 +151,8 @@ export function removeModifier(world: World, u: Unit, m: ModifierInstance): void
   const i = u.modifiers.indexOf(m);
   if (i < 0) return;
   u.modifiers.splice(i, 1);
-  m.def.onRemove?.(m, u, world);
   recomputeStats(world, u);
+  m.def.onRemove?.(m, u, world);
 }
 
 export function tickModifiers(world: World, u: Unit, dt: number): void {

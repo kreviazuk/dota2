@@ -14,6 +14,7 @@ import { updateAttacks } from './systems/attack';
 import { updateBuildings, onBuildingKilled } from './systems/buildings';
 import { updateProjectiles, updateEffects } from './systems/projectiles';
 import { updateAbilities } from './systems/abilities';
+import { updateItems } from './systems/items';
 import { updateSpawner, updateCreepAI } from './systems/creeps';
 import { updateHeroes, onHeroKilled } from './systems/heroes';
 import { onUnitKilledEconomy } from './systems/economy';
@@ -79,7 +80,7 @@ export class World {
     // 系统执行顺序（后续任务在对应位置插入）：
     // spawner → heroes → auras → buildings → creepAI → abilities → attacks → motion → movement → projectiles → effects → timers → summons → regen
     this.systems.push(
-      updateSpawner, updateHeroes, updateAuras, updateBuildings, updateCreepAI, updateAbilities, updateAttacks, updateMotion,
+      updateSpawner, updateHeroes, updateAuras, updateBuildings, updateCreepAI, updateAbilities, updateItems, updateAttacks, updateMotion,
       updateMovement, updateProjectiles, updateEffects, updateTimers, updateSummons, updateRegen,
     );
     this.killListeners.push(onBuildingKilled, onUnitKilledEconomy, onHeroKilled);

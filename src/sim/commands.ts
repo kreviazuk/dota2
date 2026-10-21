@@ -9,6 +9,7 @@ import { learnAbility } from './systems/progress';
 import { pickTalent } from './talents';
 import { canAttack, smartAttackTarget, lastHitTarget, buildingTarget } from './query';
 import { buyItem, sellItem } from './items/inventory';
+import { useItem } from './items/actives';
 
 export type Command =
   | { type: 'move'; dir: Vec2 | null }
@@ -79,6 +80,9 @@ export function applyCommand(world: World, u: Unit, cmd: Command): void {
       if (ab && ab.def.targetType === 'toggle' && canCast(world, u, ab)) toggleAbility(world, u, ab);
       return;
     }
+    case 'useItem':
+      useItem(world, u, cmd.index, cmd.target);
+      return;
     case 'learn':
       learnAbility(world, u, cmd.slot);
       return;

@@ -7,6 +7,7 @@ import { edgeDist, enemiesInRadius, isDisabled, isTargetableBy, nearestOf } from
 import { addModifier, findModifier, removeModifier } from '../modifiers';
 import { recomputeStats } from '../stats';
 import { tryTriggerLinkens } from '../items/passives';
+import { chargeMagicStickNearby } from '../items/actives';
 
 export const levelValue = (arr: readonly number[] | undefined, level: number): number => {
   if (!arr || arr.length === 0) return 0;
@@ -227,6 +228,7 @@ function spendCast(u: Unit, ab: AbilityInstance): void {
 
 /** 技能生效：cast 事件、onCast、施法者的 onAbilityCast 钩子 */
 function fireCast(world: World, u: Unit, ab: AbilityInstance, target: ResolvedTarget): void {
+  chargeMagicStickNearby(world, u);
   ab.def.onCast?.(makeCastContext(world, u, ab, target));
   for (const m of u.modifiers.slice()) m.def.onAbilityCast?.(m, u, ab.def.id, world);
 }
