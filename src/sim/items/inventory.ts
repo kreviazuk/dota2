@@ -4,6 +4,7 @@ import type { ItemInstance } from './types';
 import { getItemDef, ITEM_DEFINITIONS } from './definitions';
 import { giveGold } from '../systems/progress';
 import { recomputeStats } from '../stats';
+import { syncItemPassives } from './passives';
 
 export interface ResolveResult {
   missingItems: string[];
@@ -128,6 +129,7 @@ export function buyItem(world: World, unit: Unit, itemId: string): { success: bo
       unit.hero.itemValue = calculateInventoryValue(unit);
 
       world.events.emit({ type: 'itemBuy', unitId: unit.id, itemId, cost });
+      syncItemPassives(world, unit);
       recomputeStats(world, unit);
       return { success: true };
     }
@@ -187,6 +189,7 @@ export function buyItem(world: World, unit: Unit, itemId: string): { success: bo
   // 尝试检查是否有无卷轴费用的其他成品能继续合成
   checkAndCombine(world, unit);
 
+  syncItemPassives(world, unit);
   recomputeStats(world, unit);
   return { success: true };
 }
@@ -229,6 +232,7 @@ export function sellItem(world: World, unit: Unit, slotIndex: number): { success
   unit.hero.itemValue = calculateInventoryValue(unit);
 
   world.events.emit({ type: 'itemSell', unitId: unit.id, itemId: item.id, refund });
+  syncItemPassives(world, unit);
   recomputeStats(world, unit);
 
   return { success: true, refund };
@@ -294,6 +298,7 @@ export function checkAndCombine(world: World, unit: Unit): boolean {
     if (unit.hero) {
       unit.hero.itemValue = calculateInventoryValue(unit);
     }
+    syncItemPassives(world, unit);
     recomputeStats(world, unit);
   }
 

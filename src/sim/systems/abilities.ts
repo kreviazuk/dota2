@@ -6,6 +6,7 @@ import { add, angleOf, dist, fromAngle, normalize, scale, sub } from '../core/ve
 import { edgeDist, enemiesInRadius, isDisabled, isTargetableBy, nearestOf } from '../query';
 import { addModifier, findModifier, removeModifier } from '../modifiers';
 import { recomputeStats } from '../stats';
+import { tryTriggerLinkens } from '../items/passives';
 
 export const levelValue = (arr: readonly number[] | undefined, level: number): number => {
   if (!arr || arr.length === 0) return 0;
@@ -290,6 +291,14 @@ function executeCast(world: World, u: Unit, c: CastState): void {
   spendCast(u, ab);
   countCast(u, ab);
   world.events.emit({ type: 'cast', unitId: u.id, abilityId: ab.def.id });
+
+  // 林肯法球：敌方指向性技能抵挡
+  if (c.target.unit && c.target.unit.team !== u.team && tryTriggerLinkens(world, c.target.unit, u, ab)) {
+    u.cast = null;
+    if (u.order.kind === 'cast') u.order = { kind: 'idle' };
+    return;
+  }
+
   const channel = abilityChannelTime(u, ab);
   if (channel > 0) {
     c.phase = 'channel';

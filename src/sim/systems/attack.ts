@@ -137,13 +137,12 @@ export function launchAttack(world: World, attacker: Unit, target: Unit): void {
  * 技能发起的一次攻击：先调用攻击者的 onAttackStart（除非 noProcs），
  * 然后立即结算（instant 或近战）或发射追踪弹道（远程）。不发 attackStart 事件、不引仇恨。
  */
-export function performAttack(world: World, attacker: Unit, target: Unit, o: PerformAttackOpts = {}): void {
+export function performAttack(world: World, attacker: Unit, target: Unit, o: PerformAttackOpts = {}): number {
   const { instant, projectileSpeed, ...rest } = o;
   const atk = newAttackInfo(rest);
   if (!atk.noProcs) for (const m of attacker.modifiers.slice()) m.def.onAttackStart?.(m, attacker, target, world, atk);
   if (instant || attacker.isMelee) {
-    resolveAttack(world, attacker, target, atk);
-    return;
+    return resolveAttack(world, attacker, target, atk);
   }
   const dir = normalize(sub(target.pos, attacker.pos));
   spawnProjectile(world, {
@@ -158,6 +157,7 @@ export function performAttack(world: World, attacker: Unit, target: Unit, o: Per
       resolveAttack(w, attacker, t, atk);
     },
   });
+  return 0;
 }
 
 /** 一次攻击的伤害随机值（不含暴击和攻击类型系数）：rng(min, max) + 额外攻击力 */
