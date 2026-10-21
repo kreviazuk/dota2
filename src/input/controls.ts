@@ -13,7 +13,10 @@ import { pendingTalentTier } from '../sim/talents';
 import { nextSkillToLearn, TALENT_BUILDS } from '../ai/builds';
 import type { Prefs } from '../ui/settings';
 import { dirChanged, dragToAim, joystickVector } from './aimMath';
-import { aimAbility, pointCastTarget, type AimResult } from './aim';
+import { aimAbility, aimItem, pointCastTarget, pointCastItemTarget, type AimResult } from './aim';
+import { fromAngle } from '../sim/core/vec2';
+import { enemiesInRadius } from '../sim/query';
+import { getItemDef } from '../sim/items/definitions';
 
 /** 从按下点拖动超过这个距离（CSS 像素）才算手动瞄准，否则松手时智能施法 */
 const DRAG_THRESHOLD = 16;
@@ -57,6 +60,14 @@ interface AimState {
   dragging: boolean;
 }
 
+interface ItemAimState {
+  slotIndex: number;
+  pointerId: number;
+  start: Vec2;
+  current: Vec2;
+  dragging: boolean;
+}
+
 /**
  * 触屏（摇杆 + 按钮）和键鼠输入 → Command 队列。主循环每个逻辑帧调用一次 drain()。
  * 手动瞄准时 aim 是给渲染器画的指示器。
@@ -69,6 +80,7 @@ export class Controls {
   private joyDir: Vec2 | null = null;
   private keyDir: Vec2 | null = null;
   private aimState: AimState | null = null;
+  private itemAimState: ItemAimState | null = null;
   private keys = new Set<string>();
   private mouse: Vec2 | null = null;
   private attackHeldUntil = 0;
@@ -76,9 +88,11 @@ export class Controls {
   private offs: (() => void)[] = [];
 
   constructor(private readonly hud: Hud, private readonly match: Match, private readonly camera: ViewCamera, private readonly prefs: Prefs) {
+    this.hud.onCommand = (cmd) => this.push(cmd);
     this.bindJoystick();
     this.bindButtons();
     this.bindSkills();
+    this.bindItems();
     this.bindTalents();
     this.bindKeyboard();
   }
@@ -92,7 +106,7 @@ export class Controls {
     return this.match.world.getUnit(this.match.playerUnitId);
   }
 
-  private push(c: Command): void {
+  push(c: Command): void {
     this.queue.push(c);
   }
 
@@ -142,6 +156,7 @@ export class Controls {
     this.resetJoystickVisual();
     this.releaseAttack();
     this.endAim();
+    this.endItemAim();
   }
 
   destroy(): void {
@@ -287,6 +302,91 @@ export class Controls {
     }
   }
 
+  // ---------- 物品栏：轻点触发 / 拖动瞄准施法 ----------
+  private bindItems(): void {
+    for (const b of this.hud.inventorySlots) {
+      this.on(b.root, 'pointerdown', (e) => {
+        e.preventDefault();
+        if (this.itemAimState || this.aimState) return;
+        const u = this.player();
+        const item = u?.inventory[b.index];
+        if (!u || !item || (item.cooldownRemaining ?? 0) > 0) return;
+        const def = getItemDef(item.id);
+        const active = def?.active;
+        if (!active) return;
+        if (active.targetType === 'none' || active.targetType === 'toggle') {
+          this.push({ type: 'useItem', index: b.index });
+          return;
+        }
+        b.root.setPointerCapture(e.pointerId);
+        const p = { x: e.clientX, y: e.clientY };
+        this.itemAimState = { slotIndex: b.index, pointerId: e.pointerId, start: p, current: p, dragging: false };
+        b.root.classList.add('aiming');
+      });
+
+      this.on(b.root, 'pointermove', (e) => {
+        const st = this.itemAimState;
+        if (!st || st.pointerId !== e.pointerId) return;
+        st.current = { x: e.clientX, y: e.clientY };
+        if (!st.dragging && dist(st.current, st.start) > DRAG_THRESHOLD) {
+          st.dragging = true;
+          this.hud.cancelZone.classList.add('show');
+        }
+        if (st.dragging) {
+          this.aim = this.computeItemAim(st)?.indicator ?? null;
+        }
+      });
+
+      const finish = (e: PointerEvent, cancelled: boolean) => {
+        const st = this.itemAimState;
+        if (!st || st.pointerId !== e.pointerId) return;
+        const overCancel = this.overCancel(st.current);
+        const aimed = st.dragging ? this.computeItemAim(st) : null;
+        this.endItemAim();
+        if (cancelled || overCancel) return;
+        const u = this.player();
+        const item = u?.inventory[st.slotIndex];
+        const def = item ? getItemDef(item.id) : null;
+        if (!u || !item || !def?.active) return;
+        if (!st.dragging || !aimed?.target) {
+          if (def.active.targetType === 'point') {
+            const range = def.active.castRange ?? 1200;
+            const dir = this.heldDir() ?? fromAngle(u.facing);
+            this.push({ type: 'useItem', index: st.slotIndex, target: { point: { x: u.pos.x + dir.x * range, y: u.pos.y + dir.y * range } } });
+          } else if (def.active.targetType === 'unit') {
+            if (def.active.canTargetSelf) {
+              this.push({ type: 'useItem', index: st.slotIndex, target: { unitId: u.id } });
+            } else {
+              const enemies = enemiesInRadius(this.match.world, u.team, u.pos, def.active.castRange ?? 600);
+              if (enemies.length > 0) this.push({ type: 'useItem', index: st.slotIndex, target: { unitId: enemies[0].id } });
+            }
+          }
+          return;
+        }
+        this.push({ type: 'useItem', index: st.slotIndex, target: aimed.target });
+      };
+
+      this.on(b.root, 'pointerup', (e) => finish(e, false));
+      this.on(b.root, 'pointercancel', (e) => finish(e, true));
+    }
+  }
+
+  private endItemAim(): void {
+    this.itemAimState = null;
+    this.aim = null;
+    this.hud.cancelZone.classList.remove('show');
+    for (const b of this.hud.inventorySlots) b.root.classList.remove('aiming');
+  }
+
+  private computeItemAim(st: ItemAimState): AimResult | null {
+    const u = this.player();
+    const item = u?.inventory[st.slotIndex];
+    const def = item ? getItemDef(item.id) : null;
+    if (!u || !item || !def) return null;
+    const { dir, ratio } = dragToAim(st.current.x - st.start.x, st.current.y - st.start.y, aimMaxDrag());
+    return aimItem(this.match.world, u, def, dir, ratio, this.overCancel(st.current));
+  }
+
   // ---------- 天赋弹窗 ----------
   private bindTalents(): void {
     this.hud.talentOpts.forEach((el, side) => {
@@ -358,7 +458,18 @@ export class Controls {
       if (code === 'Space') {
         e.preventDefault();
         this.push({ type: 'attack', mode: 'smart' });
-      } else if (code === 'KeyT') this.push({ type: 'recall' });
+      } else if (code === 'KeyT') {
+        this.push({ type: 'recall' });
+      } else if (code === 'KeyB') {
+        e.preventDefault();
+        this.hud.shopModal.toggle(this.player());
+      } else if (code.startsWith('Digit')) {
+        const num = parseInt(code.slice(5), 10);
+        if (num >= 1 && num <= 6) {
+          e.preventDefault();
+          this.useItemSlot(num - 1);
+        }
+      }
     });
     this.on(window, 'keyup', (e) => {
       if (moveKeys.includes(e.code)) {
@@ -391,5 +502,35 @@ export class Controls {
     }
     const target = this.mouse ? pointCastTarget(this.match.world, u, ab, this.camera.screenToWorld(this.mouse)) : undefined;
     this.push(target ? { type: 'cast', slot, target } : { type: 'cast', slot });
+  }
+
+  private useItemSlot(slot: number): void {
+    const u = this.player();
+    const item = u?.inventory[slot];
+    if (!u || !item || (item.cooldownRemaining ?? 0) > 0) return;
+    const def = getItemDef(item.id);
+    const active = def?.active;
+    if (!active) return;
+    if (active.targetType === 'none' || active.targetType === 'toggle') {
+      this.push({ type: 'useItem', index: slot });
+      return;
+    }
+    const target = this.mouse ? pointCastItemTarget(this.match.world, u, def, this.camera.screenToWorld(this.mouse)) : undefined;
+    if (target) {
+      this.push({ type: 'useItem', index: slot, target });
+    } else {
+      if (active.targetType === 'point') {
+        const range = active.castRange ?? 1200;
+        const dir = this.heldDir() ?? fromAngle(u.facing);
+        this.push({ type: 'useItem', index: slot, target: { point: { x: u.pos.x + dir.x * range, y: u.pos.y + dir.y * range } } });
+      } else if (active.targetType === 'unit') {
+        if (active.canTargetSelf) {
+          this.push({ type: 'useItem', index: slot, target: { unitId: u.id } });
+        } else {
+          const enemies = enemiesInRadius(this.match.world, u.team, u.pos, active.castRange ?? 600);
+          if (enemies.length > 0) this.push({ type: 'useItem', index: slot, target: { unitId: enemies[0].id } });
+        }
+      }
+    }
   }
 }

@@ -13,6 +13,11 @@ import { pendingTalentTier } from '../sim/talents';
 import { getHeroDef } from '../sim/heroes/index';
 import { drawPortrait } from '../render/heroVisuals';
 import type { Prefs } from './settings';
+import { ShopModal } from './shop';
+import { getItemIconCanvas } from '../render/itemIcons';
+import { getItemDef } from '../sim/items/definitions';
+import { getNextQuickBuyItem } from '../ai/builds';
+import type { Command } from '../sim/commands';
 
 export const SKILL_SLOTS: AbilitySlot[] = ['Q', 'W', 'E', 'R'];
 /** 键盘调试键的显示（X1 = F、X2 = G） */
@@ -75,6 +80,16 @@ export interface SkillButton {
   name: HTMLSpanElement;
   charges: HTMLSpanElement;
   counter: HTMLSpanElement;
+}
+
+export interface ItemSlotButton {
+  index: number;
+  root: HTMLDivElement;
+  icon: HTMLDivElement;
+  cd: HTMLDivElement;
+  cdText: HTMLSpanElement;
+  charges: HTMLSpanElement;
+  activePip: HTMLDivElement;
 }
 
 interface BarEls {
@@ -140,6 +155,13 @@ export class Hud {
   readonly pauseBtn: HTMLDivElement;
   readonly cancelZone: HTMLDivElement;
   readonly skills: SkillButton[] = [];
+  readonly inventorySlots: ItemSlotButton[] = [];
+  readonly shopBtn: HTMLDivElement;
+  readonly quickBuyBtn: HTMLDivElement;
+  readonly qbIcon: HTMLDivElement;
+  readonly qbCost: HTMLSpanElement;
+  readonly shopModal: ShopModal;
+  onCommand?: (cmd: Command) => void;
   /** 天赋弹窗的左右两个按钮（Controls 绑定点击 → pickTalent） */
   readonly talentOpts: HTMLDivElement[];
   private acc = 1;
@@ -172,6 +194,8 @@ export class Hud {
           <div class="bar xp"><div class="fill"></div></div>
         </div>
         <div class="gold"><span class="coin">●</span><span class="gold-val">0</span></div>
+        <div class="btn-shop">商店</div>
+        <div class="quick-buy"><div class="qb-icon"></div><span class="qb-cost"></span></div>
         <div class="innate-tag"></div>
       </div>
       <div class="hud-top">
@@ -184,6 +208,21 @@ export class Hud {
         <div class="talent-opts"><div class="talent-opt" data-side="0"></div><div class="talent-opt" data-side="1"></div></div>
       </div>
       <div class="talent-pill">天赋</div>
+      <div class="inventory">
+        ${[0, 1, 2, 3, 4, 5]
+          .map(
+            (i) =>
+              `<div class="item-slot is-empty" data-slot="${i}">` +
+              `<span class="item-key">${i + 1}</span>` +
+              `<div class="item-icon"></div>` +
+              `<div class="item-cd"></div>` +
+              `<span class="item-cd-text"></span>` +
+              `<span class="item-charges"></span>` +
+              `<div class="item-active-pip"></div>` +
+              `</div>`
+          )
+          .join('')}
+      </div>
       <div class="actions">
         <div class="cancel-zone">取消</div>
         <div class="btn-attack">攻击</div>
@@ -204,6 +243,35 @@ export class Hud {
     this.pauseBtn = this.q('.btn-pause');
     this.cancelZone = this.q('.cancel-zone');
     this.minimap = this.q('.minimap');
+    this.shopBtn = this.q('.btn-shop');
+    this.quickBuyBtn = this.q('.quick-buy');
+    this.qbIcon = this.q('.qb-icon');
+    this.qbCost = this.q('.qb-cost');
+    this.shopModal = new ShopModal(this.root, (cmd) => this.onCommand?.(cmd));
+
+    for (let i = 0; i < 6; i++) {
+      const root = this.q<HTMLDivElement>(`.item-slot[data-slot="${i}"]`);
+      this.inventorySlots.push({
+        index: i,
+        root,
+        icon: root.querySelector('.item-icon')!,
+        cd: root.querySelector('.item-cd')!,
+        cdText: root.querySelector('.item-cd-text')!,
+        charges: root.querySelector('.item-charges')!,
+        activePip: root.querySelector('.item-active-pip')!,
+      });
+    }
+
+    this.shopBtn.addEventListener('click', () => {
+      this.shopModal.toggle(this.match.world.getUnit(this.match.playerUnitId));
+    });
+    this.quickBuyBtn.addEventListener('click', () => {
+      const me = this.match.world.getUnit(this.match.playerUnitId);
+      if (!me) return;
+      const qb = getNextQuickBuyItem(this.match.world, me);
+      if (qb) this.onCommand?.({ type: 'buy', itemId: qb.itemId });
+    });
+
     this.talentOpts = [...this.root.querySelectorAll<HTMLDivElement>('.talent-opt')];
     const bar = (sel: string): BarEls => {
       const b = this.q<HTMLDivElement>(sel);
@@ -358,6 +426,60 @@ export class Hud {
       b.root.classList.toggle('has-counter', n !== null);
       b.pips.querySelectorAll('i').forEach((pip, i) => pip.classList.toggle('on', i < ab.level));
     }
+
+    // 快捷购买部件刷新
+    const qb = getNextQuickBuyItem(w, me);
+    if (qb) {
+      this.quickBuyBtn.classList.add('show');
+      this.quickBuyBtn.classList.toggle('can-buy', me.hero.gold >= qb.cost);
+      setText(this.qbCost, String(qb.cost));
+      if (this.qbIcon.dataset.itemId !== qb.itemId) {
+        this.qbIcon.dataset.itemId = qb.itemId;
+        this.qbIcon.innerHTML = '';
+        this.qbIcon.appendChild(getItemIconCanvas(qb.itemId, 28));
+      }
+    } else {
+      this.quickBuyBtn.classList.remove('show');
+    }
+
+    // 6 格物品栏刷新
+    for (let i = 0; i < 6; i++) {
+      const item = me.inventory[i];
+      const slotBtn = this.inventorySlots[i];
+      if (!slotBtn) continue;
+      if (item) {
+        const def = getItemDef(item.id);
+        slotBtn.root.classList.remove('is-empty');
+        if (slotBtn.root.dataset.itemId !== item.id) {
+          slotBtn.root.dataset.itemId = item.id;
+          slotBtn.icon.innerHTML = '';
+          slotBtn.icon.appendChild(getItemIconCanvas(item.id, 44));
+        }
+        const cd = item.cooldownRemaining ?? 0;
+        const total = def?.active?.cooldown ?? 1;
+        const frac = cd > 0 ? cd / Math.max(1, total) : 0;
+        slotBtn.cd.style.setProperty('--cd', frac.toFixed(3));
+        setText(slotBtn.cdText, cd > 0 ? (cd >= 1 ? String(Math.ceil(cd)) : cd.toFixed(1)) : '');
+        slotBtn.root.classList.toggle('on-cd', cd > 0);
+        const ch = item.charges ?? 0;
+        setText(slotBtn.charges, ch > 0 ? String(ch) : '');
+        const active = !!item.toggled;
+        slotBtn.root.classList.toggle('active', active);
+      } else {
+        slotBtn.root.classList.add('is-empty');
+        if (slotBtn.root.dataset.itemId) {
+          delete slotBtn.root.dataset.itemId;
+          slotBtn.icon.innerHTML = '';
+        }
+        slotBtn.cd.style.setProperty('--cd', '0');
+        setText(slotBtn.cdText, '');
+        setText(slotBtn.charges, '');
+        slotBtn.root.classList.remove('on-cd', 'active');
+      }
+    }
+
+    this.shopModal.update(w, me);
+
     els.death.classList.toggle('show', !me.alive);
     if (!me.alive) setText(els.deathTimer, String(Math.ceil(h.respawnTimer)));
   }
@@ -421,6 +543,7 @@ export class Hud {
   }
 
   destroy(): void {
+    this.shopModal.destroy();
     this.root.remove();
   }
 }

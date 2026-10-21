@@ -1,6 +1,8 @@
 import type { AbilitySlot } from '../sim/core/types';
 import type { Unit } from '../sim/entities/unit';
+import type { World } from '../sim/world';
 import { canLearn } from '../sim/systems/progress';
+import { getItemDef } from '../sim/items/definitions';
 
 export const SKILL_BUILDS: Record<string, AbilitySlot[]> = {
   axe: ['Q', 'E', 'E', 'W', 'E', 'R', 'E', 'Q', 'Q', 'Q', 'R', 'W', 'W', 'W', 'R'],
@@ -55,3 +57,80 @@ export function nextSkillToLearn(u: Unit): AbilitySlot | null {
   for (const ab of u.abilities) if (ab.def.slot !== 'innate' && canLearn(h.level, ab)) return ab.def.slot as AbilitySlot;
   return null;
 }
+
+// 10 名英雄推荐出装序列
+export const ITEM_BUILDS: Record<string, string[]> = {
+  axe: ['tranquil_boots', 'vanguard', 'blink_dagger', 'blade_mail', 'black_king_bar', 'heart_of_tarrasque', 'aghanims_shard', 'assault_cuirass'],
+  sven: ['power_treads', 'echo_sabre', 'black_king_bar', 'blink_dagger', 'aghanims_scepter', 'daedalus', 'aghanims_shard', 'satanic'],
+  lina: ['arcane_boots', 'euls_scepter', 'black_king_bar', 'aghanims_scepter', 'aghanims_shard', 'shivas_guard', 'daedalus'],
+  crystal_maiden: ['tranquil_boots', 'force_staff', 'black_king_bar', 'aghanims_shard', 'aghanims_scepter', 'shivas_guard'],
+  zeus: ['arcane_boots', 'force_staff', 'aghanims_scepter', 'aghanims_shard', 'black_king_bar', 'shivas_guard'],
+  drow_ranger: ['power_treads', 'yasha', 'aghanims_shard', 'sange_and_yasha', 'black_king_bar', 'butterfly', 'aghanims_scepter'],
+  phantom_assassin: ['power_treads', 'battle_fury', 'desolator', 'black_king_bar', 'skull_basher', 'sange_and_yasha', 'aghanims_shard', 'abyssal_blade'],
+  juggernaut: ['phase_boots', 'battle_fury', 'sange_and_yasha', 'aghanims_shard', 'black_king_bar', 'butterfly', 'abyssal_blade'],
+  pudge: ['tranquil_boots', 'vanguard', 'pipe_of_insight', 'blade_mail', 'blink_dagger', 'aghanims_scepter', 'heart_of_tarrasque', 'aghanims_shard'],
+  shadow_fiend: ['power_treads', 'euls_scepter', 'black_king_bar', 'desolator', 'aghanims_scepter', 'daedalus', 'butterfly', 'aghanims_shard'],
+};
+
+export interface QuickBuyItem {
+  itemId: string;
+  name: string;
+  cost: number;
+}
+
+/**
+ * 获取英雄当前推荐出装中下一个应购买的配件或成品
+ */
+export function getNextQuickBuyItem(world: World, unit: Unit): QuickBuyItem | null {
+  const build = ITEM_BUILDS[unit.defId] ?? ITEM_BUILDS.axe;
+  const invCounts: Record<string, number> = {};
+  for (const item of unit.inventory) {
+    if (item) invCounts[item.id] = (invCounts[item.id] ?? 0) + 1;
+  }
+
+  for (const targetId of build) {
+    if (targetId === 'aghanims_shard') {
+      if (unit.hero?.hasShard) continue;
+      if (world.time < 480) continue; // 8 分钟前不可买魔晶
+      return { itemId: 'aghanims_shard', name: '阿哈利姆魔晶', cost: 1400 };
+    }
+
+    if (unit.hasItem(targetId)) continue;
+
+    const def = getItemDef(targetId);
+    if (!def) continue;
+
+    // 如果该装备有合成配方
+    if (def.components && def.components.length > 0) {
+      // 遍历所有配件，找到背包中缺失的第一个配件
+      const tempInv = { ...invCounts };
+      let missingComponentId: string | null = null;
+
+      for (const compId of def.components) {
+        if ((tempInv[compId] ?? 0) > 0) {
+          tempInv[compId]--;
+        } else if (!missingComponentId) {
+          missingComponentId = compId;
+        }
+      }
+
+      if (missingComponentId) {
+        const compDef = getItemDef(missingComponentId);
+        if (compDef) {
+          return { itemId: compDef.id, name: compDef.name, cost: compDef.cost };
+        }
+      }
+
+      // 如果所有配件都已拥有，还需要购买卷轴
+      if ((def.recipeCost ?? 0) > 0) {
+        return { itemId: targetId, name: `${def.name} 卷轴`, cost: def.recipeCost! };
+      }
+    } else {
+      // 基础无配方散件
+      return { itemId: def.id, name: def.name, cost: def.cost };
+    }
+  }
+
+  return null;
+}
+

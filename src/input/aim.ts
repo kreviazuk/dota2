@@ -1,6 +1,7 @@
 import type { World } from '../sim/world';
 import type { Unit } from '../sim/entities/unit';
 import type { AbilityInstance, CastTarget } from '../sim/heroes/types';
+import type { ItemDef } from '../sim/items/types';
 import type { Vec2 } from '../sim/core/vec2';
 import { dist, fromAngle } from '../sim/core/vec2';
 import { abilityCastRange, abilityValue, isValidUnitTarget, snapPoint } from '../sim/systems/abilities';
@@ -73,3 +74,82 @@ export function pointCastTarget(world: World, caster: Unit, ab: AbilityInstance,
       return undefined;
   }
 }
+
+/**
+ * 手动瞄准物品（按住物品槽拖动）
+ */
+export function aimItem(
+  world: World,
+  caster: Unit,
+  def: ItemDef,
+  dir: Vec2 | null,
+  ratio: number,
+  cancel: boolean
+): AimResult {
+  const active = def.active;
+  if (!active) {
+    return { indicator: { kind: 'none', origin: { ...caster.pos }, range: 100, cancel } };
+  }
+  const range = active.castRange ?? 600;
+  const d = dir ?? fromAngle(caster.facing);
+  const origin = { x: caster.pos.x, y: caster.pos.y };
+  const along = (len: number): Vec2 => ({ x: origin.x + d.x * len, y: origin.y + d.y * len });
+
+  if (active.targetType === 'point') {
+    const p = along(range * ratio);
+    return {
+      indicator: { kind: 'point', origin, range, point: p, radius: 150, cancel },
+      target: { point: p },
+    };
+  } else if (active.targetType === 'unit') {
+    const p = along(range * ratio);
+    const candidates = world.units.filter((u) => {
+      if (!u.alive || u.hasState('invulnerable')) return false;
+      if (active.targetTeam === 'ally') {
+        if (u.team !== caster.team) return false;
+        if (!active.canTargetSelf && u.id === caster.id) return false;
+        return true;
+      } else {
+        return u.team !== caster.team;
+      }
+    });
+    const t = nearestOf(p, candidates);
+    return {
+      indicator: { kind: 'unit', origin, range, targetId: t?.id, cancel },
+      target: t ? { unitId: t.id } : undefined,
+    };
+  }
+  return { indicator: { kind: 'none', origin, range: 300, cancel } };
+}
+
+/**
+ * 键盘施法物品（指向鼠标所在世界位置）
+ */
+export function pointCastItemTarget(
+  world: World,
+  caster: Unit,
+  def: ItemDef,
+  p: Vec2
+): CastTarget | undefined {
+  const active = def.active;
+  if (!active) return undefined;
+  if (active.targetType === 'point') {
+    return { point: { x: p.x, y: p.y } };
+  }
+  if (active.targetType === 'unit') {
+    const candidates = world.units.filter((u) => {
+      if (!u.alive || u.hasState('invulnerable')) return false;
+      if (active.targetTeam === 'ally') {
+        if (u.team !== caster.team) return false;
+        if (!active.canTargetSelf && u.id === caster.id) return false;
+        return dist(u.pos, p) <= MOUSE_PICK_RADIUS;
+      } else {
+        return u.team !== caster.team && dist(u.pos, p) <= MOUSE_PICK_RADIUS;
+      }
+    });
+    const t = nearestOf(p, candidates);
+    return t ? { unitId: t.id } : undefined;
+  }
+  return undefined;
+}
+
