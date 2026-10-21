@@ -176,15 +176,15 @@ src/
 
 ### Task 7: 细化结算界面（MVP 评定、6格装备展示、伤害对比）
 
-- [ ] **7.1 战绩综合评估与 MVP 算法**：在 `src/ui/screens.ts` 或 `src/ui/matchResult.ts` 中实现评分系统：
+- [x] **7.1 战绩综合评估与 MVP 算法**：在 `src/ui/screens.ts` 或 `src/ui/matchResult.ts` 中实现评分系统：
   - 评分公式：`Score = Kills * 3 + Assists * 1.5 - Deaths * 2 + LastHits * 0.1 + (HeroDamage / 1000) * 1.2 + (BuildingDamage / 500) * 1.5`；
   - 选出全场最高分授予 **MVP** 徽章；
   - 评定单项荣誉：击杀王（Slayer）、推塔王（Sieger）、经济领袖（Tycoon）。
-- [ ] **7.2 6 格神装图标与伤害对比条**：
+- [x] **7.2 6 格神装图标与伤害对比条**：
   - 每一行英雄条目渲染其最终 6 格物品图标（调用 `getItemIconCanvas`），带魔晶与不朽盾角标；
   - 展示对英雄伤害、对建筑伤害、承受伤害及队伍百分比进度条（绿/红阵营色对比）。
-- [ ] **7.3 结算界面样式美化**：在 `src/ui/styles.css` 中添加胜利金光/失败暗红视效、MVP 徽章动画、横屏触控滑动适配。
-- [ ] **7.4 单元测试**：编写 `tests/ui/matchResult.test.ts`，验证 MVP 评分算法与渲染 DOM 节点完整性。
+- [x] **7.3 结算界面样式美化**：在 `src/ui/styles.css` 中添加胜利金光/失败暗红视效、MVP 徽章动画、横屏触控滑动适配。
+- [x] **7.4 单元测试**：编写 `tests/ui/matchResult.test.ts`，验证 MVP 评分算法与渲染 DOM 节点完整性。
 
 ---
 
