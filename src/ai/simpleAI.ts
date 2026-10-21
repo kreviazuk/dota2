@@ -9,7 +9,8 @@ import { isCommandLocked } from '../sim/commands';
 import { canCast } from '../sim/systems/abilities';
 import { alliesInRadius, canAttack, edgeDist, enemiesInRadius, expectedAttackDamage, nearestOf } from '../sim/query';
 import { forwardY, layoutFor } from '../sim/data/map';
-import { nextSkillToLearn, TALENT_BUILDS } from './builds';
+import { getNextQuickBuyItem, nextSkillToLearn, TALENT_BUILDS } from './builds';
+import { decideItemUsage } from './itemUsage';
 import { enemyTowers, underEnemyTower } from './aiHelpers';
 import { canPickTalent } from '../sim/talents';
 import { AI_RULES, type AiCtx, type AiDecision, type AiRule, type HeroAiRules } from './usage/index';
@@ -48,6 +49,11 @@ export class SimpleAI {
     for (const tier of [0, 1, 2, 3] as const) {
       if (canPickTalent(world, me, tier)) out.push({ type: 'pickTalent', tier, side: TALENT_BUILDS[me.defId]?.[tier] ?? 0 });
     }
+    // 自动出装：有足够金钱时购买推荐序列中的下一件配件或成品
+    const nextItem = getNextQuickBuyItem(world, me);
+    if (nextItem && me.hero && me.hero.gold >= nextItem.cost) {
+      out.push({ type: 'buy', itemId: nextItem.itemId });
+    }
     if (!me.alive || me.order.kind === 'recall' || isCommandLocked(me)) return out;
 
     const L = layoutFor(me.team);
@@ -70,6 +76,10 @@ export class SimpleAI {
       hpPct, manaPct, retreating,
     };
     const rules = this.ruleEntries(me);
+
+    // 主动作战物品使用（BKB、刃甲、跳刀、梅肯等）
+    const itemCmd = decideItemUsage(world, me, ctx);
+    if (itemCmd) out.push(itemCmd);
 
     if (retreating) {
       // 正在施放（或走向施放位置的）逃跑技能：不下移动指令，否则会把它打断
