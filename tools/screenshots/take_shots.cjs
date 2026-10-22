@@ -45,6 +45,8 @@ const ARTIFACT_DIR = '/Users/ubes/.gemini/antigravity/brain/c5374785-ef78-496c-9
     const w = g.session.match.world;
     const me = w.getUnit(g.session.match.playerUnitId);
     if (me) {
+      g.debug.setHeroLevel(w, me, 7);
+      g.debug.refreshHero(w, me);
       g.debug.place(me.id, 5000, 5000);
       me.facing = -Math.PI / 4;
       g.renderer.snapTo(w, me.id);

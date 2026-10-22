@@ -6,6 +6,7 @@ import { HERO_ROSTER } from '../game/roster';
 import { DIFFICULTY_NAMES } from '../ai/difficulty';
 import { abilityNumbers, abilityTags, fmtNum, heroBaseLine, orderedAbilities, PRIMARY_COLORS, PRIMARY_NAMES, SLOT_LABELS } from './abilityText';
 import { portraitCanvas } from './hud';
+import { getAbilityIconCanvas } from '../render/abilityIcons';
 
 export interface HeroSelectOpts {
   difficulty: Difficulty;
@@ -26,16 +27,25 @@ interface PreviewLike {
 
 const esc = (s: string): string => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]!);
 
+const POSITION_LABELS = [
+  '👑 1号位 · 优势核心',
+  '⚔️ 2号位 · 中路霸主',
+  '🛡️ 3号位 · 劣路先锋',
+  '⚡ 4号位 · 游走辅助',
+  '✨ 5号位 · 全职辅助',
+];
+
 function statsHtml(def: HeroDef): string {
   const b = heroBaseLine(def, BALANCE);
-  const item = (k: string, v: string) => `<div class="hs-stat"><span class="k">${k}</span><span class="v">${v}</span></div>`;
+  const item = (icon: string, k: string, v: string) =>
+    `<div class="hs-stat"><span class="stat-icon">${icon}</span><span class="k">${k}</span><span class="v">${v}</span></div>`;
   return [
-    item('生命', fmtNum(Math.round(b.hp))),
-    item('魔法', fmtNum(Math.round(b.mana))),
-    item('攻击', `${Math.round(b.damage[0])}–${Math.round(b.damage[1])}`),
-    item('护甲', b.armor.toFixed(1)),
-    item('移速', String(b.moveSpeed)),
-    item('射程', String(b.attackRange)),
+    item('❤️', '生命', fmtNum(Math.round(b.hp))),
+    item('💧', '魔法', fmtNum(Math.round(b.mana))),
+    item('⚔️', '攻击', `${Math.round(b.damage[0])}–${Math.round(b.damage[1])}`),
+    item('🛡️', '护甲', b.armor.toFixed(1)),
+    item('👟', '移速', String(b.moveSpeed)),
+    item('🎯', '射程', String(b.attackRange)),
   ].join('');
 }
 
@@ -46,9 +56,12 @@ function abilitiesHtml(def: HeroDef): string {
       const nums = abilityNumbers(a);
       const key = SLOT_LABELS[a.slot];
       return `<div class="hs-ab${a.slot === 'R' ? ' ult' : ''}">
-        <div class="hs-ab-head"><span class="key${a.slot === 'innate' ? ' innate' : ''}">${key}</span><span class="ab-name">${esc(a.name)}</span>${tags}</div>
-        <div class="ab-desc">${esc(a.description)}</div>
-        ${nums.length ? `<div class="ab-nums">${nums.join(' · ')}</div>` : ''}
+        <div class="hs-ab-icon-wrap" data-ab-id="${a.id}"></div>
+        <div class="hs-ab-body">
+          <div class="hs-ab-head"><span class="key${a.slot === 'innate' ? ' innate' : ''}">${key}</span><span class="ab-name">${esc(a.name)}</span>${tags}</div>
+          <div class="ab-desc">${esc(a.description)}</div>
+          ${nums.length ? `<div class="ab-nums">${nums.join(' · ')}</div>` : ''}
+        </div>
       </div>`;
     })
     .join('');
@@ -57,7 +70,7 @@ function abilitiesHtml(def: HeroDef): string {
     .map((pair, i) => `<div class="hs-tal"><span class="lv">${levels[i]}</span><span class="opt">${esc(pair[0].name)}</span><span class="opt">${esc(pair[1].name)}</span></div>`)
     .reverse()
     .join('');
-  return `${abs}<div class="hs-sub">天赋（10 / 15 / 20 / 25 级二选一）</div>${talents}`;
+  return `${abs}<div class="hs-sub">✦ 英雄天赋分支（10 / 15 / 20 / 25 级二选一）</div>${talents}`;
 }
 
 /**
@@ -85,15 +98,15 @@ export function showHeroSelect(
   s.className = 'screen hero-select';
   s.innerHTML = `
     <div class="hs-top">
-      <div class="hs-heading">选择 5 人阵容 (三路 5v5)<span class="hs-diff">难度：${DIFFICULTY_NAMES[o.difficulty]}</span></div>
+      <div class="hs-heading">⚔️ 天辉 vs 夜魇 · 三路 5v5 选人阶段<span class="hs-diff">难度：${DIFFICULTY_NAMES[o.difficulty]}</span></div>
       <div class="btn secondary hs-back">返回</div>
     </div>
     <div class="hs-lineup-bar">
-      <div class="hs-lineup-title">天辉阵容：</div>
+      <div class="hs-lineup-title">天辉出战阵容：</div>
       <div class="hs-slots">
         ${teamHeroes.map((hid, idx) => `
           <div class="hs-slot${idx === activeSlot ? ' active' : ''}" data-slot="${idx}">
-            <span class="hs-slot-tag">${idx === 0 ? '👑 玩家' : `队友 ${idx}`}</span>
+            <span class="hs-slot-tag">${POSITION_LABELS[idx]}</span>
             <div class="hs-slot-face"></div>
             <span class="hs-slot-name">${esc(getHeroDef(hid).name)}</span>
           </div>`).join('')}
@@ -110,7 +123,7 @@ export function showHeroSelect(
           </div>`).join('')}
       </div>
       <div class="hs-detail">
-        <div class="hs-preview"><canvas class="hs-canvas"></canvas><div class="hs-portrait-big"></div><div class="hs-drag-hint">拖动旋转</div></div>
+        <div class="hs-preview"><canvas class="hs-canvas"></canvas><div class="hs-portrait-big"></div><div class="hs-drag-hint">拖动旋转 3D 模型</div></div>
         <div class="hs-info">
           <div class="hs-name"></div>
           <div class="hs-tags"></div>
@@ -120,8 +133,8 @@ export function showHeroSelect(
       </div>
     </div>
     <div class="hs-bottom">
-      <div class="btn secondary hs-random">随机阵容</div>
-      <div class="btn hs-start">开始对局</div>
+      <div class="btn secondary hs-random">🎲 随机阵容</div>
+      <div class="btn hs-start">进入战场</div>
     </div>`;
   parent.appendChild(s);
   const q = <T extends Element>(sel: string): T => s.querySelector(sel) as T;
@@ -165,7 +178,7 @@ export function showHeroSelect(
           c.appendChild(badge);
         }
         badge.className = `hs-badge${inSlot === 0 ? ' is-player' : ''}`;
-        badge.textContent = inSlot === 0 ? '玩家' : `队友${inSlot}`;
+        badge.textContent = inSlot === 0 ? '👑 1号位' : `${inSlot + 1}号位`;
       } else if (badge) {
         badge.remove();
       }
@@ -185,6 +198,11 @@ export function showHeroSelect(
     const list = q<HTMLDivElement>('.hs-abilities');
     list.innerHTML = abilitiesHtml(def);
     list.scrollTop = 0;
+    // 渲染各个技能的程序化高清图标
+    list.querySelectorAll<HTMLDivElement>('.hs-ab-icon-wrap').forEach((wrap) => {
+      const abId = wrap.dataset.abId!;
+      wrap.appendChild(getAbilityIconCanvas(abId, 48));
+    });
     big.innerHTML = '';
     big.appendChild(portraitCanvas(selected, 150));
     preview?.show(selected);

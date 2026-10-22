@@ -15,6 +15,7 @@ import { drawPortrait } from '../render/heroVisuals';
 import type { Prefs } from './settings';
 import { ShopModal } from './shop';
 import { getItemIconCanvas } from '../render/itemIcons';
+import { getAbilityIconCanvas, getActionIconCanvas } from '../render/abilityIcons';
 import { getItemDef } from '../sim/items/definitions';
 import { getNextQuickBuyItem } from '../ai/builds';
 import type { Command } from '../sim/commands';
@@ -81,6 +82,8 @@ export interface SkillButton {
   name: HTMLSpanElement;
   charges: HTMLSpanElement;
   counter: HTMLSpanElement;
+  iconWrap?: HTMLDivElement;
+  manaTag?: HTMLSpanElement;
 }
 
 export interface ItemSlotButton {
@@ -102,6 +105,7 @@ interface MiniEls {
   id: number;
   root: HTMLDivElement;
   dead: HTMLDivElement;
+  hpBar?: HTMLDivElement;
 }
 
 /** HUD 刷新频率（次/秒） */
@@ -141,7 +145,10 @@ export function portraitCanvas(heroId: string, cssSize: number, team?: Team): HT
 }
 
 const skillHtml = (slot: AbilitySlot): string =>
-  `<div class="skill${slot.startsWith('X') ? ' skill-x' : ''}" data-slot="${slot}"><span class="skill-key">${KEY_LABELS[slot]}</span><span class="skill-name"></span>` +
+  `<div class="skill${slot.startsWith('X') ? ' skill-x' : ''}${slot === 'R' ? ' ult' : ''}" data-slot="${slot}">` +
+  `<div class="skill-icon-wrap"></div>` +
+  `<span class="skill-key">${KEY_LABELS[slot]}</span><span class="skill-name"></span>` +
+  `<span class="skill-mana"></span>` +
   `<div class="cd"></div><span class="cd-text"></span><div class="pips"></div><span class="charges"></span><span class="counter"></span><div class="learn">+</div></div>`;
 
 export class Hud {
@@ -232,11 +239,11 @@ export class Hud {
           .join('')}
       </div>
       <div class="actions">
-        <div class="cancel-zone">取消</div>
-        <div class="btn-attack">攻击</div>
-        <div class="btn-small btn-lasthit">补刀</div>
-        <div class="btn-small btn-push">推塔</div>
-        <div class="btn-recall">回城</div>
+        <div class="cancel-zone"></div>
+        <div class="btn-attack"></div>
+        <div class="btn-small btn-lasthit"></div>
+        <div class="btn-small btn-push"></div>
+        <div class="btn-recall"></div>
         ${slots.map(skillHtml).join('')}
       </div>
       <div class="death-overlay"><div class="death-text">你已阵亡</div><div class="death-timer"></div></div>`;
@@ -250,6 +257,43 @@ export class Hud {
     this.recallBtn = this.q('.btn-recall');
     this.pauseBtn = this.q('.btn-pause');
     this.cancelZone = this.q('.cancel-zone');
+
+    // 为基础动作按键填充矢量图标与文字
+    this.attackBtn.innerHTML = '';
+    this.attackBtn.appendChild(getActionIconCanvas('attack', 80));
+    const atkLbl = document.createElement('span');
+    atkLbl.className = 'act-lbl';
+    atkLbl.textContent = '普攻';
+    this.attackBtn.appendChild(atkLbl);
+
+    this.lastHitBtn.innerHTML = '';
+    this.lastHitBtn.appendChild(getActionIconCanvas('lasthit', 44));
+    const lhLbl = document.createElement('span');
+    lhLbl.className = 'act-lbl';
+    lhLbl.textContent = '补刀';
+    this.lastHitBtn.appendChild(lhLbl);
+
+    this.pushBtn.innerHTML = '';
+    this.pushBtn.appendChild(getActionIconCanvas('push', 44));
+    const pushLbl = document.createElement('span');
+    pushLbl.className = 'act-lbl';
+    pushLbl.textContent = '推塔';
+    this.pushBtn.appendChild(pushLbl);
+
+    this.recallBtn.innerHTML = '';
+    this.recallBtn.appendChild(getActionIconCanvas('recall', 44));
+    const recLbl = document.createElement('span');
+    recLbl.className = 'act-lbl';
+    recLbl.textContent = '回城';
+    this.recallBtn.appendChild(recLbl);
+
+    this.cancelZone.innerHTML = '';
+    this.cancelZone.appendChild(getActionIconCanvas('cancel', 44));
+    const canLbl = document.createElement('span');
+    canLbl.className = 'act-lbl';
+    canLbl.textContent = '取消';
+    this.cancelZone.appendChild(canLbl);
+
     this.minimap = this.q('.minimap');
     this.shopBtn = this.q('.btn-shop');
     this.quickBuyBtn = this.q('.quick-buy');
@@ -300,6 +344,8 @@ export class Hud {
         slot, root, cd: root.querySelector('.cd')!, cdText: root.querySelector('.cd-text')!, learn: root.querySelector('.learn')!,
         pips: root.querySelector('.pips')!, name: root.querySelector('.skill-name')!, charges: root.querySelector('.charges')!,
         counter: root.querySelector('.counter')!,
+        iconWrap: root.querySelector('.skill-icon-wrap') as HTMLDivElement,
+        manaTag: root.querySelector('.skill-mana') as HTMLSpanElement,
       });
     }
     // 稍后 / 重新展开：纯界面状态，不产生指令。用 click 而不是 pointerdown：小按钮和弹窗的右侧天赋在同一个位置，
@@ -321,7 +367,13 @@ export class Hud {
       for (const b of this.skills) {
         const ab = me.ability(b.slot);
         b.name.textContent = ab ? ab.def.name.slice(0, 2) : '';
-        if (ab) b.root.title = ab.def.name;
+        if (ab) {
+          b.root.title = ab.def.name;
+          if (b.iconWrap) {
+            b.iconWrap.innerHTML = '';
+            b.iconWrap.appendChild(getAbilityIconCanvas(ab.def.id, b.slot === 'R' ? 100 : 80));
+          }
+        }
         if (ab?.def.targetType === 'passive') b.root.classList.add('passive');
         // 先天主动（X1）只有 1 级，不画等级格
         b.pips.innerHTML = ab && ab.def.maxLevel > 1 ? Array.from({ length: ab.def.maxLevel }, () => '<i></i>').join('') : '';
@@ -341,8 +393,14 @@ export class Hud {
         const dead = document.createElement('div');
         dead.className = 'dead';
         mini.appendChild(dead);
+        const hpWrap = document.createElement('div');
+        hpWrap.className = 'mini-hp-wrap';
+        const hpBar = document.createElement('div');
+        hpBar.className = 'mini-hp';
+        hpWrap.appendChild(hpBar);
+        mini.appendChild(hpWrap);
         side.appendChild(mini);
-        this.minis.push({ id: h.id, root: mini, dead });
+        this.minis.push({ id: h.id, root: mini, dead, hpBar });
       }
     }
   }
@@ -387,7 +445,8 @@ export class Hud {
     this.drawMinimap();
     const w = this.match.world;
     const els = this.els;
-    setText(els.clock, formatClock(w.time));
+    const isDay = Math.floor(w.time / 300) % 2 === 0;
+    setText(els.clock, `${isDay ? '☀️' : '🌙'} ${formatClock(w.time)}`);
     setText(els.kRad, String(w.teams[Team.Radiant].kills));
     setText(els.kDire, String(w.teams[Team.Dire].kills));
     for (const m of this.minis) {
@@ -395,6 +454,10 @@ export class Hud {
       if (!h?.hero) continue;
       m.root.classList.toggle('is-dead', !h.alive);
       setText(m.dead, h.alive ? '' : String(Math.ceil(h.hero.respawnTimer)));
+      if (m.hpBar) {
+        const hpPct = h.alive ? Math.max(0, Math.min(100, Math.round((h.hp / Math.max(1, h.stats.maxHp)) * 100))) : 0;
+        m.hpBar.style.width = `${hpPct}%`;
+      }
     }
     this.refreshTalent();
     const me = w.getUnit(this.match.playerUnitId);
@@ -437,6 +500,10 @@ export class Hud {
       setText(b.counter, n === null ? '' : String(n));
       b.root.classList.toggle('has-counter', n !== null);
       b.pips.querySelectorAll('i').forEach((pip, i) => pip.classList.toggle('on', i < ab.level));
+      if (b.manaTag) {
+        const mc = abilityManaCost(ab, me);
+        setText(b.manaTag, mc > 0 && learned ? String(Math.round(mc)) : '');
+      }
     }
 
     // 快捷购买部件刷新
