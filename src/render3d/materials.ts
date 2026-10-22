@@ -21,9 +21,9 @@ export const PAL = {
   darkStone: 0x5a5550,
 };
 
-export const teamColor = (team: number): number => (team === 0 ? PAL.radiant : PAL.dire);
-export const teamLight = (team: number): number => (team === 0 ? PAL.radiantLight : PAL.direLight);
-export const teamDark = (team: number): number => (team === 0 ? PAL.radiantDark : PAL.direDark);
+export const teamColor = (team: number): number => (team === 0 ? PAL.radiant : team === 1 ? PAL.dire : 0xf59e0b);
+export const teamLight = (team: number): number => (team === 0 ? PAL.radiantLight : team === 1 ? PAL.direLight : 0xfcd34d);
+export const teamDark = (team: number): number => (team === 0 ? PAL.radiantDark : team === 1 ? PAL.direDark : 0xb45309);
 
 let gradient: DataTexture | null = null;
 /** 卡通渲染的明暗阶梯（4 阶），最暗一阶不会太黑，阴影面仍然看得清颜色 */

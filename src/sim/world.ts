@@ -19,6 +19,7 @@ import { updateSpawner, updateCreepAI } from './systems/creeps';
 import { updateEliteAI, onEliteKilled } from './entities/elites';
 import { updateRoshan, onRoshanKilled } from './entities/roshan';
 import { updateRunes, Rune } from './entities/rune';
+import { NeutralCampManager } from './entities/neutralCreeps';
 import { updateHeroes, onHeroKilled } from './systems/heroes';
 import { onUnitKilledEconomy } from './systems/economy';
 import { updateMotion } from './systems/motion';
@@ -63,6 +64,7 @@ export class World {
   projectiles: Projectile[] = [];
   effects: AreaEffect[] = [];
   runes: Rune[] = [];
+  neutralCamps?: NeutralCampManager;
   runesPickedCount = 0;
   firstBloodAwarded = false;
   winner: Team | null = null;
@@ -83,10 +85,15 @@ export class World {
     this.events = new EventBus(cfg.recordEvents ?? false);
     this.spawner = { nextWaveTime: this.balance.waves.firstWaveTime, waveIndex: 0 };
     this.config = { seed: cfg.seed, recordEvents: cfg.recordEvents ?? false, spawnCreeps: cfg.spawnCreeps ?? true };
+    if (this.config.spawnCreeps) {
+      this.neutralCamps = new NeutralCampManager(this);
+    }
     // 系统执行顺序（后续任务在对应位置插入）：
     // spawner → heroes → auras → buildings → creepAI → abilities → attacks → motion → movement → projectiles → effects → timers → summons → regen
     this.systems.push(
-      updateSpawner, updateHeroes, updateAuras, updateBuildings, updateCreepAI, updateEliteAI, updateRoshan, updateRunes, updateAbilities, updateItems, updateAttacks, updateMotion,
+      updateSpawner, updateHeroes, updateAuras, updateBuildings, updateCreepAI, updateEliteAI,
+      (w, dt) => w.neutralCamps?.update(w, dt),
+      updateRoshan, updateRunes, updateAbilities, updateItems, updateAttacks, updateMotion,
       updateMovement, updateProjectiles, updateEffects, updateTimers, updateSummons, updateRegen,
     );
     this.killListeners.push(onBuildingKilled, onUnitKilledEconomy, onHeroKilled, onEliteKilled, onRoshanKilled);

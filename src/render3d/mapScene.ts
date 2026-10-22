@@ -16,9 +16,9 @@ const GX0 = -2600, GX1 = 12600, GZ0 = -3200, GZ1 = 13200;
 
 /** 远离道路时地形缓慢抬升，镜头上方两角看到的是山坡上的树林而不是平地 */
 export function terrainHeight(x: number, y: number): number {
-  const off = Math.abs(x - MAP.laneX) - 1550;
+  const offX = x < 0 ? -x : x > MAP.width ? x - MAP.width : 0;
   const offY = y < 0 ? -y : y > MAP.height ? y - MAP.height : 0;
-  const rise = Math.max(0, off) * 0.22 + offY * 0.12;
+  const rise = offX * 0.22 + offY * 0.22;
   return groundHeight(x, y) + rise;
 }
 
@@ -43,18 +43,13 @@ function axisSteps(a: number, b: number, zones: { lo: number; hi: number; step: 
 }
 
 function buildGroundGeometry(): BufferGeometry {
-  // 只有道路 / 基地边缘的土坡需要细分（道路中间是平的）
-  const edges = [MAP.laneX - MAP.baseHalfWidth, MAP.laneX - MAP.laneHalfWidth, MAP.laneX + MAP.laneHalfWidth, MAP.laneX + MAP.baseHalfWidth];
   const xs = axisSteps(GX0, GX1, [
-    ...edges.map((e) => ({ lo: e + (e < MAP.laneX ? -140 : 0), hi: e + (e < MAP.laneX ? 0 : 140), step: 20 })),
-    { lo: -800, hi: 3800, step: 100 },
-  ], 400);
+    { lo: 0, hi: MAP.width, step: 100 },
+  ], 300);
   const zs = axisSteps(GZ0, GZ1, [
-    { lo: MAP.riverY - 320, hi: MAP.riverY + 320, step: 20 },
-    { lo: MAP.baseDepth - 120, hi: MAP.baseDepth + 120, step: 20 },
-    { lo: MAP.height - MAP.baseDepth - 120, hi: MAP.height - MAP.baseDepth + 120, step: 20 },
-    { lo: -1400, hi: 11400, step: 100 },
-  ], 400);
+    { lo: 0, hi: MAP.height, step: 100 },
+    { lo: MAP.riverY - 450, hi: MAP.riverY + 450, step: 40 },
+  ], 300);
   const nx = xs.length, nz = zs.length;
   const pos = new Float32Array(nx * nz * 3);
   const uv = new Float32Array(nx * nz * 2);
@@ -126,96 +121,45 @@ function paintGround(trees: TreeInst[]): HTMLCanvasElement {
   }
   g.globalAlpha = 1;
 
-  const top = MAP.baseDepth, bottom = MAP.height - MAP.baseDepth;
   const rect = (x0: number, y0: number, x1: number, y1: number, fill: string | CanvasGradient) => {
     g.fillStyle = fill;
     g.fillRect(x0, y0, x1 - x0, y1 - y0);
   };
-  const lx0 = MAP.laneX - MAP.laneHalfWidth, lx1 = MAP.laneX + MAP.laneHalfWidth;
-  const bx0 = MAP.laneX - MAP.baseHalfWidth, bx1 = MAP.laneX + MAP.baseHalfWidth;
-
-  // 2. 道路两侧的土坡（暗色），对应 groundHeight 的抬升带
-  const edge = 'rgba(46,34,20,0.9)';
-  rect(lx0 - 70, top, lx1 + 70, bottom, edge);
-  rect(bx0 - 70, TZ0, bx1 + 70, top + 70, edge);
-  rect(bx0 - 70, bottom - 70, bx1 + 70, TZ1, edge);
-
-  // 3. 土路
-  rect(lx0 - 10, top, lx1 + 10, bottom, '#86704c');
-  for (let i = 0; i < 2600; i++) {
-    const y = r.range(top, bottom);
-    g.fillStyle = r.pick(['#9a8158', '#6f5a3c', '#a38a60', '#7a6444']);
-    g.globalAlpha = r.range(0.15, 0.4);
+  // 2. 三路土路与路标
+  const strokePath = (pts: { x: number; y: number }[], width: number, color: string) => {
+    g.strokeStyle = color;
+    g.lineWidth = width;
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
     g.beginPath();
-    g.ellipse(r.range(lx0, lx1), y, r.range(20, 90), r.range(10, 50), r.range(0, 3), 0, Math.PI * 2);
-    g.fill();
-  }
-  g.globalAlpha = 1;
-  // 中间被踩平的浅色路面
-  const mid = g.createLinearGradient(MAP.laneX - 260, 0, MAP.laneX + 260, 0);
-  mid.addColorStop(0, 'rgba(190,160,110,0)');
-  mid.addColorStop(0.5, 'rgba(190,160,110,0.28)');
-  mid.addColorStop(1, 'rgba(190,160,110,0)');
-  rect(MAP.laneX - 260, top, MAP.laneX + 260, bottom, mid);
-  // 车辙
-  g.strokeStyle = 'rgba(70,52,30,0.35)';
-  g.lineWidth = 10;
-  for (const dx of [-70, 70]) {
-    g.beginPath();
-    for (let y = top; y <= bottom; y += 60) g.lineTo(MAP.laneX + dx + Math.sin(y * 0.004) * 30, y);
+    pts.forEach((p, idx) => {
+      if (idx === 0) g.moveTo(p.x, p.y);
+      else g.lineTo(p.x, p.y);
+    });
     g.stroke();
-  }
-  // 路边的草不规则地侵入路面，打破直线边缘
-  for (let y = top; y < bottom; y += 14) {
-    for (const side of [-1, 1]) {
-      const ex = MAP.laneX + side * MAP.laneHalfWidth;
-      const d = dire(y);
-      g.fillStyle = r.pick(d ? ['#4a3a24', '#3a2c1c', '#5a4428'] : ['#3c5a26', '#4a6a2c', '#33501f']);
-      g.globalAlpha = r.range(0.5, 0.9);
-      g.beginPath();
-      g.arc(ex + side * r.range(-30, 6), y, r.range(8, 26), 0, Math.PI * 2);
-      g.fill();
-    }
-  }
-  g.globalAlpha = 1;
-
-  // 4. 基地：石板地面
-  const paveBase = (y0: number, y1: number, base: string, line: string, accent: string) => {
-    rect(bx0 - 10, y0, bx1 + 10, y1, base);
-    for (let i = 0; i < 700; i++) {
-      g.fillStyle = r.pick(['rgba(255,255,255,0.06)', 'rgba(0,0,0,0.08)', accent]);
-      g.fillRect(Math.floor(r.range(bx0, bx1) / 110) * 110, Math.floor(r.range(y0, y1) / 110) * 110, 110, 110);
-    }
-    g.strokeStyle = line;
-    g.lineWidth = 5;
-    for (let x = Math.ceil(bx0 / 110) * 110; x < bx1; x += 110) {
-      g.beginPath();
-      g.moveTo(x, y0);
-      g.lineTo(x, y1);
-      g.stroke();
-    }
-    for (let y = Math.ceil(y0 / 110) * 110; y < y1; y += 110) {
-      g.beginPath();
-      g.moveTo(bx0, y);
-      g.lineTo(bx1, y);
-      g.stroke();
-    }
   };
-  paveBase(TZ0, top, '#6a4c44', 'rgba(30,14,12,0.45)', 'rgba(140,40,20,0.12)');
-  paveBase(bottom, TZ1, '#8e9a86', 'rgba(40,50,40,0.35)', 'rgba(80,140,80,0.10)');
-  // 基地和道路相接处的过渡
-  for (const [y, d] of [[top, true], [bottom, false]] as const) {
-    const fade = g.createLinearGradient(0, y - 120, 0, y + 120);
-    const pave = d ? '106,76,68' : '142,154,134';
-    fade.addColorStop(d ? 0 : 1, `rgba(${pave},0.9)`);
-    fade.addColorStop(d ? 1 : 0, `rgba(${pave},0)`);
-    rect(lx0, y - 120, lx1, y + 120, fade);
-  }
-  // 遗迹周围的圆形广场纹样
+
+  const topPts = [{ x: 1500, y: 8500 }, { x: 1500, y: 1500 }, { x: 8500, y: 1500 }];
+  const midPts = [{ x: 1500, y: 8500 }, { x: 8500, y: 1500 }];
+  const botPts = [{ x: 1500, y: 8500 }, { x: 8500, y: 8500 }, { x: 8500, y: 1500 }];
+  const allLanes = [topPts, midPts, botPts];
+
+  // 道路两侧暗色边缘
+  for (const pts of allLanes) strokePath(pts, MAP.laneHalfWidth * 2 + 100, 'rgba(46,34,20,0.9)');
+  // 土路主面
+  for (const pts of allLanes) strokePath(pts, MAP.laneHalfWidth * 2, '#86704c');
+  // 中间浅色踩平路面
+  for (const pts of allLanes) strokePath(pts, MAP.laneHalfWidth * 1.1, 'rgba(190,160,110,0.28)');
+
+  // 4. 基地：天辉绿石 / 夜魇赤岩
   for (const team of [Team.Radiant, Team.Dire]) {
     const L = layoutFor(team);
-    const col = team === Team.Radiant ? 'rgba(230,240,220,0.35)' : 'rgba(255,120,80,0.28)';
-    g.strokeStyle = col;
+    const isRad = team === Team.Radiant;
+    g.fillStyle = isRad ? '#7c8e75' : '#5e3e36';
+    g.beginPath();
+    g.arc(L.ancient.x, L.ancient.y, 1100, 0, Math.PI * 2);
+    g.fill();
+    g.strokeStyle = isRad ? 'rgba(230,240,220,0.35)' : 'rgba(255,120,80,0.28)';
     for (const [rad, w] of [[240, 10], [330, 6], [520, 8]] as const) {
       g.lineWidth = w;
       g.beginPath();
@@ -230,14 +174,15 @@ function paintGround(trees: TreeInst[]): HTMLCanvasElement {
       g.stroke();
     }
     // 泉水外圈
-    g.fillStyle = team === Team.Radiant ? 'rgba(200,230,200,0.35)' : 'rgba(80,30,24,0.5)';
+    g.fillStyle = isRad ? 'rgba(200,230,200,0.35)' : 'rgba(80,30,24,0.5)';
     g.beginPath();
     g.arc(L.fountain.x, L.fountain.y, 230, 0, Math.PI * 2);
     g.fill();
     // 塔基周围的石板
-    for (const k of ['t1', 't2', 't3', 't4a', 't4b'] as const) {
+    const towerKeys = ['topT1', 'topT2', 'topT3', 'midT1', 'midT2', 'midT3', 'botT1', 'botT2', 'botT3', 't4a', 't4b'] as const;
+    for (const k of towerKeys) {
       const p = L[k];
-      g.fillStyle = team === Team.Radiant ? 'rgba(170,175,160,0.55)' : 'rgba(70,50,46,0.6)';
+      g.fillStyle = isRad ? 'rgba(170,175,160,0.55)' : 'rgba(70,50,46,0.6)';
       g.beginPath();
       for (let i = 0; i < 8; i++) {
         const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
@@ -251,7 +196,7 @@ function paintGround(trees: TreeInst[]): HTMLCanvasElement {
   g.strokeStyle = 'rgba(255,90,30,0.55)';
   g.lineWidth = 6;
   for (let i = 0; i < 40; i++) {
-    let x = r.range(bx0, bx1), y = r.range(-200, top - 100);
+    let x = r.range(7500, 9500), y = r.range(500, 2500);
     g.beginPath();
     g.moveTo(x, y);
     for (let k = 0; k < 6; k++) {
@@ -405,34 +350,47 @@ function treeGeometry(kind: TreeKind, dire: boolean, seed: number): BufferGeomet
 
 interface TreeInst { x: number; y: number; s: number; rot: number; kind: number; dire: boolean; tint: number }
 
+function distToSegment(px: number, py: number, x1: number, y1: number, x2: number, y2: number): number {
+  const dx = x2 - x1, dy = y2 - y1;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return Math.hypot(px - x1, py - y1);
+  const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lenSq));
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+
+function isRoadOrBase(x: number, y: number): boolean {
+  if (Math.hypot(x - 1500, y - 8500) < 1400) return true;
+  if (Math.hypot(x - 8500, y - 1500) < 1400) return true;
+  if (Math.abs(y - MAP.riverY) < MAP.riverHalf + 60) return true;
+  const dTop1 = distToSegment(x, y, 1500, 8500, 1500, 1500);
+  const dTop2 = distToSegment(x, y, 1500, 1500, 8500, 1500);
+  const dMid = distToSegment(x, y, 1500, 8500, 8500, 1500);
+  const dBot1 = distToSegment(x, y, 1500, 8500, 8500, 8500);
+  const dBot2 = distToSegment(x, y, 8500, 8500, 8500, 1500);
+  const minDist = Math.min(dTop1, dTop2, dMid, dBot1, dBot2);
+  return minDist < MAP.laneHalfWidth + 60;
+}
+
 function placeTrees(): TreeInst[] {
   const r = new Rng(2026);
   const out: TreeInst[] = [];
   const add = (x: number, y: number, dens: number) => {
     if (!r.chance(dens)) return;
     out.push({
-      x: x + r.range(-25, 25), y: y + r.range(-25, 25), s: r.range(0.85, 1.35), rot: r.range(0, Math.PI * 2),
+      x: x + r.range(-30, 30), y: y + r.range(-30, 30), s: r.range(0.85, 1.35), rot: r.range(0, Math.PI * 2),
       kind: r.chance(0.5) ? 0 : r.chance(0.55) ? 1 : 2, dire: y + r.range(-500, 500) < MAP.height / 2, tint: r.range(0.82, 1.12),
     });
   };
-  for (let y = -1300; y <= MAP.height + 1300; y += 78) {
-    if (Math.abs(y - MAP.riverY) < MAP.riverHalf + 70) continue;
-    const inMap = y >= -40 && y <= MAP.height + 40;
-    if (inMap) {
-      const hw = walkableHalfWidthAt(y) + 70;
-      for (const side of [-1, 1]) {
-        const inner = MAP.laneX + side * hw;
-        const outer = side < 0 ? -900 : MAP.width + 900;
-        const n = Math.ceil(Math.abs(outer - inner) / 88);
-        for (let k = 0; k < n; k++) {
-          const x = inner + side * (k * 88 + r.range(0, 30));
-          const far = Math.abs(x - MAP.laneX) > 1700;
-          add(x, y, far ? 0.6 : 0.97);
+  for (let y = -1200; y <= MAP.height + 1200; y += 130) {
+    for (let x = -1200; x <= MAP.width + 1200; x += 130) {
+      const inPlay = x >= 100 && x <= MAP.width - 100 && y >= 100 && y <= MAP.height - 100;
+      if (!inPlay) {
+        add(x, y, 0.75);
+      } else {
+        if (!isRoadOrBase(x, y)) {
+          add(x, y, 0.65);
         }
       }
-    } else {
-      // 地图上下边界以外：整片树林
-      for (let x = -900; x <= MAP.width + 900; x += 88) add(x, y, Math.abs(x - MAP.laneX) > 1700 ? 0.6 : 0.85);
     }
   }
   return out;

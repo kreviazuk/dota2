@@ -414,7 +414,7 @@ export function drawBars(ctx: CanvasRenderingContext2D, u: Unit, x: number, y: n
     ctx.lineWidth = 1.5 * s;
     ctx.strokeRect(x - w / 2 - pad, top - pad, w + pad * 2, h + pad * 2);
   }
-  ctx.fillStyle = isPlayer ? '#5fe05a' : ally ? '#3fae4a' : isRoshan ? '#d97706' : '#d33b2f';
+  ctx.fillStyle = isPlayer ? '#5fe05a' : ally ? '#3fae4a' : isRoshan ? '#d97706' : u.team === Team.Neutral ? '#eab308' : '#d33b2f';
   ctx.fillRect(x - w / 2, top, w * pct, h);
   // 护盾：白色段接在当前血量后面
   const sh = shieldTotal(u);

@@ -187,12 +187,14 @@ export function onUnitKilledEconomy(world: World, victim: Unit, killer: Unit | n
   const gold = victim.bounty.gold * e.creepGoldMult;
   const xp = victim.bounty.xp * e.creepXpMult;
   if (gold <= 0 && xp <= 0) return;
-  const enemies = world.heroes(enemyTeam(victim.team));
+  const beneficiaries = victim.team === Team.Neutral
+    ? (killer ? world.heroes(killer.team) : world.heroes().filter((h) => dist(h.pos, victim.pos) <= e.xpShareRadius))
+    : world.heroes(enemyTeam(victim.team));
   if (killer && killer.team === victim.team) {
     if (killer.kind === 'hero' && killer.hero) {
       killer.hero.denies++;
     }
-    const takers = enemies.filter((h) => h.alive && dist(h.pos, victim.pos) <= e.xpShareRadius);
+    const takers = beneficiaries.filter((h) => h.alive && dist(h.pos, victim.pos) <= e.xpShareRadius);
     if (takers.length) {
       for (const h of takers) giveXp(world, h, (xp * 0.5) / takers.length);
     }
@@ -203,10 +205,10 @@ export function onUnitKilledEconomy(world: World, victim: Unit, killer: Unit | n
     giveGold(world, lastHitter, gold);
     lastHitter.hero!.lastHits++;
   }
-  for (const h of enemies) {
+  for (const h of beneficiaries) {
     if (!h.alive || h === lastHitter) continue;
     if (dist(h.pos, victim.pos) <= e.lastHitShareRadius) giveGold(world, h, gold * e.lastHitShareRatio, false);
   }
-  const takers = enemies.filter((h) => h.alive && dist(h.pos, victim.pos) <= e.xpShareRadius);
+  const takers = beneficiaries.filter((h) => h.alive && dist(h.pos, victim.pos) <= e.xpShareRadius);
   for (const h of takers) giveXp(world, h, xp / takers.length);
 }

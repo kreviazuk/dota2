@@ -132,6 +132,13 @@ export interface EliteState {
   abilityCooldowns: Record<string, number>;
 }
 
+export interface NeutralState {
+  campId: string;
+  spawnPos: Vec2;
+  leashTimer: number;
+  inCombat: boolean;
+}
+
 export interface UnitInit {
   id: number;
   kind: UnitKind;
@@ -181,6 +188,7 @@ export class Unit {
   creep?: CreepState;
   elite?: EliteState;
   building?: BuildingState;
+  neutral?: NeutralState;
   /** kind = 'summon' 的单位：主人、到期时间、按次数死亡、跟随 */
   summon?: SummonState;
   /** 6 格物品栏 */

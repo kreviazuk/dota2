@@ -571,7 +571,7 @@ export class Hud {
     for (const u of w.units) {
       if (u.removed) continue;
       const x = u.pos.x * sx, y = u.pos.y * sy;
-      const col = u.team === Team.Radiant ? '#5fe05a' : '#ff5a4a';
+      const col = u.team === Team.Radiant ? '#5fe05a' : u.team === Team.Dire ? '#ff5a4a' : '#f59e0b';
       if (u.kind === 'building') {
         if (u.building?.type === 'fountain') continue;
         g.fillStyle = u.alive ? col : '#555';
@@ -590,8 +590,23 @@ export class Hud {
           g.stroke();
         }
       } else if (u.alive) {
-        g.fillStyle = col;
-        g.fillRect(x - 1.5 * k, y - 1.5 * k, 3 * k, 3 * k);
+        if (u.defId === 'roshan') {
+          g.fillStyle = '#ef4444';
+          g.beginPath();
+          g.arc(x, y, 4 * k, 0, Math.PI * 2);
+          g.fill();
+          g.strokeStyle = '#f59e0b';
+          g.lineWidth = 1.5 * k;
+          g.stroke();
+        } else if (u.team === Team.Neutral) {
+          g.fillStyle = '#f59e0b';
+          g.beginPath();
+          g.arc(x, y, 2.5 * k, 0, Math.PI * 2);
+          g.fill();
+        } else {
+          g.fillStyle = col;
+          g.fillRect(x - 1.5 * k, y - 1.5 * k, 3 * k, 3 * k);
+        }
       }
     }
     if (w.runes) {

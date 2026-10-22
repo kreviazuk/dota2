@@ -81,6 +81,7 @@ export function applyDamage(world: World, info: DamageInfo): number {
     crit: !!info.crit, isAttack: info.isAttack,
   });
   if (src) for (const m of src.modifiers.slice()) m.def.onDealtDamage?.(m, src, t, world, info);
+  if (src && t.neutral) world.neutralCamps?.onDamaged(world, t, src);
   if (src && !info.isAttack && info.abilityId && !info.reflected && !info.noSpellAmp && src.stats.spellLifesteal > 0 && src.alive) {
     heal(world, src, amt * src.stats.spellLifesteal);
   }
@@ -102,6 +103,7 @@ function applyHitCountDamage(world: World, info: DamageInfo): number {
   if (src && src.hero && src.team !== t.team) src.hero.damageDealt.creeps += 1;
   world.events.emit({ type: 'damage', sourceId: src?.id ?? null, targetId: t.id, amount: 1, damageType: info.type, crit: false, isAttack: true });
   if (src) for (const m of src.modifiers.slice()) m.def.onDealtDamage?.(m, src, t, world, info);
+  if (src && t.neutral) world.neutralCamps?.onDamaged(world, t, src);
   if (t.hp <= 0.0001 && t.alive) {
     if (triggerAegis(world, t)) return 1;
     killUnit(world, t, src);

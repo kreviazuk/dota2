@@ -127,11 +127,12 @@ export function updateSpawner(world: World, dt: number): void {
 
 export function pickCreepTarget(world: World, u: Unit, acquire: number): Unit | null {
   const cands = enemiesInRadius(world, u.team, u.pos, acquire + u.radius, { includeBuildings: true }).filter((t) => canAttack(u, t));
-  const nonHero = cands.filter((t) => t.kind !== 'hero' && t.kind !== 'building');
+  const valid = cands.filter((t) => t.team !== Team.Neutral || t.neutral?.inCombat);
+  const nonHero = valid.filter((t) => t.kind !== 'hero' && t.kind !== 'building');
   if (nonHero.length) return nearestOf(u.pos, nonHero);
-  const blds = cands.filter((t) => t.kind === 'building');
+  const blds = valid.filter((t) => t.kind === 'building');
   if (blds.length) return nearestOf(u.pos, blds);
-  return nearestOf(u.pos, cands);
+  return nearestOf(u.pos, valid);
 }
 
 const setAttack = (u: Unit, t: Unit): void => {
