@@ -116,11 +116,11 @@ function openHeroSelect(difficulty: Difficulty): void {
   heroSelect = showHeroSelect(
     uiRoot,
     { difficulty, initialHero: lastHero, preview: renderer.kind === '3d' ? 'webgl' : '2d' },
-    (heroId) => {
+    (heroId, teamHeroes) => {
       heroSelect = null;
       lastHero = heroId;
       saveLastHero(heroId);
-      startGame(difficulty, heroId);
+      startGame(difficulty, heroId, teamHeroes ? { radiant: teamHeroes } : {});
     },
     () => {
       heroSelect = null;
@@ -130,7 +130,7 @@ function openHeroSelect(difficulty: Difficulty): void {
   );
 }
 
-/** 开局：玩家英雄放天辉 0 号位，其余由电脑补位；lineup 给开发钩子指定队友（最多 2 名）和敌人（3 名） */
+/** 开局：玩家英雄放天辉 0 号位，其余由电脑补位；lineup 给开发钩子指定队友和敌人 */
 function startGame(difficulty: Difficulty, heroId: string, lineup: { radiant?: string[]; dire?: string[] } = {}): void {
   teardown();
   closePause();
@@ -140,8 +140,14 @@ function startGame(difficulty: Difficulty, heroId: string, lineup: { radiant?: s
   uiRoot.innerHTML = '';
   const seed = newSeed();
   const d = draftTeams(new Rng(seed), availableHeroes(), heroId);
-  const radiant = lineup.radiant ? [heroId, ...lineup.radiant, ...d.radiant.slice(1)].slice(0, 5) : d.radiant;
-  const dire = lineup.dire ? [...lineup.dire, ...d.dire].slice(0, 5) : d.dire;
+  const radiant = lineup.radiant && lineup.radiant.length === 5
+    ? lineup.radiant
+    : (lineup.radiant ? [heroId, ...lineup.radiant, ...d.radiant.slice(1)].slice(0, 5) : d.radiant);
+  const dire = lineup.dire && lineup.dire.length === 5
+    ? lineup.dire
+    : (lineup.radiant && lineup.radiant.length === 5
+        ? availableHeroes().filter((h) => !radiant.includes(h)).slice(0, 5)
+        : (lineup.dire ? [...lineup.dire, ...d.dire].slice(0, 5) : d.dire));
   const match = new Match({ seed, radiantHeroes: radiant, direHeroes: dire, playerSlot: 0, difficulty, recordEvents: true });
   const me = match.world.getUnit(match.playerUnitId);
   if (me) me.autoAttack = prefs.autoAttack;

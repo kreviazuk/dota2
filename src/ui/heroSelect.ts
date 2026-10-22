@@ -64,15 +64,40 @@ function abilitiesHtml(def: HeroDef): string {
  * 选英雄界面（横屏两栏）：左边 5 × 2 英雄卡片，右边选中英雄的预览、面板和技能说明；底部"随机英雄""开始对局"。
  * 还没实现的英雄显示"开发中"，不能选。
  */
-export function showHeroSelect(parent: HTMLElement, o: HeroSelectOpts, onStart: (heroId: string) => void, onBack: () => void): HeroSelectScreen {
+export function showHeroSelect(
+  parent: HTMLElement,
+  o: HeroSelectOpts,
+  onStart: (heroId: string, teamHeroes?: string[]) => void,
+  onBack: () => void,
+): HeroSelectScreen {
   const pickable = HERO_ROSTER.filter((e) => hasHero(e.id)).map((e) => e.id);
-  let selected = o.initialHero && pickable.includes(o.initialHero) ? o.initialHero : pickable[0] ?? null;
+  const playerHero = o.initialHero && pickable.includes(o.initialHero) ? o.initialHero : pickable[0] ?? 'axe';
+  const otherHeroes = pickable.filter((id) => id !== playerHero);
+  let teamHeroes: string[] = [playerHero, ...otherHeroes.slice(0, 4)];
+  while (teamHeroes.length < 5 && pickable.length > 0) {
+    teamHeroes.push(pickable[teamHeroes.length % pickable.length]);
+  }
+
+  let activeSlot = 0;
+  let selected = teamHeroes[activeSlot] ?? null;
+
   const s = document.createElement('div') as HeroSelectScreen;
   s.className = 'screen hero-select';
   s.innerHTML = `
     <div class="hs-top">
-      <div class="hs-heading">选择英雄<span class="hs-diff">难度：${DIFFICULTY_NAMES[o.difficulty]}</span></div>
+      <div class="hs-heading">选择 5 人阵容 (三路 5v5)<span class="hs-diff">难度：${DIFFICULTY_NAMES[o.difficulty]}</span></div>
       <div class="btn secondary hs-back">返回</div>
+    </div>
+    <div class="hs-lineup-bar">
+      <div class="hs-lineup-title">天辉阵容：</div>
+      <div class="hs-slots">
+        ${teamHeroes.map((hid, idx) => `
+          <div class="hs-slot${idx === activeSlot ? ' active' : ''}" data-slot="${idx}">
+            <span class="hs-slot-tag">${idx === 0 ? '👑 玩家' : `队友 ${idx}`}</span>
+            <div class="hs-slot-face"></div>
+            <span class="hs-slot-name">${esc(getHeroDef(hid).name)}</span>
+          </div>`).join('')}
+      </div>
     </div>
     <div class="hs-body">
       <div class="hs-grid">
@@ -95,7 +120,7 @@ export function showHeroSelect(parent: HTMLElement, o: HeroSelectOpts, onStart: 
       </div>
     </div>
     <div class="hs-bottom">
-      <div class="btn secondary hs-random">随机英雄</div>
+      <div class="btn secondary hs-random">随机阵容</div>
       <div class="btn hs-start">开始对局</div>
     </div>`;
   parent.appendChild(s);
@@ -117,7 +142,35 @@ export function showHeroSelect(parent: HTMLElement, o: HeroSelectOpts, onStart: 
     canvas.style.display = 'none';
   };
   const render = () => {
-    cards.forEach((c) => c.classList.toggle('selected', c.dataset.id === selected));
+    // 刷新 5 个槽位状态
+    const slotEls = [...s.querySelectorAll<HTMLDivElement>('.hs-slot')];
+    slotEls.forEach((el, idx) => {
+      const hid = teamHeroes[idx];
+      el.classList.toggle('active', idx === activeSlot);
+      el.querySelector('.hs-slot-name')!.textContent = hid ? getHeroDef(hid).name : '未选';
+      const face = el.querySelector('.hs-slot-face')!;
+      face.innerHTML = '';
+      if (hid) face.appendChild(portraitCanvas(hid, 36));
+    });
+
+    cards.forEach((c) => {
+      const cid = c.dataset.id!;
+      const inSlot = teamHeroes.indexOf(cid);
+      c.classList.toggle('selected', cid === selected);
+      let badge = c.querySelector<HTMLDivElement>('.hs-badge');
+      if (inSlot >= 0) {
+        if (!badge) {
+          badge = document.createElement('div');
+          badge.className = 'hs-badge';
+          c.appendChild(badge);
+        }
+        badge.className = `hs-badge${inSlot === 0 ? ' is-player' : ''}`;
+        badge.textContent = inSlot === 0 ? '玩家' : `队友${inSlot}`;
+      } else if (badge) {
+        badge.remove();
+      }
+    });
+
     q<HTMLDivElement>('.hs-start').classList.toggle('disabled', !selected);
     if (!selected) return;
     const def = getHeroDef(selected);
@@ -136,6 +189,15 @@ export function showHeroSelect(parent: HTMLElement, o: HeroSelectOpts, onStart: 
     big.appendChild(portraitCanvas(selected, 150));
     preview?.show(selected);
   };
+
+  const slotEls = [...s.querySelectorAll<HTMLDivElement>('.hs-slot')];
+  slotEls.forEach((el, idx) => {
+    el.addEventListener('click', () => {
+      activeSlot = idx;
+      selected = teamHeroes[activeSlot];
+      render();
+    });
+  });
 
   if (o.preview === 'webgl') {
     import('../render3d/heroPreview')
@@ -168,23 +230,36 @@ export function showHeroSelect(parent: HTMLElement, o: HeroSelectOpts, onStart: 
   for (const c of cards) {
     c.addEventListener('click', () => {
       const id = c.dataset.id!;
-      if (!pickable.includes(id) || id === selected) return;
+      if (!pickable.includes(id)) return;
+      const existingIdx = teamHeroes.indexOf(id);
+      if (existingIdx >= 0) {
+        if (existingIdx !== activeSlot) {
+          const curHero = teamHeroes[activeSlot];
+          teamHeroes[activeSlot] = id;
+          teamHeroes[existingIdx] = curHero;
+        }
+      } else {
+        teamHeroes[activeSlot] = id;
+      }
       selected = id;
       render();
     });
   }
   q<HTMLDivElement>('.hs-random').addEventListener('click', () => {
-    if (!pickable.length) return;
-    // 纯界面随机（不影响对局的种子）；有多个可选时不重复上一个
-    const pool = pickable.length > 1 ? pickable.filter((id) => id !== selected) : pickable;
-    selected = pool[Math.floor(Math.random() * pool.length)];
+    if (pickable.length < 5) return;
+    const pool = pickable.slice();
+    for (let i = pool.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [pool[i], pool[j]] = [pool[j], pool[i]];
+    }
+    teamHeroes = pool.slice(0, 5);
+    selected = teamHeroes[activeSlot];
     render();
   });
   q<HTMLDivElement>('.hs-start').addEventListener('click', () => {
     if (!selected) return;
-    const id = selected;
     close();
-    onStart(id);
+    onStart(teamHeroes[0], teamHeroes);
   });
   q<HTMLDivElement>('.hs-back').addEventListener('click', () => {
     close();
