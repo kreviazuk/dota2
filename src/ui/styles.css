@@ -552,3 +552,120 @@ html, body { margin: 0; height: 100%; overflow: hidden; background: #0b0f0a; col
 
 .rotate-hint { position: fixed; inset: 0; background: #000; display: none; align-items: center; justify-content: center; font-size: 5vw; z-index: 99; }
 @media (orientation: portrait) { .rotate-hint { display: flex; } }
+
+/* ---------- 战场播报与击杀横幅 ---------- */
+.kill-feed {
+  position: absolute;
+  left: calc(env(safe-area-inset-left) + 1.5rem);
+  top: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  pointer-events: none;
+  z-index: 50;
+  max-width: 34rem;
+}
+.feed-item {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 1rem;
+  background: rgba(14, 16, 22, 0.88);
+  border: 0.15rem solid #444;
+  border-radius: 0.8rem;
+  box-shadow: 0 0.4rem 1.2rem rgba(0,0,0,0.6);
+  font-size: max(1.8rem, 10px);
+  animation: feed-slide-in 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28) forwards;
+  transition: opacity 0.4s ease, transform 0.4s ease;
+}
+.feed-item.rad { border-color: #5fe05a; }
+.feed-item.dire { border-color: #ff5a4a; }
+.feed-item.fade-out { opacity: 0; transform: translateY(-0.8rem); }
+.feed-killer { font-weight: bold; }
+.feed-killer.rad { color: #7be07a; }
+.feed-killer.dire { color: #ff7a6a; }
+.feed-action { color: #aaa; font-size: max(1.6rem, 9px); }
+.feed-victim { font-weight: bold; }
+.feed-victim.rad { color: #7be07a; }
+.feed-victim.dire { color: #ff7a6a; }
+
+.banner-box {
+  position: absolute;
+  left: 50%;
+  top: 7rem;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  pointer-events: none;
+  z-index: 60;
+  opacity: 0;
+}
+.banner-box.show {
+  animation: banner-pop 3.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.banner-title {
+  font-size: max(3.6rem, 18px);
+  font-weight: 900;
+  letter-spacing: 0.1rem;
+  text-shadow: 0 0 1.2rem rgba(0,0,0,0.9), 0 0 2rem currentColor;
+  padding: 0.4rem 2rem;
+  border-radius: 1rem;
+  background: radial-gradient(ellipse at center, rgba(0,0,0,0.85) 0%, rgba(0,0,0,0.4) 75%, transparent 100%);
+}
+.banner-sub {
+  font-size: max(2.2rem, 12px);
+  font-weight: bold;
+  color: #fff;
+  text-shadow: 0 0 0.8rem #000, 0 0 0.4rem #000;
+  margin-top: 0.2rem;
+}
+.banner-box.first-blood .banner-title {
+  color: #ffd24a;
+  background: radial-gradient(ellipse at center, rgba(160,20,20,0.88) 0%, rgba(80,10,10,0.5) 70%, transparent 100%);
+  border: 0.2rem solid #ffd24a;
+}
+.banner-box.multikill .banner-title {
+  color: #4affd8;
+  background: radial-gradient(ellipse at center, rgba(15,80,95,0.88) 0%, rgba(10,40,50,0.5) 70%, transparent 100%);
+  border: 0.2rem solid #4affd8;
+}
+.banner-box.streak .banner-title {
+  color: #ff984a;
+  background: radial-gradient(ellipse at center, rgba(140,60,10,0.88) 0%, rgba(70,30,5,0.5) 70%, transparent 100%);
+  border: 0.2rem solid #ff984a;
+}
+.banner-box.shutdown .banner-title {
+  color: #d87cff;
+  background: radial-gradient(ellipse at center, rgba(90,20,130,0.88) 0%, rgba(45,10,65,0.5) 70%, transparent 100%);
+  border: 0.2rem solid #d87cff;
+}
+.banner-box.ace .banner-title {
+  color: #ff4a5a;
+  background: radial-gradient(ellipse at center, rgba(160,15,25,0.92) 0%, rgba(80,8,12,0.5) 70%, transparent 100%);
+  border: 0.2rem solid #ff4a5a;
+}
+.banner-box.roshan .banner-title {
+  color: #ffb830;
+  background: radial-gradient(ellipse at center, rgba(110,45,10,0.9) 0%, rgba(55,22,5,0.5) 70%, transparent 100%);
+  border: 0.2rem solid #ffb830;
+}
+.banner-box.building .banner-title {
+  color: #90d8ff;
+  background: radial-gradient(ellipse at center, rgba(20,50,90,0.9) 0%, rgba(10,25,45,0.5) 70%, transparent 100%);
+  border: 0.2rem solid #90d8ff;
+}
+
+@keyframes feed-slide-in {
+  from { opacity: 0; transform: translateX(-1.5rem); }
+  to { opacity: 1; transform: translateX(0); }
+}
+
+@keyframes banner-pop {
+  0% { opacity: 0; transform: translate(-50%, -1.2rem) scale(0.85); }
+  12% { opacity: 1; transform: translate(-50%, 0) scale(1.06); }
+  20% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  75% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -1rem) scale(0.95); }
+}

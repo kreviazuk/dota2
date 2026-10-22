@@ -9,6 +9,12 @@ export type SoundEffect =
   | 'towerDestroyed'
   | 'roshan'
   | 'rune'
+  | 'firstBlood'
+  | 'kill'
+  | 'doubleKill'
+  | 'tripleKill'
+  | 'streak'
+  | 'teamWipe'
   | 'victory'
   | 'defeat';
 
@@ -86,6 +92,24 @@ class SoundSystem {
           break;
         case 'rune':
           this.playRune(ctx, t);
+          break;
+        case 'firstBlood':
+          this.playFirstBlood(ctx, t);
+          break;
+        case 'kill':
+          this.playHeroKill(ctx, t);
+          break;
+        case 'doubleKill':
+          this.playDoubleKill(ctx, t);
+          break;
+        case 'tripleKill':
+          this.playTripleKill(ctx, t);
+          break;
+        case 'streak':
+          this.playStreak(ctx, t);
+          break;
+        case 'teamWipe':
+          this.playTeamWipe(ctx, t);
           break;
         case 'victory':
           this.playVictory(ctx, t);
@@ -241,6 +265,136 @@ class SoundSystem {
       osc.start(st);
       osc.stop(st + 0.45);
     });
+  }
+
+  /** 第一滴血雄壮铜管号角 */
+  private playFirstBlood(ctx: AudioContext, t: number): void {
+    const freqs = [349.23, 440.0, 523.25, 698.46]; // F4, A4, C5, F5
+    freqs.forEach((f, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const filter = ctx.createBiquadFilter();
+      const st = t + idx * 0.1;
+
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(f, st);
+
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(1200, st);
+
+      gain.gain.setValueAtTime(0.45, st);
+      gain.gain.exponentialRampToValueAtTime(0.01, st + 0.6);
+
+      osc.connect(filter);
+      filter.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(st);
+      osc.stop(st + 0.6);
+    });
+  }
+
+  /** 普通英雄击杀打击战音 */
+  private playHeroKill(ctx: AudioContext, t: number): void {
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+    osc.type = 'sawtooth';
+    osc.frequency.setValueAtTime(320, t);
+    osc.frequency.exponentialRampToValueAtTime(90, t + 0.2);
+
+    gain.gain.setValueAtTime(0.5, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 0.2);
+
+    osc.connect(gain);
+    gain.connect(this.masterGain!);
+    osc.start(t);
+    osc.stop(t + 0.2);
+  }
+
+  /** 双杀利落上扬双音 */
+  private playDoubleKill(ctx: AudioContext, t: number): void {
+    const notes = [587.33, 880.0]; // D5, A5
+    notes.forEach((f, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const st = t + idx * 0.12;
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(f, st);
+
+      gain.gain.setValueAtTime(0.5, st);
+      gain.gain.exponentialRampToValueAtTime(0.01, st + 0.4);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(st);
+      osc.stop(st + 0.4);
+    });
+  }
+
+  /** 三杀激昂三连音 */
+  private playTripleKill(ctx: AudioContext, t: number): void {
+    const notes = [523.25, 659.25, 1046.5]; // C5, E5, C6
+    notes.forEach((f, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const st = t + idx * 0.1;
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(f, st);
+
+      gain.gain.setValueAtTime(0.5, st);
+      gain.gain.exponentialRampToValueAtTime(0.01, st + 0.45);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(st);
+      osc.stop(st + 0.45);
+    });
+  }
+
+  /** 连杀终结与连杀荣耀凯音 */
+  private playStreak(ctx: AudioContext, t: number): void {
+    const notes = [392.0, 523.25, 659.25, 783.99]; // G4, C5, E5, G5
+    notes.forEach((f, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const st = t + idx * 0.08;
+      osc.type = 'triangle';
+      osc.frequency.setValueAtTime(f, st);
+
+      gain.gain.setValueAtTime(0.45, st);
+      gain.gain.exponentialRampToValueAtTime(0.01, st + 0.5);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(st);
+      osc.stop(st + 0.5);
+    });
+  }
+
+  /** 团灭沉雄铜钟长鸣 */
+  private playTeamWipe(ctx: AudioContext, t: number): void {
+    const osc = ctx.createOscillator();
+    const subOsc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(196.0, t); // G3
+    osc.frequency.exponentialRampToValueAtTime(130.81, t + 1.2); // C3
+
+    subOsc.type = 'triangle';
+    subOsc.frequency.setValueAtTime(98.0, t); // G2
+    subOsc.frequency.exponentialRampToValueAtTime(65.41, t + 1.2); // C2
+
+    gain.gain.setValueAtTime(0.6, t);
+    gain.gain.exponentialRampToValueAtTime(0.01, t + 1.2);
+
+    osc.connect(gain);
+    subOsc.connect(gain);
+    gain.connect(this.masterGain!);
+
+    osc.start(t);
+    subOsc.start(t);
+    osc.stop(t + 1.2);
+    subOsc.stop(t + 1.2);
   }
 
   /** 胜利大调凯歌 */

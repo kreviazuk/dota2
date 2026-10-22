@@ -64,6 +64,7 @@ export class World {
   effects: AreaEffect[] = [];
   runes: Rune[] = [];
   runesPickedCount = 0;
+  firstBloodAwarded = false;
   winner: Team | null = null;
   spawner: { nextWaveTime: number; waveIndex: number };
   readonly teams: Record<Team, TeamState> = { [Team.Radiant]: newTeamState(), [Team.Dire]: newTeamState(), [Team.Neutral]: newTeamState() };

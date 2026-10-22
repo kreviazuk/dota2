@@ -19,6 +19,7 @@ export type SimEvent =
   | { type: 'itemCombine'; unitId: number; itemId: string }
   | { type: 'itemUsed'; unitId: number; itemId: string }
   | { type: 'fx'; kind: string; pos: Vec2; radius?: number; dir?: Vec2; duration?: number; unitId?: number; targetId?: number }
+  | { type: 'announcement'; category: 'first_blood' | 'kill' | 'streak' | 'shutdown' | 'multikill' | 'ace' | 'building' | 'roshan' | 'rune'; killerId?: number | null; victimId?: number | null; team?: Team; title: string; subText?: string }
   | { type: 'victory'; winner: Team };
 
 export class EventBus {

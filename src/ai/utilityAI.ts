@@ -485,7 +485,7 @@ export class UtilityAI {
     }
 
     // 若附近有可攻击的敌方英雄处于交战距离，优先打架，不脱战捡符
-    const nearbyEnemyHeroes = enemiesInRadius(world, me.team, me.pos, 500, { heroesOnly: true }).filter((h) => canAttack(me, h));
+    const nearbyEnemyHeroes = enemiesInRadius(world, me.team, me.pos, 800, { heroesOnly: true }).filter((h) => canAttack(me, h));
     if (nearbyEnemyHeroes.length > 0) {
       return { type: 'pick_rune', score: 0, command: null };
     }

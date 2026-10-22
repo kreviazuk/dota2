@@ -96,6 +96,14 @@ export function onRoshanKilled(world: World, victim: Unit, killer: Unit | null):
     pos: { ...victim.pos },
     unitId: victim.id,
   });
+  world.events.emit({
+    type: 'announcement',
+    category: 'roshan',
+    killerId: lastHitter?.id ?? null,
+    team: lastHitter?.team,
+    title: '肉山被击杀 (Roshan Slain!)',
+    subText: `${lastHitter ? lastHitter.name : '中立势力'} 击杀了肉山，获得了不朽之守护！`,
+  });
 
   // 300 秒（5 分钟）后在巢穴复活
   world.after(300, (w) => {

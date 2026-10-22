@@ -68,4 +68,29 @@ describe('movement', () => {
     runFor(w, 0.5);
     expect(u.pos.y).toBeGreaterThan(5100);
   });
+  it('taunted units ignore movement commands and move towards the taunter until in attack range', () => {
+    const w = makeWorld();
+    const taunter = spawnDummy(w, { team: Team.Dire, pos: { x: 1500, y: 4600 } });
+    const u = spawnDummy(w, { team: Team.Radiant, pos: { x: 1500, y: 5000 } });
+    addModifier(w, u, { id: 'taunt', debuff: true, taunt: true }, { duration: 2, sourceId: taunter.id });
+    w.issue(u.id, { type: 'move', dir: { x: 0, y: 1 } });
+    runFor(w, 0.5);
+    expect(u.pos.y).toBeLessThan(4900);
+  });
+  it('channeling units without channelAllowsMove do not move', () => {
+    const w = makeWorld();
+    const u = spawnDummy(w, { pos: { x: 1500, y: 5000 } });
+    u.cast = {
+      ability: {
+        def: { channelAllowsMove: false },
+      } as any,
+      phase: 'channel',
+      timer: 0.5,
+      channelTotal: 3.0,
+      target: null as any,
+    };
+    u.order = { kind: 'moveDir', dir: { x: 0, y: -1 } };
+    runFor(w, 0.5);
+    expect(u.pos.y).toBe(5000);
+  });
 });

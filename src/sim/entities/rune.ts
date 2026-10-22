@@ -171,6 +171,13 @@ export function pickupRune(world: World, rune: Rune, hero: Unit): void {
     pos: copy(rune.pos),
     unitId: hero.id,
   });
+  world.events.emit({
+    type: 'announcement',
+    category: 'rune',
+    killerId: hero.id,
+    team: hero.team,
+    title: `${hero.name} 激活了 ${def.name}！`,
+  });
 
   if (rune.type === 'bounty') {
     // 赏金神符：拾取者与队友获得全队金钱与经验

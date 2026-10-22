@@ -18,6 +18,7 @@ import { getItemIconCanvas } from '../render/itemIcons';
 import { getItemDef } from '../sim/items/definitions';
 import { getNextQuickBuyItem } from '../ai/builds';
 import type { Command } from '../sim/commands';
+import type { SimEvent } from '../sim/core/events';
 
 export const SKILL_SLOTS: AbilitySlot[] = ['Q', 'W', 'E', 'R'];
 /** 键盘调试键的显示（X1 = F、X2 = G） */
@@ -161,6 +162,11 @@ export class Hud {
   readonly qbIcon: HTMLDivElement;
   readonly qbCost: HTMLSpanElement;
   readonly shopModal: ShopModal;
+  readonly killFeed: HTMLDivElement;
+  readonly bannerBox: HTMLDivElement;
+  readonly bannerTitle: HTMLDivElement;
+  readonly bannerSub: HTMLDivElement;
+  private bannerTimer: number | null = null;
   onCommand?: (cmd: Command) => void;
   /** 天赋弹窗的左右两个按钮（Controls 绑定点击 → pickTalent） */
   readonly talentOpts: HTMLDivElement[];
@@ -202,6 +208,8 @@ export class Hud {
         <div class="score"><span class="k-rad">0</span><span class="clock">00:00</span><span class="k-dire">0</span></div>
         <div class="roster"><div class="side rad"></div><div class="side dire"></div></div>
       </div>
+      <div class="kill-feed"></div>
+      <div class="banner-box"><div class="banner-title"></div><div class="banner-sub"></div></div>
       <div class="hud-tr"><canvas class="minimap" width="110" height="320"></canvas><div class="btn-pause">❚❚</div></div>
       <div class="talent-pop">
         <div class="talent-head"><span class="talent-title"></span><span class="talent-later">稍后</span></div>
@@ -248,6 +256,10 @@ export class Hud {
     this.qbIcon = this.q('.qb-icon');
     this.qbCost = this.q('.qb-cost');
     this.shopModal = new ShopModal(this.root, (cmd) => this.onCommand?.(cmd));
+    this.killFeed = this.q('.kill-feed');
+    this.bannerBox = this.q('.banner-box');
+    this.bannerTitle = this.q('.banner-title');
+    this.bannerSub = this.q('.banner-sub');
 
     for (let i = 0; i < 6; i++) {
       const root = this.q<HTMLDivElement>(`.item-slot[data-slot="${i}"]`);
@@ -559,7 +571,59 @@ export class Hud {
     g.stroke();
   }
 
+  /** 处理逻辑帧下发的 SimEvent（击杀播报、首杀、连杀、神符、推塔等） */
+  consume(events: SimEvent[]): void {
+    for (const e of events) {
+      if (e.type === 'announcement') {
+        this.handleAnnouncement(e);
+      }
+    }
+  }
+
+  private handleAnnouncement(e: SimEvent & { type: 'announcement' }): void {
+    // 1. 左上角即时击杀信息流
+    const item = document.createElement('div');
+    const radClass = e.team === Team.Radiant ? 'rad' : (e.team === Team.Dire ? 'dire' : '');
+    item.className = `feed-item ${radClass}`;
+    if (e.category === 'kill' || e.category === 'first_blood' || e.category === 'multikill' || e.category === 'streak' || e.category === 'shutdown') {
+      const killer = e.killerId ? this.match.world.getUnit(e.killerId) : null;
+      const victim = e.victimId ? this.match.world.getUnit(e.victimId) : null;
+      const kName = killer ? killer.name : '防御塔';
+      const vName = victim ? victim.name : '英雄';
+      const kTeam = killer ? (killer.team === Team.Radiant ? 'rad' : 'dire') : (e.team === Team.Radiant ? 'rad' : 'dire');
+      const vTeam = victim ? (victim.team === Team.Radiant ? 'rad' : 'dire') : (kTeam === 'rad' ? 'dire' : 'rad');
+      item.innerHTML = `<span class="feed-killer ${kTeam}">${kName}</span> <span class="feed-action">击杀了</span> <span class="feed-victim ${vTeam}">${vName}</span>`;
+    } else {
+      item.innerHTML = `<span class="feed-action">${e.title}</span>`;
+    }
+    this.killFeed.appendChild(item);
+    while (this.killFeed.children.length > 4) {
+      this.killFeed.firstElementChild?.remove();
+    }
+    setTimeout(() => {
+      item.classList.add('fade-out');
+      setTimeout(() => item.remove(), 400);
+    }, 4000);
+
+    // 2. 屏幕中上方高光震撼横幅 (First Blood, Multi-kill, Streak, Shutdown, Ace, Roshan, Building)
+    if (e.category !== 'kill') {
+      if (this.bannerTimer !== null) {
+        clearTimeout(this.bannerTimer);
+        this.bannerTimer = null;
+      }
+      this.bannerBox.className = `banner-box show ${e.category.replace('_', '-')}`;
+      setText(this.bannerTitle, e.title);
+      setText(this.bannerSub, e.subText ?? '');
+
+      this.bannerTimer = setTimeout(() => {
+        this.bannerBox.className = 'banner-box';
+        this.bannerTimer = null;
+      }, 3200) as unknown as number;
+    }
+  }
+
   destroy(): void {
+    if (this.bannerTimer !== null) clearTimeout(this.bannerTimer);
     this.shopModal.destroy();
     this.root.remove();
   }

@@ -1,6 +1,6 @@
 import type { World } from '../world';
 import type { Unit } from '../entities/unit';
-import { enemyTeam } from '../core/types';
+import { Team, enemyTeam } from '../core/types';
 import { dist } from '../core/vec2';
 import { streakBounty } from '../formulas';
 import { giveGold, giveXp, netWorth } from './progress';
@@ -28,14 +28,126 @@ function heroKillRewards(world: World, victim: Unit, killer: Unit | null): void 
       (world.time - (victim.heroDamageTimes.get(h.id) ?? -1e9) <= e.assistWindow ||
         (h.alive && dist(h.pos, victim.pos) <= e.assistRadius)),
   );
-  if (credited) {
+  const isFirstBlood = !world.firstBloodAwarded && credited !== null;
+  if (isFirstBlood && credited) {
+    world.firstBloodAwarded = true;
+    world.events.emit({
+      type: 'announcement',
+      category: 'first_blood',
+      killerId: credited.id,
+      victimId: victim.id,
+      team: credited.team,
+      title: '第一滴血 (First Blood!)',
+      subText: `${credited.name} 击杀了 ${victim.name}！`,
+    });
+  }
+
+  if (vh.streak >= 3) {
+    world.events.emit({
+      type: 'announcement',
+      category: 'shutdown',
+      killerId: credited?.id ?? null,
+      victimId: victim.id,
+      team: killerTeam,
+      title: '终结连杀 (Shutdown!)',
+      subText: `${credited ? credited.name : '防御塔'} 终结了 ${victim.name} 的 ${vh.streak} 连杀！`,
+    });
+  }
+
+  if (credited && credited.hero) {
     giveGold(world, credited, gold);
-    credited.hero!.kills++;
-    credited.hero!.streak++;
+    credited.hero.kills++;
+    credited.hero.streak++;
+    const ch = credited.hero;
+    if (world.time - ch.lastKillTime <= 18) {
+      ch.multiKill++;
+    } else {
+      ch.multiKill = 1;
+    }
+    ch.lastKillTime = world.time;
+
+    if (ch.multiKill === 2) {
+      world.events.emit({
+        type: 'announcement',
+        category: 'multikill',
+        killerId: credited.id,
+        victimId: victim.id,
+        team: credited.team,
+        title: '双杀！Double Kill!',
+        subText: `${credited.name} 斩获双杀！`,
+      });
+    } else if (ch.multiKill >= 3) {
+      world.events.emit({
+        type: 'announcement',
+        category: 'multikill',
+        killerId: credited.id,
+        victimId: victim.id,
+        team: credited.team,
+        title: '三杀！Triple Kill!',
+        subText: `${credited.name} 大杀四方，斩获三杀！`,
+      });
+    }
+
+    const streakTitles: Record<number, { title: string; sub: string }> = {
+      3: { title: '大杀特杀 (Killing Spree!)', sub: `${credited.name} 正在大杀特杀！` },
+      4: { title: '主宰比赛 (Dominating!)', sub: `${credited.name} 已经主宰比赛！` },
+      5: { title: '杀人如麻 (Mega Kill!)', sub: `${credited.name} 杀人如麻！` },
+      6: { title: '无人能挡 (Unstoppable!)', sub: `${credited.name} 无人能挡！` },
+      7: { title: '变态杀戮 (Wicked Sick!)', sub: `${credited.name} 变态杀戮！` },
+      8: { title: '妖怪般的杀戮 (Monster Kill!)', sub: `${credited.name} 妖怪般的杀戮！` },
+      9: { title: '如同神一般 (Godlike!)', sub: `${credited.name} 如同神一般！` },
+      10: { title: '超越神了 (Beyond Godlike!)', sub: `${credited.name} 已经超越了神！` },
+    };
+    const streakInfo = streakTitles[Math.min(ch.streak, 10)];
+    if (ch.streak >= 3 && streakInfo && !isFirstBlood) {
+      world.events.emit({
+        type: 'announcement',
+        category: 'streak',
+        killerId: credited.id,
+        victimId: victim.id,
+        team: credited.team,
+        title: streakInfo.title,
+        subText: streakInfo.sub,
+      });
+    } else if (!isFirstBlood && ch.multiKill < 2) {
+      world.events.emit({
+        type: 'announcement',
+        category: 'kill',
+        killerId: credited.id,
+        victimId: victim.id,
+        team: credited.team,
+        title: `${credited.name} 击杀了 ${victim.name}`,
+        subText: `+${Math.round(gold)} 金币`,
+      });
+    }
   } else {
     for (const h of enemies) giveGold(world, h, gold / Math.max(1, enemies.length));
+    if (!isFirstBlood) {
+      world.events.emit({
+        type: 'announcement',
+        category: 'kill',
+        killerId: null,
+        victimId: victim.id,
+        team: killerTeam,
+        title: `${victim.name} 阵亡`,
+        subText: '防御塔/小兵击杀',
+      });
+    }
   }
   world.teams[killerTeam].kills++;
+
+  // 检查是否团灭（对手队伍当前全部处于阵亡状态）
+  const enemyHeroes = world.heroes(victim.team);
+  if (enemyHeroes.length >= 3 && enemyHeroes.every((h) => !h.alive || h.id === victim.id)) {
+    world.events.emit({
+      type: 'announcement',
+      category: 'ace',
+      team: killerTeam,
+      title: '团灭 (Team Wipe!)',
+      subText: `${victim.team === Team.Radiant ? '天辉' : '夜魇'} 全员阵亡！`,
+    });
+  }
+
   if (assisters.length) {
     const each = (e.assistBaseGold + e.assistNetWorthRatio * netWorth(victim)) / assisters.length;
     for (const h of assisters) {
@@ -52,6 +164,7 @@ function heroKillRewards(world: World, victim: Unit, killer: Unit | null): void 
   vh.gold -= Math.min(vh.gold, e.deathGoldLossPerLevel * vh.level);
   vh.deaths++;
   vh.streak = 0;
+  vh.multiKill = 0;
 }
 
 export function onUnitKilledEconomy(world: World, victim: Unit, killer: Unit | null): void {

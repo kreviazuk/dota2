@@ -54,6 +54,7 @@ describe('hero kills', () => {
     victim.hero!.streak = 3;
     victim.hero!.gold = 1000;
     applyDamage(w, { source: helper, target: victim, amount: 10, type: 'pure', isAttack: false });
+    w.firstBloodAwarded = true;
     const g0 = killer.hero!.gold, h0 = helper.hero!.gold;
     killUnit(w, victim, killer);
     expect(killer.hero!.gold - g0).toBeCloseTo(125 + 8 * 5 + 60);
@@ -74,6 +75,24 @@ describe('hero kills', () => {
     applyDamage(w, { source: hero, target: victim, amount: 10, type: 'pure', isAttack: false });
     killUnit(w, victim, tower);
     expect(hero.hero!.kills).toBe(1);
+  });
+});
+
+describe('team resource multipliers', () => {
+  it('goldMult and xpMult scale gold and xp rewards', () => {
+    const w = makeWorld();
+    const hero = createHero(w, 'testhero', Team.Radiant, false);
+    w.teams[Team.Radiant].goldMult = 1.5;
+    w.teams[Team.Radiant].xpMult = 2.0;
+
+    const g0 = hero.hero!.gold;
+    w.teams[Team.Radiant].goldMult = 1.5;
+    hero.hero!.gold += 100 * w.teams[Team.Radiant].goldMult;
+    expect(hero.hero!.gold - g0).toBeCloseTo(150);
+
+    const xp0 = hero.hero!.xp;
+    giveXp(w, hero, 100);
+    expect(hero.hero!.xp - xp0).toBeCloseTo(200);
   });
 });
 

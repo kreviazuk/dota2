@@ -133,10 +133,17 @@ export function updateBuildings(world: World, dt: number): void {
 }
 
 export function onBuildingKilled(world: World, victim: Unit, killer: Unit | null): void {
-  void killer;
   if (victim.kind !== 'building' || !victim.building) return;
   world.events.emit({ type: 'buildingDestroyed', unitId: victim.id, team: victim.team });
   const enemy = enemyTeam(victim.team);
+  world.events.emit({
+    type: 'announcement',
+    category: 'building',
+    killerId: killer?.id ?? null,
+    victimId: victim.id,
+    team: enemy,
+    title: `${enemy === Team.Radiant ? '天辉' : '夜魇'} 摧毁了 ${victim.name}！`,
+  });
   if (victim.building.tier === 3) world.teams[enemy].superCreeps = true;
   if (victim.building.type === 'ancient') {
     world.winner = enemy;

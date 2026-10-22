@@ -216,6 +216,12 @@ function frame(now: number): void {
           sound.play('roshan');
         } else if (e.type === 'fx' && e.kind === 'rune_pickup') {
           sound.play('rune');
+        } else if (e.type === 'announcement') {
+          if (e.category === 'first_blood') sound.play('firstBlood');
+          else if (e.category === 'multikill') sound.play(e.title.includes('三杀') ? 'tripleKill' : 'doubleKill');
+          else if (e.category === 'streak' || e.category === 'shutdown') sound.play('streak');
+          else if (e.category === 'ace') sound.play('teamWipe');
+          else if (e.category === 'kill') sound.play('kill');
         } else if (e.type === 'victory') {
           const pTeam = s.match.world.getUnit(s.match.playerUnitId)?.team;
           if (e.winner === pTeam) sound.play('victory');
@@ -224,6 +230,7 @@ function frame(now: number): void {
       }
     }
     renderer.consume(events, s.match.world, s.followId);
+    s.hud?.consume(events);
     s.hud?.update(dt);
     if (s.match.over) {
       if (s.demo) startDemoMatch();

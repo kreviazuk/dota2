@@ -23,6 +23,12 @@ describe('SoundSystem', () => {
       'towerDestroyed',
       'roshan',
       'rune',
+      'firstBlood',
+      'kill',
+      'doubleKill',
+      'tripleKill',
+      'streak',
+      'teamWipe',
       'victory',
       'defeat',
     ];
