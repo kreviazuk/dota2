@@ -17,7 +17,8 @@ export type UtilityActionType =
   | 'chase_kill'
   | 'use_consumables'
   | 'push_tower'
-  | 'harass';
+  | 'harass'
+  | 'pick_rune';
 
 export interface UtilityAction {
   type: UtilityActionType;
@@ -52,6 +53,7 @@ export class UtilityAI {
       use_consumables: this.evalUseConsumables(world, me),
       push_tower: this.evalPushTower(world, me, teamPlan),
       harass: this.evalHarass(world, me),
+      pick_rune: this.evalPickRune(world, me),
     };
 
     let bestAction: UtilityAction | null = null;
@@ -466,5 +468,55 @@ export class UtilityAI {
     }
 
     return { type: 'harass', score: 0, command: null };
+  }
+
+  /**
+   * 9. 神符控符决策 (pick_rune: 75-85 分)
+   * 850 码范围内有活跃神符且生命安全时，前往河道控符
+   */
+  evalPickRune(world: World, me: Unit): UtilityAction {
+    if (!world.runes || world.runes.length === 0) {
+      return { type: 'pick_rune', score: 0, command: null };
+    }
+
+    const hpPct = me.hp / me.stats.maxHp;
+    if (hpPct < 0.3) {
+      return { type: 'pick_rune', score: 0, command: null };
+    }
+
+    // 若附近有可攻击的敌方英雄处于交战距离，优先打架，不脱战捡符
+    const nearbyEnemyHeroes = enemiesInRadius(world, me.team, me.pos, 500, { heroesOnly: true }).filter((h) => canAttack(me, h));
+    if (nearbyEnemyHeroes.length > 0) {
+      return { type: 'pick_rune', score: 0, command: null };
+    }
+
+    const activeRunes = world.runes.filter((r) => !r.pickedUp && dist(me.pos, r.pos) <= 850);
+    if (activeRunes.length === 0) {
+      return { type: 'pick_rune', score: 0, command: null };
+    }
+
+    // 挑选最近的神符
+    let nearest = activeRunes[0];
+    let minDist = dist(me.pos, nearest.pos);
+    for (let i = 1; i < activeRunes.length; i++) {
+      const d = dist(me.pos, activeRunes[i].pos);
+      if (d < minDist) {
+        minDist = d;
+        nearest = activeRunes[i];
+      }
+    }
+
+    // 避开敌方防御塔范围
+    if (underEnemyTower(world, me.team, nearest.pos)) {
+      return { type: 'pick_rune', score: 0, command: null };
+    }
+
+    const score = Math.round(76 + (1 - minDist / 850) * 10);
+    return {
+      type: 'pick_rune',
+      score,
+      command: { type: 'moveTo', point: nearest.pos },
+      reason: `picking up rune: ${nearest.name}`,
+    };
   }
 }

@@ -8,6 +8,7 @@ import { UtilityAI } from '../../src/ai/utilityAI';
 import { DIFFICULTY } from '../../src/ai/difficulty';
 import { grantItem } from '../../src/sim/items/inventory';
 import { expectedAttackDamage } from '../../src/sim/query';
+import { Rune } from '../../src/sim/entities/rune';
 
 const place = (u: { pos: { x: number; y: number } }, x: number, y: number) => {
   u.pos = { x, y };
@@ -257,6 +258,35 @@ describe('UtilityAI', () => {
 
       const evalResult = utility.evaluate(w, me, skill);
       expect(evalResult.actions.push_tower.score).toBe(0);
+    });
+  });
+
+  describe('pick_rune decision', () => {
+    it('scores pick_rune between 75-85 when active rune is within range and safe', () => {
+      const w = makeWorld();
+      const me = createHero(w, 'testhero', Team.Radiant, false);
+      place(me, 1800, 5200);
+
+      const rune = new Rune(w.allocId(), 'haste', { x: 1800, y: 5000 }, 'east_power', w.time);
+      w.runes.push(rune);
+
+      const evalResult = utility.evaluate(w, me, skill);
+      expect(evalResult.actions.pick_rune.score).toBeGreaterThanOrEqual(75);
+      expect(evalResult.actions.pick_rune.score).toBeLessThanOrEqual(86);
+      expect(evalResult.actions.pick_rune.command?.type).toBe('moveTo');
+    });
+
+    it('does NOT score pick_rune when HP is dangerously low (< 30%)', () => {
+      const w = makeWorld();
+      const me = createHero(w, 'testhero', Team.Radiant, false);
+      place(me, 1800, 5200);
+      me.hp = me.stats.maxHp * 0.2; // 20% HP
+
+      const rune = new Rune(w.allocId(), 'haste', { x: 1800, y: 5000 }, 'east_power', w.time);
+      w.runes.push(rune);
+
+      const evalResult = utility.evaluate(w, me, skill);
+      expect(evalResult.actions.pick_rune.score).toBe(0);
     });
   });
 });

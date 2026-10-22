@@ -533,6 +533,23 @@ export class Hud {
         g.fillRect(x - 1.5 * k, y - 1.5 * k, 3 * k, 3 * k);
       }
     }
+    if (w.runes) {
+      for (const r of w.runes) {
+        if (r.pickedUp) continue;
+        const rx = r.pos.x * sx, ry = r.pos.y * sy;
+        g.fillStyle = r.color;
+        g.beginPath();
+        g.moveTo(rx, ry - 3.5 * k);
+        g.lineTo(rx + 3.5 * k, ry);
+        g.lineTo(rx, ry + 3.5 * k);
+        g.lineTo(rx - 3.5 * k, ry);
+        g.closePath();
+        g.fill();
+        g.strokeStyle = '#ffffff';
+        g.lineWidth = 1 * k;
+        g.stroke();
+      }
+    }
     // 视野框：屏幕四角投影到地面上的四边形（2D 镜头是矩形，3D 透视镜头是上宽下窄的梯形）
     g.strokeStyle = 'rgba(255,255,255,0.7)';
     g.lineWidth = k;

@@ -85,6 +85,7 @@ interface GameResult {
   elitesKilled: number;
   roshanKilled: number;
   aegisTriggered: number;
+  runesCollected: number;
 }
 
 /**
@@ -118,6 +119,7 @@ function runGame(a: Args, seed: number): GameResult {
   let elitesKilled = 0;
   let roshanKilled = 0;
   let aegisTriggered = 0;
+  let runesCollected = 0;
   w.killListeners.push((world, victim) => {
     if (victim.building) falls[`${TEAM_NAME[side(victim.team)]}${victim.building.key}`] = world.time;
     if (victim.defId === 'roshan') roshanKilled++;
@@ -128,6 +130,7 @@ function runGame(a: Args, seed: number): GameResult {
     m.step();
     for (const e of w.events.drain()) {
       if (e.type === 'fx' && e.kind === 'aegis_reincarnate') aegisTriggered++;
+      if (e.type === 'fx' && e.kind === 'rune_pickup') runesCollected++;
     }
     if (ci < CHECKPOINTS.length && w.time >= CHECKPOINTS[ci]) {
       const hs = w.heroes();
@@ -145,6 +148,7 @@ function runGame(a: Args, seed: number): GameResult {
     elitesKilled,
     roshanKilled,
     aegisTriggered,
+    runesCollected: w.runesPickedCount,
   };
 }
 
@@ -253,13 +257,15 @@ function summarize(a: Args, results: GameResult[], color: boolean): { sections: 
   const totalElites = results.reduce((s, r) => s + r.elitesKilled, 0);
   const totalRoshan = results.reduce((s, r) => s + r.roshanKilled, 0);
   const totalAegis = results.reduce((s, r) => s + r.aegisTriggered, 0);
+  const totalRunes = results.reduce((s, r) => s + (r.runesCollected ?? 0), 0);
 
   const neutrals: string[] = [
     `场均击杀精英怪：${(totalElites / n).toFixed(2)} 只（总计 ${totalElites} 只）`,
     `场均击杀肉山：${(totalRoshan / n).toFixed(2)} 次（总计 ${totalRoshan} 次）`,
     `场均不朽之守护复活：${(totalAegis / n).toFixed(2)} 次（总计 ${totalAegis} 次）`,
+    `场均拾取神符：${(totalRunes / n).toFixed(2)} 个（总计 ${totalRunes} 个）`,
   ];
-  sections.push({ title: '精英怪与肉山统计', lines: neutrals });
+  sections.push({ title: '精英怪与中立资源统计', lines: neutrals });
 
   const casts = ['| 英雄 | 场均施放次数 |', '|---|---|'];
   for (const s of sums) {

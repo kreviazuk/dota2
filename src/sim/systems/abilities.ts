@@ -47,10 +47,17 @@ export function abilityValue(caster: Unit, ab: AbilityInstance, key: string): nu
   return withTalent(caster, ab, key, base);
 }
 
-export const abilityCooldown = (ab: AbilityInstance, caster?: Unit): number =>
-  Math.max(0, withTalent(caster, ab, 'cooldown', levelValue(ab.def.cooldown, abLevel(ab))));
-export const abilityManaCost = (ab: AbilityInstance, caster?: Unit): number =>
-  Math.max(0, withTalent(caster, ab, 'manaCost', levelValue(ab.def.manaCost, abLevel(ab))));
+export const abilityCooldown = (ab: AbilityInstance, caster?: Unit): number => {
+  let cd = Math.max(0, withTalent(caster, ab, 'cooldown', levelValue(ab.def.cooldown, abLevel(ab))));
+  if (caster && findModifier(caster, 'mod_rune_arcane')) cd *= 0.7;
+  return cd;
+};
+
+export const abilityManaCost = (ab: AbilityInstance, caster?: Unit): number => {
+  let cost = Math.max(0, withTalent(caster, ab, 'manaCost', levelValue(ab.def.manaCost, abLevel(ab))));
+  if (caster && findModifier(caster, 'mod_rune_arcane')) cost *= 0.7;
+  return cost;
+};
 /** 施法距离：等级数值（含天赋）+ 施法距离加成 */
 export const abilityCastRange = (caster: Unit, ab: AbilityInstance): number =>
   withTalent(caster, ab, 'castRange', levelValue(ab.def.castRange, abLevel(ab))) + caster.stats.castRangeBonus;

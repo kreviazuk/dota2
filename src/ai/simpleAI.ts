@@ -165,6 +165,13 @@ export class SimpleAI {
       return out;
     }
 
+    // 尝试前往河道控符
+    const runeAct = this.utility.evalPickRune(world, me);
+    if (runeAct.score > 0 && runeAct.command) {
+      out.push(runeAct.command);
+      return out;
+    }
+
     const ownCreeps = world.units.filter((u) => u.team === me.team && u.creep && u.alive);
     const front = ownCreeps.length ? ownCreeps.reduce((a, b) => (b.pos.y * fy > a.pos.y * fy ? b : a)) : null;
 

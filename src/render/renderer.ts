@@ -1,5 +1,6 @@
 import type { World } from '../sim/world';
 import type { Unit } from '../sim/entities/unit';
+import type { Rune } from '../sim/entities/rune';
 import type { Vec2 } from '../sim/core/vec2';
 import type { SimEvent } from '../sim/core/events';
 import type { AimIndicator, GameRenderer } from './view';
@@ -80,6 +81,13 @@ export class Renderer implements GameRenderer {
     this.map.draw(ctx, this.time);
 
     for (const e of world.effects) if (cam.visible(e.pos, e.radius)) drawAreaEffect(ctx, e, this.time);
+    if (world.runes) {
+      for (const r of world.runes) {
+        if (!r.pickedUp && cam.visible(r.pos, 100)) {
+          this.drawRune2D(ctx, r, this.time);
+        }
+      }
+    }
     if (aim) this.drawAim(ctx, world, aim);
 
     // 隐藏状态的敌方单位不画；死亡的英雄不画（建筑死亡后画废墟）
@@ -219,5 +227,37 @@ export class Renderer implements GameRenderer {
         ctx.stroke();
       }
     }
+  }
+
+  private drawRune2D(ctx: CanvasRenderingContext2D, r: Rune, time: number): void {
+    const p = r.pos;
+    const bob = Math.sin(time * 4) * 4;
+    ctx.save();
+    ctx.translate(p.x, p.y + bob);
+
+    // 外发光光晕
+    const glow = ctx.createRadialGradient(0, 0, 8, 0, 0, 36);
+    glow.addColorStop(0, r.color + 'bb');
+    glow.addColorStop(1, r.color + '00');
+    ctx.fillStyle = glow;
+    ctx.beginPath();
+    ctx.arc(0, 0, 36, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 旋转菱形核心
+    ctx.rotate(time * 1.6);
+    ctx.fillStyle = r.color;
+    ctx.beginPath();
+    ctx.moveTo(0, -18);
+    ctx.lineTo(14, 0);
+    ctx.lineTo(0, 18);
+    ctx.lineTo(-14, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 2.5;
+    ctx.stroke();
+
+    ctx.restore();
   }
 }

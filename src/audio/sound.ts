@@ -8,6 +8,7 @@ export type SoundEffect =
   | 'gold'
   | 'towerDestroyed'
   | 'roshan'
+  | 'rune'
   | 'victory'
   | 'defeat';
 
@@ -82,6 +83,9 @@ class SoundSystem {
           break;
         case 'roshan':
           this.playRoshan(ctx, t);
+          break;
+        case 'rune':
+          this.playRune(ctx, t);
           break;
         case 'victory':
           this.playVictory(ctx, t);
@@ -217,6 +221,26 @@ class SoundSystem {
     gain.connect(this.masterGain!);
     osc.start(t);
     osc.stop(t + 1.0);
+  }
+
+  /** 神符拾取空灵清音 */
+  private playRune(ctx: AudioContext, t: number): void {
+    const freqs = [659.25, 830.61, 987.77, 1318.51]; // E5, G#5, B5, E6
+    freqs.forEach((f, idx) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      const st = t + idx * 0.06;
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(f, st);
+
+      gain.gain.setValueAtTime(0.35, st);
+      gain.gain.exponentialRampToValueAtTime(0.001, st + 0.45);
+
+      osc.connect(gain);
+      gain.connect(this.masterGain!);
+      osc.start(st);
+      osc.stop(st + 0.45);
+    });
   }
 
   /** 胜利大调凯歌 */

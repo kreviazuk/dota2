@@ -217,6 +217,19 @@ export class FxSystem {
         this.ring(x, y, 10, 150, 'rgba(120,190,255,', 0.6, 8);
         this.burst(x, y, 20, 'rgba(150,210,255,0.9)', 200, 6, 0.6);
         break;
+      case 'rune_spawn':
+        this.ring(x, y, 10, 100, 'rgba(255,215,0,', 0.5, 8);
+        this.burst(x, y, 15, 'rgba(255,220,100,0.9)', 160, 5, 0.4);
+        break;
+      case 'rune_pickup': {
+        const u = e.unitId ? world.getUnit(e.unitId) : null;
+        this.ring(x, y, 20, 160, 'rgba(120,220,255,', 0.5, 10);
+        this.burst(x, y, 25, 'rgba(100,200,255,0.95)', 250, 7, 0.5);
+        if (u && cam.visible(u.pos)) {
+          this.text(u.pos.x, u.pos.y - 70, '获得神符！', '#ffd54a', 30);
+        }
+        break;
+      }
       default:
         this.ring(x, y, 10, e.radius ?? 120, 'rgba(255,255,255,', 0.4, 6);
     }

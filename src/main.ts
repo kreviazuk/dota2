@@ -214,6 +214,8 @@ function frame(now: number): void {
           sound.play('towerDestroyed');
         } else if ((e as any).kind === 'roshan_death') {
           sound.play('roshan');
+        } else if (e.type === 'fx' && e.kind === 'rune_pickup') {
+          sound.play('rune');
         } else if (e.type === 'victory') {
           const pTeam = s.match.world.getUnit(s.match.playerUnitId)?.team;
           if (e.winner === pTeam) sound.play('victory');

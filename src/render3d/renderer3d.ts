@@ -1,6 +1,6 @@
 import {
   CanvasTexture, Color, DirectionalLight, DynamicDrawUsage, Fog, Group, HemisphereLight, InstancedBufferAttribute, InstancedMesh, Matrix4, Mesh,
-  MeshBasicMaterial, NoToneMapping, Object3D, PCFShadowMap, Scene, Sprite, SpriteMaterial, SRGBColorSpace, Vector3, WebGLRenderer,
+  MeshBasicMaterial, NoToneMapping, Object3D, OctahedronGeometry, PCFShadowMap, Scene, Sprite, SpriteMaterial, SRGBColorSpace, Vector3, WebGLRenderer,
   type BufferGeometry, type Material, type ShaderMaterial,
 } from 'three';
 import type { World } from '../sim/world';
@@ -781,6 +781,7 @@ export class Renderer3D implements GameRenderer {
   /** 区域效果外观要求的第二个贴地圈（AreaVisualCtx.extra） */
   private areaExtras = new Map<number, RingDecal>();
   private areaPool: RingDecal[] = [];
+  private runeViews = new Map<number, Mesh>();
   private anchors: Anchor[] = [];
   private time = 0;
   private overlayDpr = 1;
@@ -907,6 +908,12 @@ export class Renderer3D implements GameRenderer {
     for (const d of [...this.areas.values(), ...this.areaExtras.values()]) d.hide();
     this.areaPool.push(...this.areas.values(), ...this.areaExtras.values());
     this.areaExtras.clear();
+    for (const m of this.runeViews.values()) {
+      m.removeFromParent();
+      m.geometry.dispose();
+      (m.material as Material).dispose();
+    }
+    this.runeViews.clear();
     this.heroes.clear();
     this.creeps.clear();
     this.summons.clear();
@@ -980,6 +987,7 @@ export class Renderer3D implements GameRenderer {
     this.syncUnits(world, alpha, dt, time, followId, viewerTeam);
     this.syncProjectiles(world, alpha, dt);
     this.syncAreas(world, time, dt);
+    this.syncRunes(world, time);
     this.aimDecals.update(aim, world, time);
     this.shieldMat.uniforms.uTime.value = time;
     this.fx.update(dt, this.camera.viewH, CAM3D.fovDeg * DEG);
@@ -1411,6 +1419,36 @@ export class Renderer3D implements GameRenderer {
       d.hide();
       this.areaPool.push(d);
       this.areaExtras.delete(id);
+    }
+  }
+
+  private syncRunes(world: World, time: number): void {
+    const seen = new Set<number>();
+    if (world.runes) {
+      for (const r of world.runes) {
+        if (r.pickedUp) continue;
+        seen.add(r.id);
+        let m = this.runeViews.get(r.id);
+        if (!m) {
+          const geo = new OctahedronGeometry(18, 0);
+          const mat = new MeshBasicMaterial({ color: new Color(r.color), wireframe: false });
+          m = new Mesh(geo, mat);
+          this.dyn.add(m);
+          this.runeViews.set(r.id, m);
+        }
+        const y = Math.max(0, groundHeight(r.pos.x, r.pos.y)) + 24 + Math.sin(time * 3.5 + r.id) * 6;
+        m.position.set(r.pos.x, y, r.pos.y);
+        m.rotation.y = time * 2;
+        m.rotation.z = Math.sin(time * 2.5) * 0.2;
+      }
+    }
+    for (const [id, m] of this.runeViews) {
+      if (!seen.has(id)) {
+        m.removeFromParent();
+        m.geometry.dispose();
+        (m.material as Material).dispose();
+        this.runeViews.delete(id);
+      }
     }
   }
 

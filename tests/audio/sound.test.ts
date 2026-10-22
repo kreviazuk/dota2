@@ -22,6 +22,7 @@ describe('SoundSystem', () => {
       'gold',
       'towerDestroyed',
       'roshan',
+      'rune',
       'victory',
       'defeat',
     ];
