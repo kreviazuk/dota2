@@ -1,0 +1,788 @@
+import type { Match } from '../game/match';
+import type { ViewCamera } from '../render/view';
+import type { AbilitySlot } from '../sim/core/types';
+import { Team } from '../sim/core/types';
+import type { Unit } from '../sim/entities/unit';
+import type { AbilityInstance } from '../sim/heroes/types';
+import type { World } from '../sim/world';
+import { MAP } from '../sim/data/map';
+import { xpToReach } from '../sim/data/xpTable';
+import { abilityCooldown, abilityManaCost, abilityMaxCharges } from '../sim/systems/abilities';
+import { canLearn } from '../sim/systems/progress';
+import { pendingTalentTier } from '../sim/talents';
+import { getHeroDef } from '../sim/heroes/index';
+import { drawPortrait } from '../render/heroVisuals';
+import type { Prefs } from './settings';
+import { ShopModal } from './shop';
+import { ScoreboardModal } from './scoreboard';
+import { ItemTooltipModal } from './itemTooltip';
+import { getItemIconCanvas } from '../render/itemIcons';
+import { getAbilityIconCanvas, getActionIconCanvas } from '../render/abilityIcons';
+import { getItemDef } from '../sim/items/definitions';
+import { getNextQuickBuyItem } from '../ai/builds';
+import type { Command } from '../sim/commands';
+import type { SimEvent } from '../sim/core/events';
+
+export const SKILL_SLOTS: AbilitySlot[] = ['Q', 'W', 'E', 'R'];
+/** 键盘调试键的显示（X1 = F、X2 = G） */
+const KEY_LABELS: Record<AbilitySlot, string> = { Q: 'Q', W: 'W', E: 'E', R: 'R', X1: 'F', X2: 'G' };
+
+/** 技能键：Q W E R，再加上英雄有的 X1、X2（先天主动 / 神杖技能） */
+export function skillSlotsFor(u: Unit): AbilitySlot[] {
+  const slots = [...SKILL_SLOTS];
+  for (const s of ['X1', 'X2'] as const) if (u.ability(s)) slots.push(s);
+  return slots;
+}
+
+/** 待选的最低一层天赋：层号、解锁等级、左右两个天赋的名字；没有待选的返回 null */
+export function talentChoices(world: World, u: Unit): { tier: number; level: number; names: [string, string] } | null {
+  const tier = pendingTalentTier(world, u);
+  if (tier === null || !u.hero) return null;
+  const pair = getHeroDef(u.hero.heroId).talents[tier];
+  return { tier, level: world.balance.hero.talentLevels[tier], names: [pair[0].name, pair[1].name] };
+}
+
+/** 充能技能右下角的剩余层数；不是充能制（或还没学）时为 '' */
+export function chargeBadge(u: Unit, ab: AbilityInstance): string {
+  if (ab.level <= 0) return '';
+  return abilityMaxCharges(u, ab) > 0 ? String(ab.charges) : '';
+}
+
+/**
+ * 冷却遮罩：剩余比例 0..1 和剩余秒数。充能技能按"下一层恢复"的进度（并行充能取最快恢复的一层）。
+ */
+export function cooldownState(u: Unit, ab: AbilityInstance): { frac: number; remaining: number } {
+  if (ab.level <= 0) return { frac: 0, remaining: 0 };
+  const total = abilityCooldown(ab, u);
+  const max = abilityMaxCharges(u, ab);
+  let rem = ab.cooldown;
+  if (max > 0 && ab.charges < max) {
+    rem = ab.def.chargeMode === 'parallel' ? (ab.chargeTimers.length ? Math.min(...ab.chargeTimers) : 0) : ab.chargeTimer;
+  } else if (max > 0) {
+    rem = 0;
+  }
+  return { frac: rem > 0 && total > 0 ? Math.min(1, rem / total) : 0, remaining: Math.max(0, rem) };
+}
+
+/** 先天技能的计数（灵魂、腐肉堆积层数……），显示在头像旁边；没有时 null */
+export function innateCounter(u: Unit): { label: string; value: number } | null {
+  for (const ab of u.abilities) {
+    if (ab.def.slot !== 'innate' || !ab.def.counter) continue;
+    const v = ab.def.counter(u, ab);
+    if (v !== null) return { label: ab.def.counterLabel ?? ab.def.name, value: v };
+  }
+  return null;
+}
+
+export interface SkillButton {
+  slot: AbilitySlot;
+  root: HTMLDivElement;
+  cd: HTMLDivElement;
+  cdText: HTMLSpanElement;
+  learn: HTMLDivElement;
+  pips: HTMLDivElement;
+  name: HTMLSpanElement;
+  charges: HTMLSpanElement;
+  counter: HTMLSpanElement;
+  iconWrap?: HTMLDivElement;
+  manaTag?: HTMLSpanElement;
+}
+
+export interface ItemSlotButton {
+  index: number;
+  root: HTMLDivElement;
+  icon: HTMLDivElement;
+  cd: HTMLDivElement;
+  cdText: HTMLSpanElement;
+  charges: HTMLSpanElement;
+  activePip: HTMLDivElement;
+}
+
+interface BarEls {
+  fill: HTMLDivElement;
+  txt: HTMLSpanElement | null;
+}
+
+interface MiniEls {
+  id: number;
+  root: HTMLDivElement;
+  dead: HTMLDivElement;
+  hpBar?: HTMLDivElement;
+}
+
+/** HUD 刷新频率（次/秒） */
+const HUD_RATE = 15;
+/** 小地图参考宽度：点的大小按这个宽度设计，画布更大时等比放大 */
+const MINIMAP_REF_W = 110;
+/** 天赋弹窗出现后多久内忽略点击（毫秒），防止正在点别处的手指误选 */
+const TALENT_TAP_GUARD_MS = 400;
+
+export const formatClock = (s: number): string =>
+  `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+
+/**
+ * 血量 / 魔法文字"当前 / 上限"。上限四舍五入；当前值不超过显示的上限，
+ * roundUp 时向上取整（剩 0.3 血显示 1，不会让活着的英雄显示 0）。
+ */
+export const vitalText = (cur: number, max: number, roundUp: boolean): string => {
+  const m = Math.round(max);
+  const c = cur >= max - 1e-6 ? m : Math.min(m, Math.max(0, roundUp ? Math.ceil(cur) : Math.floor(cur)));
+  return `${c} / ${m}`;
+};
+
+/** 内容变化时才写 DOM，避免每次刷新都触发重排 */
+const setText = (el: Element, text: string): void => {
+  if (el.textContent !== text) el.textContent = text;
+};
+
+/** 画布上画英雄头像（按设备像素比放大，显示尺寸由 CSS 决定） */
+export function portraitCanvas(heroId: string, cssSize: number, team?: Team): HTMLCanvasElement {
+  const c = document.createElement('canvas');
+  const px = Math.round(cssSize * Math.min(2, window.devicePixelRatio || 1));
+  c.width = px;
+  c.height = px;
+  const g = c.getContext('2d');
+  if (g) drawPortrait(g, heroId, px, team);
+  return c;
+}
+
+const skillHtml = (slot: AbilitySlot): string =>
+  `<div class="skill${slot.startsWith('X') ? ' skill-x' : ''}${slot === 'R' ? ' ult' : ''}" data-slot="${slot}">` +
+  `<div class="skill-icon-wrap"></div>` +
+  `<span class="skill-key">${KEY_LABELS[slot]}</span><span class="skill-name"></span>` +
+  `<span class="skill-mana"></span>` +
+  `<div class="cd"></div><span class="cd-text"></span><div class="pips"></div><span class="charges"></span><span class="counter"></span><div class="learn">+</div></div>`;
+
+export class Hud {
+  readonly root: HTMLDivElement;
+  readonly joyZone: HTMLDivElement;
+  readonly joyBase: HTMLDivElement;
+  readonly joyKnob: HTMLDivElement;
+  readonly attackBtn: HTMLDivElement;
+  readonly lastHitBtn: HTMLDivElement;
+  readonly pushBtn: HTMLDivElement;
+  readonly recallBtn: HTMLDivElement;
+  readonly pauseBtn: HTMLDivElement;
+  readonly cancelZone: HTMLDivElement;
+  readonly skills: SkillButton[] = [];
+  readonly inventorySlots: ItemSlotButton[] = [];
+  readonly shopBtn: HTMLDivElement;
+  readonly quickBuyBtn: HTMLDivElement;
+  readonly qbIcon: HTMLDivElement;
+  readonly qbCost: HTMLSpanElement;
+  readonly shopModal: ShopModal;
+  readonly scoreboardModal: ScoreboardModal;
+  readonly itemTooltipModal: ItemTooltipModal;
+  readonly killFeed: HTMLDivElement;
+  readonly bannerBox: HTMLDivElement;
+  readonly bannerTitle: HTMLDivElement;
+  readonly bannerSub: HTMLDivElement;
+  private bannerTimer: number | null = null;
+  onCommand?: (cmd: Command) => void;
+  /** 天赋弹窗的左右两个按钮（Controls 绑定点击 → pickTalent） */
+  readonly talentOpts: HTMLDivElement[];
+  private acc = 1;
+  private readonly minimap: HTMLCanvasElement;
+  private readonly minis: MiniEls[] = [];
+  private readonly els: {
+    clock: HTMLSpanElement; kRad: HTMLSpanElement; kDire: HTMLSpanElement; level: HTMLSpanElement; gold: HTMLSpanElement;
+    hp: BarEls; mp: BarEls; xp: BarEls; death: HTMLDivElement; deathTimer: HTMLDivElement; innate: HTMLDivElement;
+    talentPop: HTMLDivElement; talentTitle: HTMLSpanElement; talentPill: HTMLDivElement;
+  };
+  /** 玩家点了"稍后"：弹窗收成小按钮，直到点小按钮重新展开 */
+  private talentCollapsed = false;
+  /** 弹窗当前显示的层（-1 = 没有显示） */
+  private talentTier = -1;
+  private talentShownAt = 0;
+  private q = <T extends Element>(sel: string): T => this.root.querySelector(sel) as T;
+
+  constructor(parent: HTMLElement, private readonly match: Match, private readonly camera: ViewCamera, private readonly prefs: Prefs) {
+    const me = match.world.getUnit(match.playerUnitId);
+    const slots = me ? skillSlotsFor(me) : SKILL_SLOTS;
+    this.root = document.createElement('div');
+    this.root.className = 'hud';
+    this.root.innerHTML = `
+      <div class="joy-zone"><div class="joy-base"><div class="joy-knob"></div></div></div>
+      <div class="hud-tl">
+        <div class="portrait"><span class="portrait-level">1</span></div>
+        <div class="vitals">
+          <div class="bar hp"><div class="fill"></div><span class="txt"></span></div>
+          <div class="bar mp"><div class="fill"></div><span class="txt"></span></div>
+          <div class="bar xp"><div class="fill"></div></div>
+        </div>
+        <div class="gold"><span class="coin">●</span><span class="gold-val">0</span></div>
+        <div class="btn-shop">商店</div>
+        <div class="quick-buy"><div class="qb-icon"></div><span class="qb-cost"></span></div>
+        <div class="innate-tag"></div>
+      </div>
+      <div class="hud-top">
+        <div class="score" title="点击查看对局战况 (双方出装、等级、KDA)">
+          <span class="k-rad">0</span>
+          <span class="clock">00:00</span>
+          <span class="k-dire">0</span>
+          <span class="score-tab-btn">战况</span>
+        </div>
+      </div>
+      <div class="kill-feed"></div>
+      <div class="banner-box"><div class="banner-title"></div><div class="banner-sub"></div></div>
+      <div class="hud-tr"><canvas class="minimap" width="110" height="320"></canvas><div class="btn-pause">❚❚</div></div>
+      <div class="talent-pop">
+        <div class="talent-head"><span class="talent-title"></span><span class="talent-later">稍后</span></div>
+        <div class="talent-opts"><div class="talent-opt" data-side="0"></div><div class="talent-opt" data-side="1"></div></div>
+      </div>
+      <div class="talent-pill">天赋</div>
+      <div class="inventory">
+        ${[0, 1, 2, 3, 4, 5]
+          .map(
+            (i) =>
+              `<div class="item-slot is-empty" data-slot="${i}">` +
+              `<span class="item-key">${i + 1}</span>` +
+              `<div class="item-icon"></div>` +
+              `<div class="item-cd"></div>` +
+              `<span class="item-cd-text"></span>` +
+              `<span class="item-charges"></span>` +
+              `<div class="item-active-pip"></div>` +
+              `</div>`
+          )
+          .join('')}
+      </div>
+      <div class="actions">
+        <div class="cancel-zone"></div>
+        <div class="btn-attack"></div>
+        <div class="btn-small btn-lasthit"></div>
+        <div class="btn-small btn-push"></div>
+        <div class="btn-recall"></div>
+        ${slots.map(skillHtml).join('')}
+      </div>
+      <div class="death-overlay"><div class="death-text">你已阵亡</div><div class="death-timer"></div></div>`;
+    parent.appendChild(this.root);
+    this.joyZone = this.q('.joy-zone');
+    this.joyBase = this.q('.joy-base');
+    this.joyKnob = this.q('.joy-knob');
+    this.attackBtn = this.q('.btn-attack');
+    this.lastHitBtn = this.q('.btn-lasthit');
+    this.pushBtn = this.q('.btn-push');
+    this.recallBtn = this.q('.btn-recall');
+    this.pauseBtn = this.q('.btn-pause');
+    this.cancelZone = this.q('.cancel-zone');
+
+    // 为基础动作按键填充矢量图标与文字
+    this.attackBtn.innerHTML = '';
+    this.attackBtn.appendChild(getActionIconCanvas('attack', 80));
+    const atkLbl = document.createElement('span');
+    atkLbl.className = 'act-lbl';
+    atkLbl.textContent = '普攻';
+    this.attackBtn.appendChild(atkLbl);
+
+    this.lastHitBtn.innerHTML = '';
+    this.lastHitBtn.appendChild(getActionIconCanvas('lasthit', 44));
+    const lhLbl = document.createElement('span');
+    lhLbl.className = 'act-lbl';
+    lhLbl.textContent = '补刀';
+    this.lastHitBtn.appendChild(lhLbl);
+
+    this.pushBtn.innerHTML = '';
+    this.pushBtn.appendChild(getActionIconCanvas('push', 44));
+    const pushLbl = document.createElement('span');
+    pushLbl.className = 'act-lbl';
+    pushLbl.textContent = '推塔';
+    this.pushBtn.appendChild(pushLbl);
+
+    this.recallBtn.innerHTML = '';
+    this.recallBtn.appendChild(getActionIconCanvas('recall', 44));
+    const recLbl = document.createElement('span');
+    recLbl.className = 'act-lbl';
+    recLbl.textContent = '回城';
+    this.recallBtn.appendChild(recLbl);
+
+    this.cancelZone.innerHTML = '';
+    this.cancelZone.appendChild(getActionIconCanvas('cancel', 44));
+    const canLbl = document.createElement('span');
+    canLbl.className = 'act-lbl';
+    canLbl.textContent = '取消';
+    this.cancelZone.appendChild(canLbl);
+
+    this.minimap = this.q('.minimap');
+    this.shopBtn = this.q('.btn-shop');
+    this.quickBuyBtn = this.q('.quick-buy');
+    this.qbIcon = this.q('.qb-icon');
+    this.qbCost = this.q('.qb-cost');
+    this.shopModal = new ShopModal(this.root, (cmd) => this.onCommand?.(cmd));
+    this.scoreboardModal = new ScoreboardModal(this.root);
+    this.itemTooltipModal = new ItemTooltipModal(this.root);
+    this.q('.score').addEventListener('click', () => {
+      this.scoreboardModal.toggle(this.match.world, this.match.playerUnitId);
+    });
+    this.killFeed = this.q('.kill-feed');
+    this.bannerBox = this.q('.banner-box');
+    this.bannerTitle = this.q('.banner-title');
+    this.bannerSub = this.q('.banner-sub');
+
+    for (let i = 0; i < 6; i++) {
+      const root = this.q<HTMLDivElement>(`.item-slot[data-slot="${i}"]`);
+      root.addEventListener('click', (e) => {
+        const itemId = root.dataset.itemId;
+        if (!itemId) return;
+        const def = getItemDef(itemId);
+        if (!def?.active || def.active.targetType === 'passive') {
+          e.stopPropagation();
+          this.itemTooltipModal.show(itemId);
+        }
+      });
+      this.inventorySlots.push({
+        index: i,
+        root,
+        icon: root.querySelector('.item-icon')!,
+        cd: root.querySelector('.item-cd')!,
+        cdText: root.querySelector('.item-cd-text')!,
+        charges: root.querySelector('.item-charges')!,
+        activePip: root.querySelector('.item-active-pip')!,
+      });
+    }
+
+    this.shopBtn.addEventListener('click', () => {
+      this.shopModal.toggle(this.match.world.getUnit(this.match.playerUnitId));
+    });
+    this.quickBuyBtn.addEventListener('click', () => {
+      const me = this.match.world.getUnit(this.match.playerUnitId);
+      if (!me) return;
+      const qb = getNextQuickBuyItem(this.match.world, me);
+      if (qb) this.onCommand?.({ type: 'buy', itemId: qb.itemId });
+    });
+
+    this.talentOpts = [...this.root.querySelectorAll<HTMLDivElement>('.talent-opt')];
+    const bar = (sel: string): BarEls => {
+      const b = this.q<HTMLDivElement>(sel);
+      return { fill: b.querySelector('.fill') as HTMLDivElement, txt: b.querySelector('.txt') };
+    };
+    this.els = {
+      clock: this.q('.clock'), kRad: this.q('.k-rad'), kDire: this.q('.k-dire'), level: this.q('.portrait-level'), gold: this.q('.gold-val'),
+      hp: bar('.bar.hp'), mp: bar('.bar.mp'), xp: bar('.bar.xp'), death: this.q('.death-overlay'), deathTimer: this.q('.death-timer'),
+      innate: this.q('.innate-tag'), talentPop: this.q('.talent-pop'), talentTitle: this.q('.talent-title'), talentPill: this.q('.talent-pill'),
+    };
+    for (const slot of slots) {
+      const root = this.q<HTMLDivElement>(`.skill[data-slot="${slot}"]`);
+      this.skills.push({
+        slot, root, cd: root.querySelector('.cd')!, cdText: root.querySelector('.cd-text')!, learn: root.querySelector('.learn')!,
+        pips: root.querySelector('.pips')!, name: root.querySelector('.skill-name')!, charges: root.querySelector('.charges')!,
+        counter: root.querySelector('.counter')!,
+        iconWrap: root.querySelector('.skill-icon-wrap') as HTMLDivElement,
+        manaTag: root.querySelector('.skill-mana') as HTMLSpanElement,
+      });
+    }
+    // 稍后 / 重新展开：纯界面状态，不产生指令。用 click 而不是 pointerdown：小按钮和弹窗的右侧天赋在同一个位置，
+    // 按下时就展开的话，松手后浏览器补发的 click 会落到刚出现的天赋上（按住超过保护期就会误选）
+    this.q<HTMLSpanElement>('.talent-later').addEventListener('click', (e) => {
+      e.preventDefault();
+      this.talentCollapsed = true;
+      this.refreshTalent();
+    });
+    this.els.talentPill.addEventListener('click', (e) => {
+      e.preventDefault();
+      this.talentCollapsed = false;
+      this.talentShownAt = performance.now();
+      this.refreshTalent();
+    });
+    this.buildRoster();
+    if (me) {
+      this.q<HTMLDivElement>('.portrait').prepend(portraitCanvas(me.defId, 72, me.team));
+      for (const b of this.skills) {
+        const ab = me.ability(b.slot);
+        b.name.textContent = ab ? ab.def.name.slice(0, 2) : '';
+        if (ab) {
+          b.root.title = ab.def.name;
+          if (b.iconWrap) {
+            b.iconWrap.innerHTML = '';
+            b.iconWrap.appendChild(getAbilityIconCanvas(ab.def.id, b.slot === 'R' ? 100 : 80));
+          }
+        }
+        if (ab?.def.targetType === 'passive') b.root.classList.add('passive');
+        // 先天主动（X1）只有 1 级，不画等级格
+        b.pips.innerHTML = ab && ab.def.maxLevel > 1 ? Array.from({ length: ab.def.maxLevel }, () => '<i></i>').join('') : '';
+      }
+    }
+  }
+
+  private buildRoster(): void {
+    const w = this.match.world;
+    for (const team of [Team.Radiant, Team.Dire]) {
+      const side = this.root.querySelector<HTMLDivElement>(team === Team.Radiant ? '.roster .rad' : '.roster .dire');
+      if (!side) continue;
+      for (const h of w.heroes(team)) {
+        const mini = document.createElement('div');
+        mini.className = `mini ${team === Team.Radiant ? 'rad' : 'dire'}${h.id === this.match.playerUnitId ? ' me' : ''}`;
+        mini.title = h.name;
+        mini.appendChild(portraitCanvas(h.defId, 24, team));
+        const dead = document.createElement('div');
+        dead.className = 'dead';
+        mini.appendChild(dead);
+        const hpWrap = document.createElement('div');
+        hpWrap.className = 'mini-hp-wrap';
+        const hpBar = document.createElement('div');
+        hpBar.className = 'mini-hp';
+        hpWrap.appendChild(hpBar);
+        mini.appendChild(hpWrap);
+        side.appendChild(mini);
+        this.minis.push({ id: h.id, root: mini, dead, hpBar });
+      }
+    }
+  }
+
+  /** 当前弹窗显示的天赋层（-1 = 没有；Controls 点击时读它，保证选的就是看到的那一层） */
+  get shownTalentTier(): number {
+    return this.talentTier;
+  }
+
+  /** 弹窗出现后的短暂保护期内不接受点击 */
+  talentTapAllowed(): boolean {
+    return performance.now() - this.talentShownAt >= TALENT_TAP_GUARD_MS;
+  }
+
+  private refreshTalent(): void {
+    const w = this.match.world;
+    const me = w.getUnit(this.match.playerUnitId);
+    // 自动加点开启时由 Controls 自动选，不弹窗
+    const ch = me?.hero && !this.prefs.autoLevel ? talentChoices(w, me) : null;
+    if (!ch) {
+      this.talentTier = -1;
+      this.talentCollapsed = false;
+      this.els.talentPop.classList.remove('show');
+      this.els.talentPill.classList.remove('show');
+      return;
+    }
+    if (ch.tier !== this.talentTier) {
+      this.talentTier = ch.tier;
+      this.talentShownAt = performance.now();
+      setText(this.els.talentTitle, `${ch.level} 级天赋 · 二选一`);
+      ch.names.forEach((n, i) => setText(this.talentOpts[i], n));
+    }
+    this.els.talentPop.classList.toggle('show', !this.talentCollapsed);
+    this.els.talentPill.classList.toggle('show', this.talentCollapsed);
+  }
+
+  update(dt: number): void {
+    this.acc += dt;
+    if (this.acc < 1 / HUD_RATE) return;
+    this.acc = 0;
+    // 先画小地图：它会读取画布的显示尺寸，放在写 DOM 之前可以避免强制同步重排
+    this.drawMinimap();
+    const w = this.match.world;
+    const els = this.els;
+    const isDay = Math.floor(w.time / 300) % 2 === 0;
+    setText(els.clock, `${isDay ? '☀️' : '🌙'} ${formatClock(w.time)}`);
+    setText(els.kRad, String(w.teams[Team.Radiant].kills));
+    setText(els.kDire, String(w.teams[Team.Dire].kills));
+    if (this.scoreboardModal.visible) {
+      this.scoreboardModal.update(w);
+    }
+    for (const m of this.minis) {
+      const h = w.getUnit(m.id);
+      if (!h?.hero) continue;
+      m.root.classList.toggle('is-dead', !h.alive);
+      setText(m.dead, h.alive ? '' : String(Math.ceil(h.hero.respawnTimer)));
+      if (m.hpBar) {
+        const hpPct = h.alive ? Math.max(0, Math.min(100, Math.round((h.hp / Math.max(1, h.stats.maxHp)) * 100))) : 0;
+        m.hpBar.style.width = `${hpPct}%`;
+      }
+    }
+    this.refreshTalent();
+    const me = w.getUnit(this.match.playerUnitId);
+    if (!me?.hero) return;
+    const h = me.hero;
+    const e = w.balance.economy;
+    setText(els.level, String(h.level));
+    const setBar = (b: BarEls, pct: number, txt?: string) => {
+      b.fill.style.width = `${(Math.max(0, Math.min(1, pct)) * 100).toFixed(1)}%`;
+      if (b.txt && txt !== undefined) setText(b.txt, txt);
+    };
+    setBar(els.hp, me.hp / Math.max(1, me.stats.maxHp), vitalText(me.hp, me.stats.maxHp, true));
+    setBar(els.mp, me.mana / Math.max(1, me.stats.maxMana), vitalText(me.mana, me.stats.maxMana, false));
+    const cur = xpToReach(h.level, e.xpTableMult);
+    const next = xpToReach(h.level + 1, e.xpTableMult);
+    setBar(els.xp, h.level >= e.levelCap ? 1 : (h.xp - cur) / Math.max(1, next - cur));
+    setText(els.gold, String(Math.floor(h.gold)));
+    const inn = innateCounter(me);
+    els.innate.classList.toggle('show', !!inn);
+    if (inn) setText(els.innate, `${inn.label} ${inn.value}`);
+    for (const b of this.skills) {
+      const ab = me.ability(b.slot);
+      if (!ab) continue;
+      const learned = ab.level > 0;
+      const charged = abilityMaxCharges(me, ab) > 0;
+      const cd = cooldownState(me, ab);
+      // 充能技能：还有层数时遮罩只做提示（半透明），层数用完才算冷却中
+      const blocked = learned && cd.remaining > 0 && (!charged || ab.charges <= 0);
+      b.cd.style.setProperty('--cd', cd.frac.toFixed(3));
+      setText(b.cdText, blocked ? (cd.remaining >= 1 ? String(Math.ceil(cd.remaining)) : cd.remaining.toFixed(1)) : '');
+      b.root.classList.toggle('on-cd', blocked);
+      b.root.classList.toggle('restoring', learned && charged && !blocked && cd.frac > 0);
+      b.root.classList.toggle('unlearned', !learned);
+      b.root.classList.toggle('no-mana', learned && ab.def.targetType !== 'passive' && me.mana + 1e-6 < abilityManaCost(ab, me));
+      b.root.classList.toggle('toggled', ab.toggled);
+      b.root.classList.toggle('inactive', learned && !!ab.def.inactive?.(me, ab));
+      b.root.classList.toggle('can-learn', h.skillPoints > 0 && canLearn(h.level, ab));
+      setText(b.charges, chargeBadge(me, ab));
+      const n = learned ? ab.def.counter?.(me, ab) ?? null : null;
+      setText(b.counter, n === null ? '' : String(n));
+      b.root.classList.toggle('has-counter', n !== null);
+      b.pips.querySelectorAll('i').forEach((pip, i) => pip.classList.toggle('on', i < ab.level));
+      if (b.manaTag) {
+        const mc = abilityManaCost(ab, me);
+        setText(b.manaTag, mc > 0 && learned ? String(Math.round(mc)) : '');
+      }
+    }
+
+    // 快捷购买部件刷新
+    const qb = getNextQuickBuyItem(w, me);
+    if (qb) {
+      this.quickBuyBtn.classList.add('show');
+      this.quickBuyBtn.classList.toggle('can-buy', me.hero.gold >= qb.cost);
+      setText(this.qbCost, String(qb.cost));
+      if (this.qbIcon.dataset.itemId !== qb.itemId) {
+        this.qbIcon.dataset.itemId = qb.itemId;
+        this.qbIcon.innerHTML = '';
+        this.qbIcon.appendChild(getItemIconCanvas(qb.itemId, 28));
+      }
+    } else {
+      this.quickBuyBtn.classList.remove('show');
+    }
+
+    // 6 格物品栏刷新
+    for (let i = 0; i < 6; i++) {
+      const item = me.inventory[i];
+      const slotBtn = this.inventorySlots[i];
+      if (!slotBtn) continue;
+      if (item) {
+        const def = getItemDef(item.id);
+        slotBtn.root.title = def ? `${def.name} · 点击查看详情` : '';
+        slotBtn.root.classList.remove('is-empty');
+        if (slotBtn.root.dataset.itemId !== item.id) {
+          slotBtn.root.dataset.itemId = item.id;
+          slotBtn.icon.innerHTML = '';
+          slotBtn.icon.appendChild(getItemIconCanvas(item.id, 44));
+        }
+        const cd = item.cooldownRemaining ?? 0;
+        const total = def?.active?.cooldown ?? 1;
+        const frac = cd > 0 ? cd / Math.max(1, total) : 0;
+        slotBtn.cd.style.setProperty('--cd', frac.toFixed(3));
+        setText(slotBtn.cdText, cd > 0 ? (cd >= 1 ? String(Math.ceil(cd)) : cd.toFixed(1)) : '');
+        slotBtn.root.classList.toggle('on-cd', cd > 0);
+        const ch = item.charges ?? 0;
+        setText(slotBtn.charges, ch > 0 ? String(ch) : '');
+        const active = !!item.toggled;
+        slotBtn.root.classList.toggle('active', active);
+      } else {
+        slotBtn.root.classList.add('is-empty');
+        if (slotBtn.root.dataset.itemId) {
+          delete slotBtn.root.dataset.itemId;
+          slotBtn.icon.innerHTML = '';
+        }
+        slotBtn.cd.style.setProperty('--cd', '0');
+        setText(slotBtn.cdText, '');
+        setText(slotBtn.charges, '');
+        slotBtn.root.classList.remove('on-cd', 'active');
+      }
+    }
+
+    this.shopModal.update(w, me);
+
+    els.death.classList.toggle('show', !me.alive);
+    if (!me.alive) setText(els.deathTimer, String(Math.ceil(h.respawnTimer)));
+  }
+
+  private drawMinimap(): void {
+    const c = this.minimap;
+    // 画布分辨率跟随显示尺寸（高 DPR 屏幕上不模糊）
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const cw = Math.round(c.clientWidth * dpr);
+    const ch = Math.round(c.clientHeight * dpr);
+    if (cw > 0 && ch > 0 && (c.width !== cw || c.height !== ch)) {
+      c.width = cw;
+      c.height = ch;
+    }
+    const g = c.getContext('2d')!;
+    const W = c.width, H = c.height;
+    const sx = W / MAP.width, sy = H / MAP.height;
+    const k = W / MINIMAP_REF_W;
+    g.clearRect(0, 0, W, H);
+    // 地图底色（深森林绿）
+    g.fillStyle = '#142015';
+    g.fillRect(0, 0, W, H);
+
+    // 天辉基地区域底色（左下角）
+    g.fillStyle = '#1b321e';
+    g.beginPath();
+    g.moveTo(0, H);
+    g.lineTo(0, 7500 * sy);
+    g.lineTo(2500 * sx, H);
+    g.closePath();
+    g.fill();
+
+    // 夜魇基地区域底色（右上角）
+    g.fillStyle = '#321c18';
+    g.beginPath();
+    g.moveTo(W, 0);
+    g.lineTo(W, 2500 * sy);
+    g.lineTo(7500 * sx, 0);
+    g.closePath();
+    g.fill();
+
+    // 河道（中部横贯水系）
+    g.strokeStyle = '#25637a';
+    g.lineWidth = 12 * k;
+    g.beginPath();
+    g.moveTo(0, 5000 * sy);
+    g.lineTo(W, 5000 * sy);
+    g.stroke();
+
+    // 三路兵线道路
+    g.strokeStyle = '#5a4a34';
+    g.lineWidth = 7 * k;
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+
+    // 上路（沿左侧直上然后右折）
+    g.beginPath();
+    g.moveTo(1500 * sx, 8500 * sy);
+    g.lineTo(1500 * sx, 1500 * sy);
+    g.lineTo(8500 * sx, 1500 * sy);
+    g.stroke();
+
+    // 中路（对角线直通）
+    g.beginPath();
+    g.moveTo(1500 * sx, 8500 * sy);
+    g.lineTo(8500 * sx, 1500 * sy);
+    g.stroke();
+
+    // 下路（沿下方右行然后直上）
+    g.beginPath();
+    g.moveTo(1500 * sx, 8500 * sy);
+    g.lineTo(8500 * sx, 8500 * sy);
+    g.lineTo(8500 * sx, 1500 * sy);
+    g.stroke();
+    const w = this.match.world;
+    const viewer = w.getUnit(this.match.playerUnitId)?.team ?? Team.Radiant;
+    for (const u of w.units) {
+      if (u.removed) continue;
+      const x = u.pos.x * sx, y = u.pos.y * sy;
+      const col = u.team === Team.Radiant ? '#5fe05a' : u.team === Team.Dire ? '#ff5a4a' : '#f59e0b';
+      if (u.kind === 'building') {
+        if (u.building?.type === 'fountain') continue;
+        g.fillStyle = u.alive ? col : '#555';
+        const s = (u.building?.type === 'ancient' ? 12 : 8) * k;
+        g.fillRect(x - s / 2, y - s / 2, s, s);
+      } else if (u.kind === 'hero') {
+        // 对玩家一方隐藏的敌方英雄（魅影无形）不画
+        if (!u.alive || (u.team !== viewer && u.hasState('hidden'))) continue;
+        g.fillStyle = col;
+        g.beginPath();
+        g.arc(x, y, 5 * k, 0, Math.PI * 2);
+        g.fill();
+        if (u.id === this.match.playerUnitId) {
+          g.strokeStyle = '#fff';
+          g.lineWidth = 2 * k;
+          g.stroke();
+        }
+      } else if (u.alive) {
+        if (u.defId === 'roshan') {
+          g.fillStyle = '#ef4444';
+          g.beginPath();
+          g.arc(x, y, 4 * k, 0, Math.PI * 2);
+          g.fill();
+          g.strokeStyle = '#f59e0b';
+          g.lineWidth = 1.5 * k;
+          g.stroke();
+        } else if (u.team === Team.Neutral) {
+          g.fillStyle = '#f59e0b';
+          g.beginPath();
+          g.arc(x, y, 2.5 * k, 0, Math.PI * 2);
+          g.fill();
+        } else {
+          g.fillStyle = col;
+          g.fillRect(x - 1.5 * k, y - 1.5 * k, 3 * k, 3 * k);
+        }
+      }
+    }
+    if (w.runes) {
+      for (const r of w.runes) {
+        if (r.pickedUp) continue;
+        const rx = r.pos.x * sx, ry = r.pos.y * sy;
+        g.fillStyle = r.color;
+        g.beginPath();
+        g.moveTo(rx, ry - 3.5 * k);
+        g.lineTo(rx + 3.5 * k, ry);
+        g.lineTo(rx, ry + 3.5 * k);
+        g.lineTo(rx - 3.5 * k, ry);
+        g.closePath();
+        g.fill();
+        g.strokeStyle = '#ffffff';
+        g.lineWidth = 1 * k;
+        g.stroke();
+      }
+    }
+    // 视野框：屏幕四角投影到地面上的四边形（2D 镜头是矩形，3D 透视镜头是上宽下窄的梯形）
+    g.strokeStyle = 'rgba(255,255,255,0.7)';
+    g.lineWidth = k;
+    g.beginPath();
+    for (const p of this.camera.footprint()) g.lineTo(p.x * sx, p.y * sy);
+    g.closePath();
+    g.stroke();
+  }
+
+  /** 处理逻辑帧下发的 SimEvent（击杀播报、首杀、连杀、神符、推塔等） */
+  consume(events: SimEvent[]): void {
+    for (const e of events) {
+      if (e.type === 'announcement') {
+        this.handleAnnouncement(e);
+      }
+    }
+  }
+
+  private handleAnnouncement(e: SimEvent & { type: 'announcement' }): void {
+    // 1. 左上角即时击杀信息流
+    const item = document.createElement('div');
+    const radClass = e.team === Team.Radiant ? 'rad' : (e.team === Team.Dire ? 'dire' : '');
+    item.className = `feed-item ${radClass}`;
+    if (e.category === 'kill' || e.category === 'first_blood' || e.category === 'multikill' || e.category === 'streak' || e.category === 'shutdown') {
+      const killer = e.killerId ? this.match.world.getUnit(e.killerId) : null;
+      const victim = e.victimId ? this.match.world.getUnit(e.victimId) : null;
+      const kName = killer ? killer.name : '防御塔';
+      const vName = victim ? victim.name : '英雄';
+      const kTeam = killer ? (killer.team === Team.Radiant ? 'rad' : 'dire') : (e.team === Team.Radiant ? 'rad' : 'dire');
+      const vTeam = victim ? (victim.team === Team.Radiant ? 'rad' : 'dire') : (kTeam === 'rad' ? 'dire' : 'rad');
+      item.innerHTML = `<span class="feed-killer ${kTeam}">${kName}</span> <span class="feed-action">击杀了</span> <span class="feed-victim ${vTeam}">${vName}</span>`;
+    } else {
+      item.innerHTML = `<span class="feed-action">${e.title}</span>`;
+    }
+    this.killFeed.appendChild(item);
+    while (this.killFeed.children.length > 4) {
+      this.killFeed.firstElementChild?.remove();
+    }
+    setTimeout(() => {
+      item.classList.add('fade-out');
+      setTimeout(() => item.remove(), 400);
+    }, 4000);
+
+    // 2. 屏幕中上方高光震撼横幅 (First Blood, Multi-kill, Streak, Shutdown, Ace, Roshan, Building)
+    if (e.category !== 'kill') {
+      if (this.bannerTimer !== null) {
+        clearTimeout(this.bannerTimer);
+        this.bannerTimer = null;
+      }
+      this.bannerBox.className = `banner-box show ${e.category.replace('_', '-')}`;
+      setText(this.bannerTitle, e.title);
+      setText(this.bannerSub, e.subText ?? '');
+
+      this.bannerTimer = setTimeout(() => {
+        this.bannerBox.className = 'banner-box';
+        this.bannerTimer = null;
+      }, 3200) as unknown as number;
+    }
+  }
+
+  destroy(): void {
+    if (this.bannerTimer !== null) clearTimeout(this.bannerTimer);
+    this.shopModal.destroy();
+    this.root.remove();
+  }
+}

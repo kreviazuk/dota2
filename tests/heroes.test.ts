@@ -8,6 +8,7 @@ import { layoutFor } from '../src/sim/data/map';
 import { dist } from '../src/sim/core/vec2';
 import { addModifier } from '../src/sim/modifiers';
 import { Team } from '../src/sim/core/types';
+import { launchAttack } from '../src/sim/systems/attack';
 
 describe('heroes', () => {
   it('spawns at the fountain with full hp and starting gold', () => {
@@ -95,6 +96,25 @@ describe('heroes', () => {
     w.issue(h.id, { type: 'moveTo', point: { x: 1500, y: 4000 } });
     runFor(w, 6);
     expect(dist(h.pos, layoutFor(Team.Radiant).fountain)).toBeGreaterThan(300);
+  });
+  it('recall teleport dodges homing projectiles already in flight', () => {
+    const w = makeWorld(); const h = createHero(w, 'testhero', Team.Radiant, false);
+    h.pos = { x: 1500, y: 5000 };
+    const shooter = spawnDummy(w, { team: Team.Dire, pos: { x: 1500, y: 4400 }, base: { attackRange: 700, projectileSpeed: 600 } });
+    const bystander = spawnDummy(w, { team: Team.Radiant, pos: { x: 1600, y: 5000 } });
+    w.issue(h.id, { type: 'recall' });
+    runFor(w, 4.8);
+    // 飞行约 1 秒，回城在 0.2 秒后完成
+    launchAttack(w, shooter, h);
+    launchAttack(w, shooter, bystander);
+    expect(w.projectiles.length).toBe(2);
+    runFor(w, 0.4);
+    expect(dist(h.pos, layoutFor(Team.Radiant).fountain)).toBeLessThan(300);
+    expect(w.projectiles.filter((p) => p.targetId === h.id)).toHaveLength(0);
+    runFor(w, 2);
+    expect(h.hp).toBe(h.stats.maxHp);
+    // 不影响飞向其他单位的弹道
+    expect(bystander.hp).toBe(1000 - 50);
   });
   it('dummy helper still works alongside heroes', () => {
     const w = makeWorld(); expect(spawnDummy(w).alive).toBe(true);

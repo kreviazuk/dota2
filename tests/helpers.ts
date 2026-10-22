@@ -1,7 +1,9 @@
 import { World } from '../src/sim/world';
 import { Unit, type UnitBase } from '../src/sim/entities/unit';
 import { Team } from '../src/sim/core/types';
-import type { ArmorClass, AttackClass, UnitKind } from '../src/sim/core/types';
+import type { AbilitySlot, ArmorClass, AttackClass, UnitKind } from '../src/sim/core/types';
+import { createHero } from '../src/sim/systems/heroes';
+import { syncPassives } from '../src/sim/systems/abilities';
 import type { Vec2 } from '../src/sim/core/vec2';
 
 export const makeWorld = (seed = 1): World => new World({ seed, recordEvents: true, spawnCreeps: false });
@@ -36,4 +38,24 @@ export function spawnDummy(world: World, o: DummyOpts = {}): Unit {
 export function runFor(world: World, seconds: number): void {
   const n = Math.round(seconds * 30);
   for (let i = 0; i < n; i++) world.step();
+}
+
+/** 创建英雄、放到 pos、设置技能等级和英雄等级（缺省 18）、关闭站立自动攻击、满蓝，并 step 一次 */
+export function heroAt(
+  w: World, heroId: string, pos: Vec2, o: { levels?: Partial<Record<AbilitySlot, number>>; heroLevel?: number; team?: Team } = {},
+): Unit {
+  const u = createHero(w, heroId, o.team ?? Team.Radiant, false);
+  u.pos = { x: pos.x, y: pos.y };
+  u.prevPos = { x: pos.x, y: pos.y };
+  for (const [slot, lv] of Object.entries(o.levels ?? {})) {
+    const ab = u.ability(slot as AbilitySlot);
+    if (ab && lv !== undefined) ab.level = lv;
+  }
+  u.hero!.level = o.heroLevel ?? 18;
+  syncPassives(w, u);
+  u.autoAttack = false;
+  w.step();
+  u.hp = u.stats.maxHp;
+  u.mana = u.stats.maxMana;
+  return u;
 }

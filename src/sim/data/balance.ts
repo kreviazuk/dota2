@@ -58,19 +58,20 @@ export const BALANCE = {
     superRanged: creep({ hp: 475, hpRegen: 2, armor: 1, magicResist: 0, damage: 48, bat: 1, attackRange: 500, attackPoint: 0.5, projectileSpeed: 900, moveSpeed: 325, acquireRange: 600, radius: 18, gold: 22, xp: 22, attackClass: 'pierce', armorClass: 'basic' }),
   },
   buildings: {
-    t1: { hp: 1800, armor: 12, damage: 100, bat: 1, attackRange: 700, goldTeam: 100, goldLastHit: 150 } as TowerStats,
-    t2: { hp: 2400, armor: 14, damage: 150, bat: 1, attackRange: 700, goldTeam: 130, goldLastHit: 170 } as TowerStats,
-    t3: { hp: 2800, armor: 16, damage: 170, bat: 1, attackRange: 700, goldTeam: 160, goldLastHit: 200 } as TowerStats,
-    t4: { hp: 2600, armor: 18, damage: 170, bat: 1, attackRange: 700, goldTeam: 180, goldLastHit: 220 } as TowerStats,
-    ancient: { hp: 5000, armor: 20, hpRegen: 5 },
+    t1: { hp: 2600, armor: 14, damage: 130, bat: 1, attackRange: 700, goldTeam: 100, goldLastHit: 150 } as TowerStats,
+    t2: { hp: 3400, armor: 16, damage: 170, bat: 1, attackRange: 700, goldTeam: 130, goldLastHit: 170 } as TowerStats,
+    t3: { hp: 3800, armor: 18, damage: 190, bat: 1, attackRange: 700, goldTeam: 160, goldLastHit: 200 } as TowerStats,
+    t4: { hp: 3400, armor: 20, damage: 190, bat: 1, attackRange: 700, goldTeam: 180, goldLastHit: 220 } as TowerStats,
+    ancient: { hp: 6000, armor: 16, hpRegen: 3.0 },
     towerRadius: 90,
     ancientRadius: 150,
     towerAttackPoint: 0.3,
     towerProjectileSpeed: 750,
-    backdoorRadius: 900,
+    backdoorRadius: 800,
     backdoorMult: 0.4,
     towerAggroHold: 3,
-    fountain: { damage: 250, bat: 0.25, attackRange: 1100, healPctPerSec: 0.05, healRadius: 450, radius: 60 },
+    // 泉水覆盖复活点（距泉水 150）与泉水池（半径 60），防止越池守尸；但不会覆盖遗迹（距泉水 400），允许安全攻坚
+    fountain: { damage: 250, bat: 0.25, attackRange: 220, healPctPerSec: 0.05, healRadius: 220, radius: 60 },
   },
   damageMatrix: {
     hero: { hero: 1, basic: 1, reinforced: 0.5 },
@@ -102,6 +103,26 @@ export const BALANCE = {
     attributeBonusPerPoint: 2,
     recallTime: 5,
     radius: 24,
+    /** 天赋 0–3 层的解锁等级 */
+    talentLevels: [10, 15, 20, 25],
+  },
+  auras: {
+    /** 离开光环范围后子 Modifier 残留的秒数 */
+    linger: 0.5,
+  },
+  summons: {
+    /** 跟随型召唤物与主人的距离超过 follow + followSlack 时才移动 */
+    followSlack: 50,
+  },
+  ai: {
+    /** 简单难度（prediction = 0）瞄准地点 / 方向时的随机偏差半径 */
+    easyAimError: 150,
+    /** bestCirclePoint：命中一个英雄相当于命中几个其他单位 */
+    heroWeight: 3,
+    /** 大招就绪（或快就绪）时，其他技能施放后至少留下大招的魔耗（keepsUltMana） */
+    conserveUltMana: true,
+    /** 规则带 disengage 的施法（交战中开魅影无形）之后撤退多少秒（≥ 魅影无形的 0.8 秒隐藏延迟 + 几秒拉开距离） */
+    disengageTime: 4,
   },
   maxGameTime: 2400,
 };

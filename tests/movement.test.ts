@@ -23,11 +23,11 @@ describe('movement', () => {
     runFor(w, 1);
     expect(a.pos.y).toBe(5000); expect(b.pos.y).toBe(5000);
   });
-  it('stays inside the lane', () => {
-    const w = makeWorld(); const u = spawnDummy(w, { pos: { x: 1500, y: 5000 } });
+  it('stays inside the map bounds', () => {
+    const w = makeWorld(); const u = spawnDummy(w, { pos: { x: 500, y: 5000 } });
     w.issue(u.id, { type: 'move', dir: { x: -1, y: 0 } });
     runFor(w, 5);
-    expect(u.pos.x).toBeCloseTo(MAP.laneX - MAP.laneHalfWidth + u.radius);
+    expect(u.pos.x).toBeCloseTo(MAP.minX + u.radius);
   });
   it('slows reduce distance travelled', () => {
     const w = makeWorld(); const u = spawnDummy(w, { pos: { x: 1500, y: 5000 } });
@@ -67,5 +67,30 @@ describe('movement', () => {
     addModifier(w, u, { id: 'fear', debuff: true, fear: true }, { duration: 1, sourceId: src.id });
     runFor(w, 0.5);
     expect(u.pos.y).toBeGreaterThan(5100);
+  });
+  it('taunted units ignore movement commands and move towards the taunter until in attack range', () => {
+    const w = makeWorld();
+    const taunter = spawnDummy(w, { team: Team.Dire, pos: { x: 1500, y: 4600 } });
+    const u = spawnDummy(w, { team: Team.Radiant, pos: { x: 1500, y: 5000 } });
+    addModifier(w, u, { id: 'taunt', debuff: true, taunt: true }, { duration: 2, sourceId: taunter.id });
+    w.issue(u.id, { type: 'move', dir: { x: 0, y: 1 } });
+    runFor(w, 0.5);
+    expect(u.pos.y).toBeLessThan(4900);
+  });
+  it('channeling units without channelAllowsMove do not move', () => {
+    const w = makeWorld();
+    const u = spawnDummy(w, { pos: { x: 1500, y: 5000 } });
+    u.cast = {
+      ability: {
+        def: { channelAllowsMove: false },
+      } as any,
+      phase: 'channel',
+      timer: 0.5,
+      channelTotal: 3.0,
+      target: null as any,
+    };
+    u.order = { kind: 'moveDir', dir: { x: 0, y: -1 } };
+    runFor(w, 0.5);
+    expect(u.pos.y).toBe(5000);
   });
 });

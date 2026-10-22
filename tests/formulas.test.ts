@@ -63,12 +63,12 @@ describe('map', () => {
   it('dire layout mirrors radiant', () => {
     const r = layoutFor(Team.Radiant), d = layoutFor(Team.Dire);
     expect(d.t1.y).toBe(MAP.height - r.t1.y);
-    expect(d.ancient.x).toBe(r.ancient.x);
+    expect(d.ancient.x).toBe(MAP.width - r.ancient.x);
     expect(r.t1.y).toBeGreaterThan(MAP.height / 2);
   });
   it('clampToWalkable keeps units in lane / base', () => {
     const p = clampToWalkable({ x: 0, y: 5000 }, 20);
-    expect(p.x).toBe(MAP.laneX - MAP.laneHalfWidth + 20);
+    expect(p.x).toBe(MAP.minX + 20);
     expect(walkableHalfWidthAt(9500)).toBe(MAP.baseHalfWidth);
     expect(walkableHalfWidthAt(5000)).toBe(MAP.laneHalfWidth);
     const q = clampToWalkable({ x: 1500, y: 99999 }, 20);

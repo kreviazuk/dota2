@@ -11,9 +11,9 @@ const asCreep = (u: Unit, type: 'melee' | 'siege' = 'melee') => {
 };
 
 describe('buildings', () => {
-  it('creates 7 buildings per team with an invulnerability chain', () => {
+  it('creates 13 buildings per team with an invulnerability chain', () => {
     const w = makeWorld(); const b = createBuildings(w); w.step();
-    expect(w.units.filter((u) => u.kind === 'building')).toHaveLength(14);
+    expect(w.units.filter((u) => u.kind === 'building')).toHaveLength(26);
     const r = b[Team.Radiant];
     expect(r.t1.hasState('invulnerable')).toBe(false);
     expect(r.t2.hasState('invulnerable')).toBe(true);
@@ -41,6 +41,37 @@ describe('buildings', () => {
     enemy.order = { kind: 'attack', targetId: ally.id, persistent: true };
     runFor(w, 0.1);
     expect(t1.attack.targetId).toBe(enemy.id);
+  });
+  it('tower forced target expires after towerAggroHold (3 seconds)', () => {
+    const w = makeWorld();
+    const b = createBuildings(w);
+    const t1 = b[Team.Radiant].t1;
+    const creep = asCreep(spawnDummy(w, { team: Team.Dire, pos: { x: t1.pos.x + 100, y: t1.pos.y - 400 }, base: { maxHp: 5000 } }));
+    creep.hp = 5000;
+    const ally = spawnDummy(w, { kind: 'hero', team: Team.Radiant, pos: { x: t1.pos.x - 100, y: t1.pos.y - 300 } });
+    const enemy = spawnDummy(w, { kind: 'hero', team: Team.Dire, pos: { x: t1.pos.x - 100, y: t1.pos.y - 400 } });
+    enemy.autoAttack = false;
+    enemy.order = { kind: 'attack', targetId: ally.id, persistent: true };
+    runFor(w, 0.1);
+    expect(t1.attack.targetId).toBe(enemy.id);
+
+    // 1 秒内（处于 3 秒强仇期）：即使敌人离开又回来，仍被塔锁定
+    enemy.order = { kind: 'idle' };
+    enemy.pos = { x: t1.pos.x, y: t1.pos.y - 1000 };
+    w.step();
+    expect(t1.attack.targetId).toBe(creep.id);
+    enemy.pos = { x: t1.pos.x - 100, y: t1.pos.y - 400 };
+    w.step();
+    expect(t1.attack.targetId).toBe(enemy.id);
+
+    // 3 秒后（强仇过期）：敌人脱战退开后再次进入塔范围，塔优先攻击小兵
+    runFor(w, 3.5);
+    enemy.pos = { x: t1.pos.x, y: t1.pos.y - 1000 };
+    w.step();
+    expect(t1.attack.targetId).toBe(creep.id);
+    enemy.pos = { x: t1.pos.x - 100, y: t1.pos.y - 400 };
+    w.step();
+    expect(t1.attack.targetId).toBe(creep.id);
   });
   it('backdoor protection reduces damage when no attacking creeps are near', () => {
     const w = makeWorld(); const b = createBuildings(w);

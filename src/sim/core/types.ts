@@ -1,6 +1,7 @@
 export enum Team {
   Radiant = 0,
   Dire = 1,
+  Neutral = 2,
 }
 export const enemyTeam = (t: Team): Team => (t === Team.Radiant ? Team.Dire : Team.Radiant);
 export const TEAMS: readonly Team[] = [Team.Radiant, Team.Dire];

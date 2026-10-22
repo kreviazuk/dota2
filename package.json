@@ -9,13 +9,21 @@
     "preview": "vite preview --host",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "sim": "tsx tools/simulate.ts"
+    "sim": "tsx tools/simulate.ts",
+    "apk": "npm run build && npx cap sync android && cd android && ./gradlew assembleDebug"
   },
   "devDependencies": {
+    "@capacitor/cli": "^8.5.2",
     "@types/node": "^26.6.3",
+    "@types/three": "^0.186.0",
     "tsx": "^4.23.15",
     "typescript": "^7.0.2",
     "vite": "^8.3.1",
     "vitest": "^5.0.2"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.5.2",
+    "@capacitor/core": "^8.5.2",
+    "three": "^0.186.1"
   }
 }

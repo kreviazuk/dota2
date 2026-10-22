@@ -1,9 +1,10 @@
 import type { World } from '../world';
 import { Unit, type CreepType, type UnitBase } from '../entities/unit';
 import { Team, TEAMS } from '../core/types';
-import type { Vec2 } from '../core/vec2';
-import { forwardY, layoutFor, MAP } from '../data/map';
+import { add, dist, normalize, scale, sub, type Vec2 } from '../core/vec2';
+import { forwardY, LANES, type Lane, LANE_WAYPOINTS, layoutFor, MAP } from '../data/map';
 import { canAttack, edgeDist, enemiesInRadius, nearestOf } from '../query';
+import { getUnlockedElites, spawnElite, type EliteType } from '../entities/elites';
 
 const CREEP_NAMES: Record<CreepType, string> = {
   melee: '近战兵', ranged: '远程兵', siege: '攻城车', superMelee: '超级近战兵', superRanged: '超级远程兵',
@@ -11,7 +12,15 @@ const CREEP_NAMES: Record<CreepType, string> = {
 
 export const creepUpgradeLevel = (world: World): number => Math.floor(world.time / world.balance.waves.upgradeInterval);
 
-export function spawnCreep(world: World, team: Team, type: CreepType, pos: Vec2, laneOffset: number, protectedFirstWave = false): Unit {
+export function spawnCreep(
+  world: World,
+  team: Team,
+  type: CreepType,
+  pos: Vec2,
+  laneOffset: number,
+  protectedFirstWave = false,
+  lane?: Lane,
+): Unit {
   const b = world.balance;
   const s = b.creeps[type];
   const lvl = creepUpgradeLevel(world);
@@ -33,7 +42,15 @@ export function spawnCreep(world: World, team: Team, type: CreepType, pos: Vec2,
     id: world.allocId(), kind: 'creep', team, defId: type, name: CREEP_NAMES[type], pos, radius: s.radius, base,
     attackClass: s.attackClass, armorClass: s.armorClass, bounty: { gold: s.gold * bountyMult, xp: s.xp * bountyMult },
   });
-  u.creep = { type, laneOffset, aggroTargetId: null, aggroUntil: 0, protectedUntilContact: protectedFirstWave };
+  u.creep = {
+    type,
+    lane,
+    waypointIndex: 0,
+    laneOffset,
+    aggroTargetId: null,
+    aggroUntil: 0,
+    protectedUntilContact: protectedFirstWave,
+  };
   world.addUnit(u);
   return u;
 }
@@ -58,17 +75,49 @@ export function updateSpawner(world: World, dt: number): void {
   if (!world.config.spawnCreeps) return;
   const sp = world.spawner;
   if (world.time + 1e-9 < sp.nextWaveTime) return;
+  const hasElite = world.time >= 180 && (world.time >= 720 ? sp.waveIndex % 3 === 0 : sp.waveIndex % 4 === 2);
+  let eliteType: EliteType | null = null;
+  if (hasElite) {
+    const unlocked = getUnlockedElites(world.time);
+    if (unlocked.length > 0) {
+      eliteType = unlocked[world.rng.int(0, unlocked.length - 1)];
+    }
+  }
   for (const team of TEAMS) {
     const comp = waveComposition(world, team, sp.waveIndex);
     const L = layoutFor(team);
     const fy = forwardY(team);
-    const rows: Record<number, number> = {};
-    for (const type of comp) {
-      const row = type === 'melee' || type === 'superMelee' ? 0 : type === 'siege' ? 2 : 1;
-      const idx = rows[row] ?? 0;
-      rows[row] = idx + 1;
-      const off = ROW_OFFSETS[idx % ROW_OFFSETS.length];
-      spawnCreep(world, team, type, { x: L.spawn.x + off, y: L.spawn.y - fy * row * 60 }, off * 0.8, sp.waveIndex === 0);
+    for (const lane of LANES) {
+      const spawnBase = lane === 'top' ? L.topSpawn : lane === 'bot' ? L.botSpawn : L.midSpawn;
+      const rows: Record<number, number> = {};
+      for (const type of comp) {
+        const row = type === 'melee' || type === 'superMelee' ? 0 : type === 'siege' ? 2 : 1;
+        const idx = rows[row] ?? 0;
+        rows[row] = idx + 1;
+        const off = ROW_OFFSETS[idx % ROW_OFFSETS.length];
+        spawnCreep(
+          world,
+          team,
+          type,
+          { x: spawnBase.x + off, y: spawnBase.y - fy * row * 60 },
+          off * 0.8,
+          sp.waveIndex === 0,
+          lane,
+        );
+      }
+    }
+    if (eliteType) {
+      const eliteLane: Lane = LANES[sp.waveIndex % LANES.length];
+      const spawnBase = eliteLane === 'top' ? L.topSpawn : eliteLane === 'bot' ? L.botSpawn : L.midSpawn;
+      const eliteUnit = spawnElite(
+        world,
+        team,
+        eliteType,
+        { x: spawnBase.x, y: spawnBase.y - fy * 3 * 60 },
+        0,
+        world.teams[team].eliteMult,
+      );
+      if (eliteUnit.elite) eliteUnit.elite.lane = eliteLane;
     }
     world.events.emit({ type: 'wave', team, index: sp.waveIndex });
   }
@@ -78,11 +127,12 @@ export function updateSpawner(world: World, dt: number): void {
 
 export function pickCreepTarget(world: World, u: Unit, acquire: number): Unit | null {
   const cands = enemiesInRadius(world, u.team, u.pos, acquire + u.radius, { includeBuildings: true }).filter((t) => canAttack(u, t));
-  const nonHero = cands.filter((t) => t.kind !== 'hero' && t.kind !== 'building');
+  const valid = cands.filter((t) => t.team !== Team.Neutral || t.neutral?.inCombat);
+  const nonHero = valid.filter((t) => t.kind !== 'hero' && t.kind !== 'building');
   if (nonHero.length) return nearestOf(u.pos, nonHero);
-  const blds = cands.filter((t) => t.kind === 'building');
+  const blds = valid.filter((t) => t.kind === 'building');
   if (blds.length) return nearestOf(u.pos, blds);
-  return nearestOf(u.pos, cands);
+  return nearestOf(u.pos, valid);
 }
 
 const setAttack = (u: Unit, t: Unit): void => {
@@ -120,8 +170,28 @@ export function updateCreepAI(world: World, dt: number): void {
       setAttack(u, t);
       continue;
     }
+    // 寻路前进：如果有分配的分路与路标，按路标前进
+    if (c.lane && LANE_WAYPOINTS[u.team]?.[c.lane]) {
+      const waypoints = LANE_WAYPOINTS[u.team][c.lane];
+      c.waypointIndex = c.waypointIndex ?? 0;
+      const targetWp = waypoints[c.waypointIndex];
+      if (targetWp) {
+        if (dist(u.pos, targetWp) < 300 && c.waypointIndex < waypoints.length - 1) {
+          c.waypointIndex++;
+        }
+        const nextWp = waypoints[c.waypointIndex];
+        const d = dist(u.pos, nextWp);
+        if (d > 1e-4) {
+          const dir = normalize(sub(nextWp, u.pos));
+          const perp = { x: -dir.y, y: dir.x };
+          const goal = add(nextWp, scale(perp, c.laneOffset));
+          u.order = { kind: 'moveTo', point: goal };
+          continue;
+        }
+      }
+    }
     const fy = forwardY(u.team);
     const goalY = Math.max(MAP.minY + 50, Math.min(MAP.maxY - 50, u.pos.y + fy * 400));
-    u.order = { kind: 'moveTo', point: { x: MAP.laneX + c.laneOffset, y: goalY } };
+    u.order = { kind: 'moveTo', point: { x: (u.pos.x || MAP.laneX) + c.laneOffset, y: goalY } };
   }
 }

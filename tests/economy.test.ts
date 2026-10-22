@@ -25,6 +25,22 @@ describe('creep bounties', () => {
     expect(a.hero!.xp).toBeCloseTo(45); expect(b.hero!.xp).toBeCloseTo(45); expect(far.hero!.xp).toBe(0);
     expect(a.hero!.lastHits).toBe(1);
   });
+
+  it('denying an allied creep gives 0 gold, +1 deny, and enemy gets 50% xp', () => {
+    const w = makeWorld();
+    const denier = createHero(w, 'testhero', Team.Radiant, false);
+    const enemy = createHero(w, 'testhero', Team.Dire, false);
+    place(denier, 1500, 5000); place(enemy, 1500, 5100);
+    const alliedCreep = spawnDummy(w, { team: Team.Radiant, pos: { x: 1500, y: 5050 }, bounty: { gold: 40, xp: 60 } });
+    const g0 = denier.hero!.gold;
+    const xp0 = enemy.hero!.xp;
+    killUnit(w, alliedCreep, denier);
+    expect(denier.hero!.denies).toBe(1);
+    expect(denier.hero!.lastHits).toBe(0);
+    expect(denier.hero!.gold - g0).toBe(0);
+    // Normal XP would be 60 * 1.5 = 90. When denied, enemy gets 50% = 45
+    expect(enemy.hero!.xp - xp0).toBeCloseTo(45);
+  });
 });
 
 describe('hero kills', () => {
@@ -38,6 +54,7 @@ describe('hero kills', () => {
     victim.hero!.streak = 3;
     victim.hero!.gold = 1000;
     applyDamage(w, { source: helper, target: victim, amount: 10, type: 'pure', isAttack: false });
+    w.firstBloodAwarded = true;
     const g0 = killer.hero!.gold, h0 = helper.hero!.gold;
     killUnit(w, victim, killer);
     expect(killer.hero!.gold - g0).toBeCloseTo(125 + 8 * 5 + 60);
@@ -58,6 +75,24 @@ describe('hero kills', () => {
     applyDamage(w, { source: hero, target: victim, amount: 10, type: 'pure', isAttack: false });
     killUnit(w, victim, tower);
     expect(hero.hero!.kills).toBe(1);
+  });
+});
+
+describe('team resource multipliers', () => {
+  it('goldMult and xpMult scale gold and xp rewards', () => {
+    const w = makeWorld();
+    const hero = createHero(w, 'testhero', Team.Radiant, false);
+    w.teams[Team.Radiant].goldMult = 1.5;
+    w.teams[Team.Radiant].xpMult = 2.0;
+
+    const g0 = hero.hero!.gold;
+    w.teams[Team.Radiant].goldMult = 1.5;
+    hero.hero!.gold += 100 * w.teams[Team.Radiant].goldMult;
+    expect(hero.hero!.gold - g0).toBeCloseTo(150);
+
+    const xp0 = hero.hero!.xp;
+    giveXp(w, hero, 100);
+    expect(hero.hero!.xp - xp0).toBeCloseTo(200);
   });
 });
 

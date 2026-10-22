@@ -9,11 +9,17 @@ export type SimEvent =
   | { type: 'miss'; attackerId: number; targetId: number }
   | { type: 'cast'; unitId: number; abilityId: string }
   | { type: 'levelUp'; unitId: number; level: number }
+  | { type: 'talent'; unitId: number; tier: number; side: 0 | 1; talentId: string }
   | { type: 'gold'; unitId: number; amount: number }
   | { type: 'respawn'; unitId: number }
   | { type: 'buildingDestroyed'; unitId: number; team: Team }
   | { type: 'wave'; team: Team; index: number }
+  | { type: 'itemBuy'; unitId: number; itemId: string; cost: number }
+  | { type: 'itemSell'; unitId: number; itemId: string; refund: number }
+  | { type: 'itemCombine'; unitId: number; itemId: string }
+  | { type: 'itemUsed'; unitId: number; itemId: string }
   | { type: 'fx'; kind: string; pos: Vec2; radius?: number; dir?: Vec2; duration?: number; unitId?: number; targetId?: number }
+  | { type: 'announcement'; category: 'first_blood' | 'kill' | 'streak' | 'shutdown' | 'multikill' | 'ace' | 'building' | 'roshan' | 'rune'; killerId?: number | null; victimId?: number | null; team?: Team; title: string; subText?: string }
   | { type: 'victory'; winner: Team };
 
 export class EventBus {

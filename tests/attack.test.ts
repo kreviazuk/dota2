@@ -20,6 +20,18 @@ describe('attacks', () => {
     runFor(w, 0.2); expect(t.hp).toBe(950);
     runFor(w, 1.0); expect(t.hp).toBe(900);
   });
+  it('attacks finishing their windup in the same tick land simultaneously regardless of unit order', () => {
+    const w = makeWorld();
+    const a = spawnDummy(w, { pos: { x: 1500, y: 5000 } });
+    const b = spawnDummy(w, { team: Team.Dire, pos: { x: 1500, y: 5100 } });
+    a.hp = 40;
+    b.hp = 40;
+    a.order = { kind: 'attack', targetId: b.id, persistent: true };
+    b.order = { kind: 'attack', targetId: a.id, persistent: true };
+    runFor(w, 0.5);
+    expect(a.alive).toBe(false);
+    expect(b.alive).toBe(false);
+  });
   it('ranged attacks travel as projectiles', () => {
     const w = makeWorld();
     const a = spawnDummy(w, { pos: { x: 1500, y: 5000 }, base: { attackRange: 600, projectileSpeed: 900 } });

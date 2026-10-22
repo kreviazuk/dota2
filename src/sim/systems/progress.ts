@@ -4,7 +4,7 @@ import type { AbilitySlot } from '../core/types';
 import type { AbilityInstance } from '../heroes/types';
 import { xpToReach } from '../data/xpTable';
 import { recomputeStats } from '../stats';
-import { syncPassives } from './abilities';
+import { isInnate, makeCastContext, syncPassives } from './abilities';
 
 const MAIN_SLOTS: readonly string[] = ['Q', 'W', 'E', 'R'];
 
@@ -35,7 +35,7 @@ export function giveXp(world: World, u: Unit, amount: number): void {
 
 export function canLearn(heroLevel: number, ab: AbilityInstance): boolean {
   const d = ab.def;
-  if (d.slot === 'innate' || ab.level >= d.maxLevel) return false;
+  if (isInnate(d) || ab.level >= d.maxLevel) return false;
   const req = d.requiredHeroLevels ? d.requiredHeroLevels[ab.level] : 2 * ab.level + 1;
   return req !== undefined && heroLevel >= req;
 }
@@ -57,6 +57,10 @@ export function learnAbility(world: World, u: Unit, slot: AbilitySlot): boolean 
   if (!ab || !canLearn(h.level, ab)) return false;
   ab.level++;
   h.skillPoints--;
+  if (ab.level === 1 && ab.def.defaultToggled && ab.def.targetType === 'toggle' && !ab.toggled) {
+    ab.toggled = true;
+    ab.def.onToggle?.(makeCastContext(world, u, ab, {}), true);
+  }
   syncPassives(world, u);
   convertAttributePoints(world, u);
   return true;
