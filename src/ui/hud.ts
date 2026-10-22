@@ -15,6 +15,7 @@ import { drawPortrait } from '../render/heroVisuals';
 import type { Prefs } from './settings';
 import { ShopModal } from './shop';
 import { ScoreboardModal } from './scoreboard';
+import { ItemTooltipModal } from './itemTooltip';
 import { getItemIconCanvas } from '../render/itemIcons';
 import { getAbilityIconCanvas, getActionIconCanvas } from '../render/abilityIcons';
 import { getItemDef } from '../sim/items/definitions';
@@ -171,6 +172,7 @@ export class Hud {
   readonly qbCost: HTMLSpanElement;
   readonly shopModal: ShopModal;
   readonly scoreboardModal: ScoreboardModal;
+  readonly itemTooltipModal: ItemTooltipModal;
   readonly killFeed: HTMLDivElement;
   readonly bannerBox: HTMLDivElement;
   readonly bannerTitle: HTMLDivElement;
@@ -307,6 +309,7 @@ export class Hud {
     this.qbCost = this.q('.qb-cost');
     this.shopModal = new ShopModal(this.root, (cmd) => this.onCommand?.(cmd));
     this.scoreboardModal = new ScoreboardModal(this.root);
+    this.itemTooltipModal = new ItemTooltipModal(this.root);
     this.q('.score').addEventListener('click', () => {
       this.scoreboardModal.toggle(this.match.world, this.match.playerUnitId);
     });
@@ -317,6 +320,15 @@ export class Hud {
 
     for (let i = 0; i < 6; i++) {
       const root = this.q<HTMLDivElement>(`.item-slot[data-slot="${i}"]`);
+      root.addEventListener('click', (e) => {
+        const itemId = root.dataset.itemId;
+        if (!itemId) return;
+        const def = getItemDef(itemId);
+        if (!def?.active || def.active.targetType === 'passive') {
+          e.stopPropagation();
+          this.itemTooltipModal.show(itemId);
+        }
+      });
       this.inventorySlots.push({
         index: i,
         root,
@@ -542,6 +554,7 @@ export class Hud {
       if (!slotBtn) continue;
       if (item) {
         const def = getItemDef(item.id);
+        slotBtn.root.title = def ? `${def.name} · 点击查看详情` : '';
         slotBtn.root.classList.remove('is-empty');
         if (slotBtn.root.dataset.itemId !== item.id) {
           slotBtn.root.dataset.itemId = item.id;

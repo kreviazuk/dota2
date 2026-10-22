@@ -2,6 +2,8 @@ import type { World } from '../sim/world';
 import { Team } from '../sim/core/types';
 import type { Unit } from '../sim/entities/unit';
 import { getItemIconCanvas } from '../render/itemIcons';
+import { getItemDef } from '../sim/items/definitions';
+import { ItemTooltipModal } from './itemTooltip';
 import { portraitCanvas } from './hud';
 import { findModifier } from '../sim/modifiers';
 
@@ -15,6 +17,7 @@ export class ScoreboardModal {
   readonly radScoreEl: HTMLSpanElement;
   readonly direScoreEl: HTMLSpanElement;
   readonly timeEl: HTMLSpanElement;
+  readonly tooltipModal: ItemTooltipModal;
   private isOpen = false;
   private playerUnitId: number | null = null;
 
@@ -71,6 +74,8 @@ export class ScoreboardModal {
     dialog.appendChild(this.content);
     this.root.appendChild(dialog);
     parent.appendChild(this.root);
+
+    this.tooltipModal = new ItemTooltipModal(this.root);
 
     const close = () => this.hide();
     this.backdrop.addEventListener('click', close);
@@ -223,8 +228,17 @@ export class ScoreboardModal {
       const slots = grid.querySelectorAll<HTMLDivElement>('.sb-item-slot');
       slots.forEach((slotEl) => {
         const itemId = slotEl.dataset.itemId;
-        if (itemId && !slotEl.querySelector('canvas')) {
-          slotEl.appendChild(getItemIconCanvas(itemId, 30));
+        if (itemId) {
+          if (!slotEl.querySelector('canvas')) {
+            slotEl.appendChild(getItemIconCanvas(itemId, 30));
+          }
+          const def = getItemDef(itemId);
+          if (def) slotEl.title = `${def.name} (点击查看装备详情)`;
+          slotEl.style.cursor = 'pointer';
+          slotEl.onclick = (e) => {
+            e.stopPropagation();
+            this.tooltipModal.show(itemId);
+          };
         }
       });
     }

@@ -157,6 +157,35 @@ const ARTIFACT_DIR = '/Users/ubes/.gemini/antigravity/brain/c5374785-ef78-496c-9
   await page.screenshot({ path: path.join(ARTIFACT_DIR, 'screenshot_jungle.png') });
   console.log('Saved screenshot_jungle.png');
 
+  // 5. Open Shop Modal and select an iconic advanced item (Aghanim's Scepter / Daedalus)
+  console.log('Opening Shop Modal...');
+  await page.evaluate(() => {
+    const shopBtn = document.querySelector('.btn-shop');
+    if (shopBtn) shopBtn.click();
+  });
+  await page.waitForTimeout(800);
+
+  await page.evaluate(() => {
+    // Select Aghanim's Scepter to display full stats, active/passive info, recipes, and builds
+    const card = document.querySelector('.shop-item-card[data-item-id="aghanims_scepter"]') ||
+                 document.querySelector('.shop-item-card[data-item-id="black_king_bar"]') ||
+                 document.querySelector('.shop-item-card[data-item-id="daedalus"]');
+    if (card) {
+      card.scrollIntoView({ block: 'center' });
+      card.click();
+    }
+  });
+  await page.waitForTimeout(1200);
+  await page.screenshot({ path: path.join(ARTIFACT_DIR, 'screenshot_shop.png') });
+  console.log('Saved screenshot_shop.png');
+
+  // Dismiss shop modal
+  await page.evaluate(() => {
+    const closeBtn = document.querySelector('.shop-close');
+    if (closeBtn) closeBtn.click();
+  });
+  await page.waitForTimeout(500);
+
   await browser.close();
   console.log('Done capturing screenshots!');
 })().catch(err => {
