@@ -19,6 +19,7 @@ import { grantItem } from './sim/items/inventory';
 import { showHeroSelect, type HeroSelectScreen } from './ui/heroSelect';
 import { loadLastHero, loadPrefs, saveLastHero, savePrefs, type Prefs } from './ui/settings';
 import { sound } from './audio/sound';
+import { preloadAssets } from './render/assetPreloader';
 import type { AbilitySlot } from './sim/core/types';
 import type { CastTarget } from './sim/heroes/types';
 
@@ -319,6 +320,7 @@ function devDebug() {
 }
 
 async function boot(): Promise<void> {
+  preloadAssets();
   renderer = await createRenderer(canvas);
   if (import.meta.env.DEV) {
     // 仅开发服务器：供浏览器自动化测试读取和驱动对局（生产构建会整段删除）

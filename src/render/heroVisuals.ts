@@ -282,13 +282,69 @@ export function drawHero(ctx: CanvasRenderingContext2D, u: Unit, x: number, y: n
   ctx.restore();
 }
 
+const HERO_IMG_CACHE = new Map<string, HTMLImageElement>();
+
+function getHeroImage(heroId: string): HTMLImageElement | null {
+  if (typeof Image === 'undefined') return null;
+  let img = HERO_IMG_CACHE.get(heroId);
+  if (!img) {
+    img = new Image();
+    img.src = `/assets/heroes/${heroId}.png`;
+    HERO_IMG_CACHE.set(heroId, img);
+  }
+  return img;
+}
+
 /**
- * 头像（选人界面卡片、HUD）：画在 (0,0)–(size,size) 的正方形里。底色圆（英雄主色渐变）+ 武器标志物剪影 + 中文首字；
- * 给出 team 时外圈用阵营色，否则用英雄的镶边色。
+ * 头像（选人界面卡片、HUD）：画在 (0,0)–(size,size) 的正方形里。
+ * 优先采用官方高清英雄立绘裁剪，若图片正在加载或不可用则平滑回退至矢量风格剪影。
  */
 export function drawPortrait(ctx: CanvasRenderingContext2D, heroId: string, size: number, team?: Team): void {
   const look = heroLook(heroId);
   const c = size / 2;
+  const outerRadius = c * 0.94;
+  const strokeColor = team === undefined ? look.trim : team === Team.Radiant ? '#6fe07a' : '#ff6a55';
+  const strokeW = Math.max(1.5, size * 0.06);
+
+  const img = getHeroImage(heroId);
+  if (img && img.complete && img.naturalWidth > 0) {
+    ctx.save();
+    ctx.clearRect(0, 0, size, size);
+
+    // 1. 圆形裁切
+    ctx.beginPath();
+    ctx.arc(c, c, outerRadius, 0, Math.PI * 2);
+    ctx.clip();
+
+    // 2. 居中裁切 400x250 官方立绘并绘制
+    const nw = img.naturalWidth;
+    const nh = img.naturalHeight;
+    const cropSize = nh;
+    const sx = Math.max(0, (nw - cropSize) / 2);
+    const sy = 0;
+    ctx.drawImage(img, sx, sy, cropSize, cropSize, 0, 0, size, size);
+
+    // 3. 暗角与内发光渐变边缘
+    const vig = ctx.createRadialGradient(c, c, outerRadius * 0.65, c, c, outerRadius);
+    vig.addColorStop(0, 'rgba(0,0,0,0)');
+    vig.addColorStop(1, 'rgba(0,0,0,0.45)');
+    ctx.fillStyle = vig;
+    ctx.beginPath();
+    ctx.arc(c, c, outerRadius, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 4. 阵营外圈镶边
+    ctx.strokeStyle = strokeColor;
+    ctx.lineWidth = strokeW;
+    ctx.beginPath();
+    ctx.arc(c, c, outerRadius - strokeW / 2, 0, Math.PI * 2);
+    ctx.stroke();
+
+    ctx.restore();
+    return;
+  }
+
+  // 回退：程序化渐变与剪影渲染
   ctx.save();
   const g = ctx.createRadialGradient(c * 0.8, c * 0.7, size * 0.05, c, c, c);
   g.addColorStop(0, look.trim);
@@ -296,8 +352,9 @@ export function drawPortrait(ctx: CanvasRenderingContext2D, heroId: string, size
   g.addColorStop(1, '#0c0c10');
   ctx.fillStyle = g;
   ctx.beginPath();
-  ctx.arc(c, c, c * 0.94, 0, Math.PI * 2);
+  ctx.arc(c, c, outerRadius, 0, Math.PI * 2);
   ctx.fill();
+
   // 武器剪影（半透明，斜放在背后）
   ctx.save();
   ctx.beginPath();
@@ -309,12 +366,14 @@ export function drawPortrait(ctx: CanvasRenderingContext2D, heroId: string, size
   ctx.rotate(-0.85);
   drawWeapon(ctx, look, r, 0);
   ctx.restore();
+
   // 外圈
-  ctx.strokeStyle = team === undefined ? look.trim : team === Team.Radiant ? '#6fe07a' : '#ff6a55';
-  ctx.lineWidth = Math.max(1.5, size * 0.06);
+  ctx.strokeStyle = strokeColor;
+  ctx.lineWidth = strokeW;
   ctx.beginPath();
-  ctx.arc(c, c, c * 0.94 - ctx.lineWidth / 2, 0, Math.PI * 2);
+  ctx.arc(c, c, outerRadius - strokeW / 2, 0, Math.PI * 2);
   ctx.stroke();
+
   // 首字
   ctx.font = `bold ${Math.round(size * 0.46)}px sans-serif`;
   ctx.textAlign = 'center';
@@ -326,4 +385,10 @@ export function drawPortrait(ctx: CanvasRenderingContext2D, heroId: string, size
   ctx.fillStyle = '#fff';
   ctx.fillText(look.initial, c, c + size * 0.03);
   ctx.restore();
+
+  if (img && !img.complete) {
+    img.addEventListener('load', () => {
+      drawPortrait(ctx, heroId, size, team);
+    }, { once: true });
+  }
 }

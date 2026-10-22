@@ -944,9 +944,65 @@ function drawGenericGlyph(ctx: CanvasRenderingContext2D, glyph: string, s: numbe
   }
 }
 
-// 缓存 Canvas 与 DataUrl
+// 缓存 Canvas、DataUrl 与官方高清图片
 const ICON_CANVAS_CACHE = new Map<string, HTMLCanvasElement>();
 const ICON_DATAURL_CACHE = new Map<string, string>();
+const ITEM_IMG_CACHE = new Map<string, HTMLImageElement>();
+
+function getItemImage(itemId: string): HTMLImageElement | null {
+  if (typeof Image === 'undefined') return null;
+  let img = ITEM_IMG_CACHE.get(itemId);
+  if (!img) {
+    img = new Image();
+    img.src = `/assets/items/${itemId}.png`;
+    ITEM_IMG_CACHE.set(itemId, img);
+  }
+  return img;
+}
+
+export function drawItemImageOnCanvas(ctx: CanvasRenderingContext2D, img: HTMLImageElement, size: number): void {
+  ctx.save();
+  ctx.clearRect(0, 0, size, size);
+
+  // 1. 圆角裁切
+  const r = Math.max(3, Math.round(size * 0.08));
+  ctx.beginPath();
+  ctx.moveTo(r, 0);
+  ctx.lineTo(size - r, 0);
+  ctx.arcTo(size, 0, size, r, r);
+  ctx.lineTo(size, size - r);
+  ctx.arcTo(size, size, size - r, size, r);
+  ctx.lineTo(r, size);
+  ctx.arcTo(0, size, 0, size - r, r);
+  ctx.lineTo(0, r);
+  ctx.arcTo(0, 0, r, 0, r);
+  ctx.closePath();
+  ctx.clip();
+
+  // 2. 底色填充
+  ctx.fillStyle = '#0f1118';
+  ctx.fillRect(0, 0, size, size);
+
+  // 3. 居中覆盖绘制官方图标 (88x64 裁切为方形)
+  const nw = img.naturalWidth;
+  const nh = img.naturalHeight;
+  let sx = 0, sy = 0, sw = nw, sh = nh;
+  if (nw > nh) {
+    sw = nh;
+    sx = (nw - sw) / 2;
+  } else if (nh > nw) {
+    sh = nw;
+    sy = (nh - sh) / 2;
+  }
+  ctx.drawImage(img, sx, sy, sw, sh, 0, 0, size, size);
+
+  // 4. 金属微内边框
+  ctx.strokeStyle = 'rgba(255, 255, 255, 0.14)';
+  ctx.lineWidth = Math.max(1, size * 0.02);
+  ctx.stroke();
+
+  ctx.restore();
+}
 
 export function getItemIconCanvas(itemId: string, size = 64): HTMLCanvasElement {
   const key = `${itemId}_${size}`;
@@ -961,7 +1017,19 @@ export function getItemIconCanvas(itemId: string, size = 64): HTMLCanvasElement 
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext('2d');
-  if (ctx) renderItemIcon(ctx, itemId, size);
+  if (ctx) {
+    const img = getItemImage(itemId);
+    if (img && img.complete && img.naturalWidth > 0) {
+      drawItemImageOnCanvas(ctx, img, size);
+    } else {
+      renderItemIcon(ctx, itemId, size);
+      if (img && !img.complete) {
+        img.addEventListener('load', () => {
+          drawItemImageOnCanvas(ctx, img, size);
+        }, { once: true });
+      }
+    }
+  }
   ICON_CANVAS_CACHE.set(key, canvas);
   return canvas;
 }
