@@ -210,13 +210,26 @@ function paintGround(trees: TreeInst[]): HTMLCanvasElement {
   // 树的影子直接画进地面纹理（树不参与实时阴影，阴影贴图里只有单位、建筑和石头）
   for (const t of trees) {
     const s = t.s * (t.kind === 1 ? 1.1 : 1);
+    // 树根接地处环境遮挡（Contact Shadow）
+    g.fillStyle = 'rgba(4,6,3,0.36)';
+    g.beginPath();
+    g.ellipse(t.x, t.y, 20 * s, 16 * s, 0, 0, Math.PI * 2);
+    g.fill();
+
+    // 树根周遭落叶与苔藓杂色圈（天辉绿苔 / 夜魇暗红焦土）
+    g.fillStyle = t.dire ? 'rgba(42,18,14,0.25)' : 'rgba(24,46,20,0.25)';
+    g.beginPath();
+    g.ellipse(t.x, t.y, 36 * s, 30 * s, 0.2, 0, Math.PI * 2);
+    g.fill();
+
+    // 主树冠斜向投射阴影
     g.fillStyle = 'rgba(6,10,4,0.30)';
     g.beginPath();
     g.ellipse(t.x + 44 * s, t.y + 50 * s, 50 * s, 42 * s, 0.6, 0, Math.PI * 2);
     g.fill();
-    g.fillStyle = 'rgba(6,10,4,0.25)';
+    g.fillStyle = 'rgba(6,10,4,0.20)';
     g.beginPath();
-    g.ellipse(t.x + 8 * s, t.y + 10 * s, 26 * s, 22 * s, 0, 0, Math.PI * 2);
+    g.ellipse(t.x + 10 * s, t.y + 12 * s, 26 * s, 22 * s, 0, 0, Math.PI * 2);
     g.fill();
   }
 
@@ -325,25 +338,130 @@ const cellKey = (x: number, y: number) => `${x < MAP.laneX - 500 ? 0 : x < MAP.l
 
 function treeGeometry(kind: TreeKind, dire: boolean, seed: number): BufferGeometry {
   const b = new GeoBuilder(seed);
-  const trunk = dire ? 0x3a2418 : 0x4a3220;
-  b.cyl(5, 9, 46, 5, trunk, { p: [0, 23, 0], top: 0x5a3a24 }, true);
-  // 天辉：鲜绿的松树和阔叶树；夜魇：焦黑发灰的松树和暗红的枯叶树
+  // 1. 粗壮且带有外展根系的主树干与分枝
+  const trunkBaseCol = dire ? 0x2e1a14 : 0x3d2a1b;
+  const trunkTopCol = dire ? 0x442c20 : 0x5e422c;
+  const trunkHeight = kind === 'tallPine' ? 58 : kind === 'pine' ? 48 : 56;
+  const waistR = kind === 'tallPine' ? 7.5 : kind === 'pine' ? 8.5 : 10.5;
+
+  // 主树干：8段圆柱，平滑过渡
+  b.cyl(waistR * 0.72, waistR * 1.15, trunkHeight, 8, trunkBaseCol, {
+    p: [0, trunkHeight / 2, 0],
+    top: trunkTopCol,
+    jitter: 0.03,
+  }, true);
+
+  // 底部抓地树根（4条根系外延）
+  const rootCol = dire ? 0x221410 : 0x322014;
+  for (let i = 0; i < 4; i++) {
+    const ang = (i / 4) * Math.PI * 2 + 0.35;
+    const rx = Math.cos(ang) * (waistR * 1.35);
+    const rz = Math.sin(ang) * (waistR * 1.35);
+    b.cone(waistR * 0.55, trunkHeight * 0.36, 6, rootCol, {
+      p: [rx, trunkHeight * 0.12, rz],
+      r: [Math.sin(ang) * 0.38, 0, -Math.cos(ang) * 0.38],
+      s: [1, 1, 0.75],
+      top: trunkBaseCol,
+      jitter: 0.03,
+    }, true);
+  }
+
+  // 树叶色板：底层阴影色 -> 中层叶冠色 -> 迎光高亮色 -> 冠顶光华
   const pal = dire
-    ? kind === 'leafy' ? [0x3e1614, 0x5a221c, 0x7a3022, 0x9a4a2a] : [0x223a2e, 0x2f4a36, 0x47603e, 0x6e7448]
-    : kind === 'leafy' ? [0x2a5a22, 0x3f7a2c, 0x5e9a36, 0x8ab84a] : [0x173f20, 0x24592a, 0x3a7a34, 0x62a044];
+    ? kind === 'leafy'
+      ? [0x321210, 0x4e1c18, 0x722820, 0x9a3e2c] // 夜魇血棘红古树
+      : [0x1c2e24, 0x283e32, 0x3a5442, 0x567058] // 夜魇针叶暗松
+    : kind === 'leafy'
+      ? [0x1b441a, 0x2b6a24, 0x468e2e, 0x72b842] // 天辉翡翠阔叶古树
+      : [0x15381c, 0x225528, 0x387c32, 0x58a644]; // 天辉翠绿云杉松
+
   if (kind === 'pine') {
-    b.cone(50, 74, 7, pal[0], { p: [0, 70, 0], top: pal[1], jitter: 0.12 }, true);
-    b.cone(40, 64, 7, pal[1], { p: [0, 104, 0], r: [0, 0.4, 0], top: pal[2], jitter: 0.12 }, true);
-    b.cone(27, 54, 7, pal[2], { p: [0, 136, 0], r: [0, 0.9, 0], top: pal[3], jitter: 0.12 }, true);
+    // 5 层带有向下自然垂坠弧度的多边形伞裙（12-14边形，层次交错）
+    const tiers = [
+      { r: 52, h: 52, y: 56, seg: 12, rot: 0.0, c0: pal[0], c1: pal[1] },
+      { r: 42, h: 48, y: 82, seg: 12, rot: 0.45, c0: pal[0], c1: pal[1] },
+      { r: 33, h: 44, y: 108, seg: 12, rot: 0.9, c0: pal[1], c1: pal[2] },
+      { r: 23, h: 40, y: 132, seg: 10, rot: 1.35, c0: pal[1], c1: pal[2] },
+      { r: 13, h: 36, y: 154, seg: 10, rot: 1.8, c0: pal[2], c1: pal[3] },
+    ];
+    for (const t of tiers) {
+      // 内部阴影暗层
+      b.cone(t.r * 0.88, t.h * 0.75, t.seg, pal[0], {
+        p: [0, t.y - t.h * 0.1, 0],
+        r: [0, t.rot + 0.2, 0],
+        jitter: 0.03,
+      }, true);
+      // 外部迎光层
+      b.cone(t.r, t.h, t.seg, t.c0, {
+        p: [0, t.y, 0],
+        r: [0, t.rot, 0],
+        top: t.c1,
+        jitter: 0.04,
+      }, true);
+    }
   } else if (kind === 'tallPine') {
-    b.cone(40, 70, 6, pal[0], { p: [0, 66, 0], top: pal[1], jitter: 0.12 }, true);
-    b.cone(34, 62, 6, pal[1], { p: [0, 100, 0], r: [0, 0.5, 0], top: pal[2], jitter: 0.12 }, true);
-    b.cone(27, 56, 6, pal[1], { p: [0, 132, 0], r: [0, 1.1, 0], top: pal[2], jitter: 0.12 }, true);
-    b.cone(18, 48, 6, pal[2], { p: [0, 162, 0], r: [0, 1.6, 0], top: pal[3], jitter: 0.12 }, true);
+    // 6 层参天高松（修长塔状）
+    const tiers = [
+      { r: 44, h: 56, y: 58, seg: 12, rot: 0.0, c0: pal[0], c1: pal[1] },
+      { r: 37, h: 52, y: 86, seg: 12, rot: 0.4, c0: pal[0], c1: pal[1] },
+      { r: 30, h: 48, y: 112, seg: 12, rot: 0.8, c0: pal[0], c1: pal[2] },
+      { r: 23, h: 44, y: 136, seg: 10, rot: 1.2, c0: pal[1], c1: pal[2] },
+      { r: 16, h: 40, y: 158, seg: 10, rot: 1.6, c0: pal[2], c1: pal[3] },
+      { r: 9, h: 36, y: 178, seg: 8, rot: 2.0, c0: pal[2], c1: pal[3] },
+    ];
+    for (const t of tiers) {
+      b.cone(t.r * 0.88, t.h * 0.72, t.seg, pal[0], {
+        p: [0, t.y - t.h * 0.08, 0],
+        r: [0, t.rot + 0.2, 0],
+        jitter: 0.03,
+      }, true);
+      b.cone(t.r, t.h, t.seg, t.c0, {
+        p: [0, t.y, 0],
+        r: [0, t.rot, 0],
+        top: t.c1,
+        jitter: 0.04,
+      }, true);
+    }
   } else {
-    b.ico(46, 0, pal[1], { p: [0, 86, 0], s: [1.1, 0.85, 1.1], top: pal[2], jitter: 0.14 });
-    b.ico(32, 0, pal[0], { p: [22, 70, 14], top: pal[1], jitter: 0.14 });
-    b.ico(28, 0, pal[2], { p: [-6, 118, -4], top: pal[3], jitter: 0.14 });
+    // 阔叶古树：3 根分叉枝干 + 11 簇平滑细分的云朵叶冠（detail: 1）
+    for (const [bx, by, bz, rx, rz] of [
+      [14, 52, 6, 0.35, -0.25],
+      [-12, 54, -8, -0.3, 0.3],
+      [4, 60, 12, 0.25, 0.38],
+    ]) {
+      b.cyl(4.5, 6.5, 26, 6, trunkTopCol, {
+        p: [bx, by, bz],
+        r: [rx, 0, rz],
+        top: trunkTopCol,
+        jitter: 0.03,
+      }, true);
+    }
+
+    // 11 簇丰满圆润的球状叶冠（detail: 1 = 80 三角形平滑多面体）
+    const puffs: { p: [number, number, number]; r: number; s: [number, number, number]; col: number; top: number }[] = [
+      // 底部下垂大叶簇
+      { p: [0, 78, 0], r: 42, s: [1.2, 0.8, 1.2], col: pal[0], top: pal[1] },
+      { p: [22, 74, 12], r: 32, s: [1.1, 0.85, 1.0], col: pal[0], top: pal[1] },
+      { p: [-22, 76, 10], r: 30, s: [1.0, 0.85, 1.15], col: pal[0], top: pal[1] },
+      { p: [8, 74, -22], r: 33, s: [1.15, 0.8, 1.1], col: pal[0], top: pal[1] },
+      { p: [-14, 80, -18], r: 28, s: [1.05, 0.9, 1.0], col: pal[0], top: pal[1] },
+      // 中部核心与侧翼叶簇
+      { p: [0, 98, 0], r: 38, s: [1.15, 0.85, 1.15], col: pal[1], top: pal[2] },
+      { p: [18, 102, -12], r: 28, s: [1.05, 0.9, 1.0], col: pal[1], top: pal[2] },
+      { p: [-18, 100, -8], r: 26, s: [1.0, 0.9, 1.1], col: pal[1], top: pal[2] },
+      { p: [10, 104, 16], r: 26, s: [1.1, 0.85, 1.0], col: pal[1], top: pal[2] },
+      // 顶部受光冠顶（金绿色高光）
+      { p: [0, 122, 0], r: 28, s: [1.0, 0.9, 1.0], col: pal[2], top: pal[3] },
+      { p: [-6, 130, 4], r: 20, s: [0.95, 0.9, 0.95], col: pal[2], top: pal[3] },
+    ];
+    for (const puff of puffs) {
+      b.ico(puff.r, 1, puff.col, {
+        p: puff.p,
+        s: puff.s,
+        top: puff.top,
+        jitter: 0.04,
+      });
+    }
   }
   return b.build();
 }
@@ -447,7 +565,7 @@ export class MapScene {
   }
 
   private buildTrees(trees: TreeInst[]): void {
-    const mat = makeLambert(true);
+    const mat = makeLambert(false);
     const time = this.treeTime;
     mat.onBeforeCompile = (sh: WebGLProgramParametersWithUniforms) => {
       sh.uniforms.uTime = time;
