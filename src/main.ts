@@ -15,6 +15,7 @@ import { Rng } from './sim/core/rng';
 import { draftTeams } from './game/draft';
 import { availableHeroes } from './game/roster';
 import { refreshHero, setHeroLevel } from './game/debug';
+import { grantItem } from './sim/items/inventory';
 import { showHeroSelect, type HeroSelectScreen } from './ui/heroSelect';
 import { loadLastHero, loadPrefs, saveLastHero, savePrefs, type Prefs } from './ui/settings';
 import { sound } from './audio/sound';
@@ -313,6 +314,7 @@ function devDebug() {
     // 底层工具（参数和 game/debug.ts 一样）
     setHeroLevel,
     refreshHero,
+    grantItem,
   };
 }
 

@@ -14,6 +14,7 @@ import { getHeroDef } from '../sim/heroes/index';
 import { drawPortrait } from '../render/heroVisuals';
 import type { Prefs } from './settings';
 import { ShopModal } from './shop';
+import { ScoreboardModal } from './scoreboard';
 import { getItemIconCanvas } from '../render/itemIcons';
 import { getAbilityIconCanvas, getActionIconCanvas } from '../render/abilityIcons';
 import { getItemDef } from '../sim/items/definitions';
@@ -169,6 +170,7 @@ export class Hud {
   readonly qbIcon: HTMLDivElement;
   readonly qbCost: HTMLSpanElement;
   readonly shopModal: ShopModal;
+  readonly scoreboardModal: ScoreboardModal;
   readonly killFeed: HTMLDivElement;
   readonly bannerBox: HTMLDivElement;
   readonly bannerTitle: HTMLDivElement;
@@ -212,8 +214,12 @@ export class Hud {
         <div class="innate-tag"></div>
       </div>
       <div class="hud-top">
-        <div class="score"><span class="k-rad">0</span><span class="clock">00:00</span><span class="k-dire">0</span></div>
-        <div class="roster"><div class="side rad"></div><div class="side dire"></div></div>
+        <div class="score" title="点击查看对局战况 (双方出装、等级、KDA)">
+          <span class="k-rad">0</span>
+          <span class="clock">00:00</span>
+          <span class="k-dire">0</span>
+          <span class="score-tab-btn">战况</span>
+        </div>
       </div>
       <div class="kill-feed"></div>
       <div class="banner-box"><div class="banner-title"></div><div class="banner-sub"></div></div>
@@ -300,6 +306,10 @@ export class Hud {
     this.qbIcon = this.q('.qb-icon');
     this.qbCost = this.q('.qb-cost');
     this.shopModal = new ShopModal(this.root, (cmd) => this.onCommand?.(cmd));
+    this.scoreboardModal = new ScoreboardModal(this.root);
+    this.q('.score').addEventListener('click', () => {
+      this.scoreboardModal.toggle(this.match.world, this.match.playerUnitId);
+    });
     this.killFeed = this.q('.kill-feed');
     this.bannerBox = this.q('.banner-box');
     this.bannerTitle = this.q('.banner-title');
@@ -384,7 +394,8 @@ export class Hud {
   private buildRoster(): void {
     const w = this.match.world;
     for (const team of [Team.Radiant, Team.Dire]) {
-      const side = this.q<HTMLDivElement>(team === Team.Radiant ? '.roster .rad' : '.roster .dire');
+      const side = this.root.querySelector<HTMLDivElement>(team === Team.Radiant ? '.roster .rad' : '.roster .dire');
+      if (!side) continue;
       for (const h of w.heroes(team)) {
         const mini = document.createElement('div');
         mini.className = `mini ${team === Team.Radiant ? 'rad' : 'dire'}${h.id === this.match.playerUnitId ? ' me' : ''}`;
@@ -449,6 +460,9 @@ export class Hud {
     setText(els.clock, `${isDay ? '☀️' : '🌙'} ${formatClock(w.time)}`);
     setText(els.kRad, String(w.teams[Team.Radiant].kills));
     setText(els.kDire, String(w.teams[Team.Dire].kills));
+    if (this.scoreboardModal.visible) {
+      this.scoreboardModal.update(w);
+    }
     for (const m of this.minis) {
       const h = w.getUnit(m.id);
       if (!h?.hero) continue;
