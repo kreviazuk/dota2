@@ -66,7 +66,7 @@ export const ITEM_BUILDS: Record<string, string[]> = {
   crystal_maiden: ['tranquil_boots', 'force_staff', 'black_king_bar', 'aghanims_shard', 'aghanims_scepter', 'shivas_guard'],
   zeus: ['arcane_boots', 'force_staff', 'aghanims_scepter', 'aghanims_shard', 'black_king_bar', 'shivas_guard'],
   drow_ranger: ['power_treads', 'yasha', 'aghanims_shard', 'sange_and_yasha', 'black_king_bar', 'butterfly', 'aghanims_scepter'],
-  phantom_assassin: ['power_treads', 'battle_fury', 'desolator', 'black_king_bar', 'skull_basher', 'sange_and_yasha', 'aghanims_shard', 'abyssal_blade'],
+  phantom_assassin: ['power_treads', 'vanguard', 'desolator', 'black_king_bar', 'skull_basher', 'sange_and_yasha', 'aghanims_shard', 'abyssal_blade'],
   juggernaut: ['phase_boots', 'battle_fury', 'sange_and_yasha', 'aghanims_shard', 'black_king_bar', 'butterfly', 'abyssal_blade'],
   pudge: ['tranquil_boots', 'vanguard', 'pipe_of_insight', 'blade_mail', 'blink_dagger', 'aghanims_scepter', 'heart_of_tarrasque', 'aghanims_shard'],
   shadow_fiend: ['power_treads', 'euls_scepter', 'black_king_bar', 'desolator', 'aghanims_scepter', 'daedalus', 'butterfly', 'aghanims_shard'],

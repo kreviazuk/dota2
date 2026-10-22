@@ -17,6 +17,7 @@ import { availableHeroes } from './game/roster';
 import { refreshHero, setHeroLevel } from './game/debug';
 import { showHeroSelect, type HeroSelectScreen } from './ui/heroSelect';
 import { loadLastHero, loadPrefs, saveLastHero, savePrefs, type Prefs } from './ui/settings';
+import { sound } from './audio/sound';
 import type { AbilitySlot } from './sim/core/types';
 import type { CastTarget } from './sim/heroes/types';
 
@@ -153,6 +154,7 @@ function startGame(difficulty: Difficulty, heroId: string, lineup: { radiant?: s
 
 function onPrefsChange(p: Prefs): void {
   savePrefs(p);
+  sound.setEnabled(p.sound);
   const s = session;
   const me = s && !s.demo ? s.match.world.getUnit(s.match.playerUnitId) : undefined;
   if (me) me.autoAttack = p.autoAttack;
@@ -197,7 +199,29 @@ function frame(now: number): void {
       s.match.step(s.controls?.drain() ?? []);
       acc -= DT;
     }
-    renderer.consume(s.match.world.events.drain(), s.match.world, s.followId);
+    const events = s.match.world.events.drain();
+    if (!s.demo && prefs.sound) {
+      for (const e of events) {
+        if (e.type === 'cast') {
+          sound.play('cast');
+        } else if (e.type === 'damage' && e.targetId === s.match.playerUnitId) {
+          sound.play('hit');
+        } else if (e.type === 'levelUp' && e.unitId === s.match.playerUnitId) {
+          sound.play('levelUp');
+        } else if (e.type === 'gold' && e.unitId === s.match.playerUnitId) {
+          sound.play('gold');
+        } else if (e.type === 'buildingDestroyed') {
+          sound.play('towerDestroyed');
+        } else if ((e as any).kind === 'roshan_death') {
+          sound.play('roshan');
+        } else if (e.type === 'victory') {
+          const pTeam = s.match.world.getUnit(s.match.playerUnitId)?.team;
+          if (e.winner === pTeam) sound.play('victory');
+          else sound.play('defeat');
+        }
+      }
+    }
+    renderer.consume(events, s.match.world, s.followId);
     s.hud?.update(dt);
     if (s.match.over) {
       if (s.demo) startDemoMatch();

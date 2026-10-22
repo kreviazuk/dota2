@@ -6,12 +6,14 @@ export interface Prefs {
   autoLevel: boolean;
   /** 站立时自动攻击附近的敌人 */
   autoAttack: boolean;
+  /** 战斗音效开关 */
+  sound: boolean;
 }
 
 const PREFS_KEY = 'dota-lane.prefs';
 const LAST_HERO_KEY = 'dota-lane.lastHero';
 
-export const DEFAULT_PREFS: Readonly<Prefs> = { autoLevel: false, autoAttack: true };
+export const DEFAULT_PREFS: Readonly<Prefs> = { autoLevel: false, autoAttack: true, sound: true };
 
 export function loadPrefs(): Prefs {
   try {
@@ -20,6 +22,7 @@ export function loadPrefs(): Prefs {
     return {
       autoLevel: typeof p.autoLevel === 'boolean' ? p.autoLevel : DEFAULT_PREFS.autoLevel,
       autoAttack: typeof p.autoAttack === 'boolean' ? p.autoAttack : DEFAULT_PREFS.autoAttack,
+      sound: typeof p.sound === 'boolean' ? p.sound : DEFAULT_PREFS.sound,
     };
   } catch {
     return { ...DEFAULT_PREFS };
@@ -28,7 +31,7 @@ export function loadPrefs(): Prefs {
 
 export function savePrefs(p: Prefs): void {
   try {
-    localStorage.setItem(PREFS_KEY, JSON.stringify({ autoLevel: p.autoLevel, autoAttack: p.autoAttack }));
+    localStorage.setItem(PREFS_KEY, JSON.stringify({ autoLevel: p.autoLevel, autoAttack: p.autoAttack, sound: p.sound }));
   } catch {
     // 存不了就只在本次会话里生效
   }

@@ -108,8 +108,9 @@ export function updateRoshan(world: World, dt: number): void {
   void dt;
   const roshan = getLiveRoshan(world);
   if (!roshan) {
-    if (world.time >= 900 && !world.units.some((u) => u.defId === 'roshan')) {
-      // 15:00 首次降临
+    if (world.time >= 900 && !(world as any)._roshanFirstSpawned) {
+      // 15:00 首次降临（后续通过 300 秒复活定时器刷新）
+      (world as any)._roshanFirstSpawned = true;
       spawnRoshan(world);
     }
     return;

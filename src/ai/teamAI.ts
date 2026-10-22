@@ -143,7 +143,13 @@ export class TeamAI {
     else if (oppHeroes.length < myHeroes.length || (t >= 180 && myHpAvg > 0.60)) {
       mode = 'pushing';
       rallyPoint = frontOppTower ? { ...frontOppTower.pos } : { ...oppL.ancient };
-      if (oppHeroes.length > 0) {
+      const oppAncient = world.units.find((u) => u.team === oppTeam && u.building?.type === 'ancient' && u.alive);
+      const lowOpp = oppHeroes.filter((h) => h.hp / h.stats.maxHp <= 0.4).sort((a, b) => a.hp / a.stats.maxHp - b.hp / b.stats.maxHp)[0];
+      if (lowOpp) {
+        priorityTargetId = lowOpp.id;
+      } else if (!frontOppTower && oppAncient) {
+        priorityTargetId = oppAncient.id;
+      } else if (oppHeroes.length > 0) {
         oppHeroes.sort((a, b) => a.hp / a.stats.maxHp - b.hp / b.stats.maxHp);
         priorityTargetId = oppHeroes[0].id;
       }

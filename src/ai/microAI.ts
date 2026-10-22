@@ -6,7 +6,7 @@ import type { AiSkill } from '../sim/heroes/types';
 import type { Vec2 } from '../sim/core/vec2';
 import { dist, normalize, sub } from '../sim/core/vec2';
 import { canCast } from '../sim/systems/abilities';
-import { predictPos } from './aiHelpers';
+import { predictPos, underEnemyTower } from './aiHelpers';
 import { findModifier } from '../sim/modifiers';
 
 /**
@@ -47,9 +47,55 @@ export class MicroAI {
         return this.comboPudge(world, me, target, skill);
       case 'sven':
         return this.comboSven(world, me, target);
+      case 'phantom_assassin':
+        return this.comboPA(world, me, target);
       default:
         return null;
     }
+  }
+
+  /**
+   * 幻影刺客连招：深渊之刃贴脸眩晕 -> BKB 免控 -> 窒碍短匕远程减速 -> 幻影突袭斩杀
+   */
+  private comboPA(world: World, me: Unit, target: Unit): Command | null {
+    const d = dist(me.pos, target.pos);
+    const bkbIdx = this.findItemIndex(me, 'black_king_bar');
+    const abyssalIdx = this.findItemIndex(me, 'abyssal_blade');
+    const hpPct = me.hp / me.stats.maxHp;
+    const targetHpPct = target.hp / target.stats.maxHp;
+    const towerDanger = underEnemyTower(world, me.team, target.pos);
+
+    // 1. 若拥有深渊之刃且贴身，先手击晕
+    if (abyssalIdx >= 0 && d <= 180) {
+      const it = me.inventory[abyssalIdx];
+      if (it && (it.cooldownRemaining ?? 0) <= 0) {
+        return { type: 'useItem', index: abyssalIdx, target: { unitId: target.id } };
+      }
+    }
+
+    // 2. 切入前若被多名敌人威胁，秒开 BKB 获得减益免疫
+    if (bkbIdx >= 0 && d <= 600 && hpPct <= 0.8) {
+      const it = me.inventory[bkbIdx];
+      if (it && (it.cooldownRemaining ?? 0) <= 0 && !me.hasState('debuffImmune')) {
+        return { type: 'useItem', index: bkbIdx };
+      }
+    }
+
+    // 3. 先施放 Q 窒碍短匕远程减速并压血线
+    const q = me.ability('Q');
+    if (q && q.level > 0 && canCast(world, me, q) && d <= 1100 && d > 300) {
+      return { type: 'cast', slot: 'Q', target: { unitId: target.id } };
+    }
+
+    // 4. 自身健康且目标残血（或自身有 BKB）时才突进斩杀，严禁盲目肉身越塔送命
+    const canBlink = targetHpPct <= 0.55 || me.hasState('debuffImmune');
+    const safeToBlink = hpPct >= 0.45 && (!towerDanger || targetHpPct <= 0.25);
+    const w = me.ability('W');
+    if (w && w.level > 0 && canCast(world, me, w) && d <= 1000 && d > 160 && safeToBlink && canBlink) {
+      return { type: 'cast', slot: 'W', target: { unitId: target.id } };
+    }
+
+    return null;
   }
 
   /**

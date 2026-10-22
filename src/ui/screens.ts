@@ -87,6 +87,7 @@ export function showPauseMenu(parent: HTMLElement, o: PauseOpts, onResume: () =>
         <div class="pause-side">
           ${toggle('autoLevel', '自动加点（技能和天赋）')}
           ${toggle('autoAttack', '站立自动攻击')}
+          ${toggle('sound', '战斗音效')}
           <div class="btn resume">继续</div>
           <div class="btn secondary quit">退出对局</div>
         </div>

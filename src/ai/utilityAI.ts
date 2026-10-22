@@ -2,6 +2,7 @@ import type { World } from '../sim/world';
 import type { Unit } from '../sim/entities/unit';
 import type { Command } from '../sim/commands';
 import type { AiSkill } from '../sim/heroes/types';
+import { enemyTeam } from '../sim/core/types';
 import type { TeamPlan } from './teamAI';
 import { alliesInRadius, canAttack, enemiesInRadius, expectedAttackDamage, nearestOf } from '../sim/query';
 import { dist, type Vec2 } from '../sim/core/vec2';
@@ -273,6 +274,10 @@ export class UtilityAI {
 
       if (!isLowHp && !isPriority) continue;
 
+      // 敌方泉水射程内严禁追击，防止送命
+      const oppFountain = layoutFor(enemyTeam(me.team)).fountain;
+      if (dist(enemy.pos, oppFountain) < 320) continue;
+
       const underTower = underEnemyTower(world, me.team, enemy.pos) || underEnemyTower(world, me.team, me.pos);
       if (underTower) {
         // 规则 4.2：敌方防御塔射程内禁止普攻敌方英雄，除非目标必定被 1 次攻击斩杀且自身血量安全
@@ -388,10 +393,12 @@ export class UtilityAI {
     const hpPct = me.hp / me.stats.maxHp;
     if (hpPct < 0.4) return { type: 'push_tower', score: 0, command: null };
 
-    const buildings = enemiesInRadius(world, me.team, me.pos, 900, { includeBuildings: true }).filter(
+    const buildings = enemiesInRadius(world, me.team, me.pos, 1100, { includeBuildings: true }).filter(
       (u) => u.kind === 'building' && canAttack(me, u),
     );
-    const targetBuilding = nearestOf(me.pos, buildings);
+    // 优先集火敌方遗迹以终结比赛
+    const ancient = buildings.find((b) => b.building?.type === 'ancient');
+    const targetBuilding = ancient ?? nearestOf(me.pos, buildings);
     if (!targetBuilding) return { type: 'push_tower', score: 0, command: null };
 
     // 如果是具有攻击力的防御塔，需要有己方小兵在塔下抗塔
@@ -408,15 +415,17 @@ export class UtilityAI {
       }
     }
 
+    const isAncient = targetBuilding.building?.type === 'ancient';
     const isPushMode = teamPlan?.mode === 'pushing';
-    const score = isPushMode ? 75 : 65;
+    // 攻打遗迹以 98 分顶格效用全力终结比赛
+    const score = isAncient ? 98 : isPushMode ? 75 : 65;
 
     return {
       type: 'push_tower',
       score,
       command: { type: 'attack', mode: 'building', targetId: targetBuilding.id },
       targetId: targetBuilding.id,
-      reason: 'pushing building with creeps tanking',
+      reason: isAncient ? 'destroy enemy ancient to win' : 'pushing building with creeps tanking',
     };
   }
 

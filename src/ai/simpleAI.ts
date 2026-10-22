@@ -138,6 +138,15 @@ export class SimpleAI {
       return out;
     }
 
+    // 若敌方遗迹已暴露且可被攻击，优先全力集火遗迹以终结比赛
+    const ancient = world.units.find(
+      (u) => u.kind === 'building' && u.building?.type === 'ancient' && u.team !== me.team && canAttack(me, u)
+    );
+    if (ancient && dist(me.pos, ancient.pos) < 1300 && hpPct > 0.3) {
+      out.push({ type: 'attack', mode: 'building', targetId: ancient.id });
+      return out;
+    }
+
     const heroTarget = this.pickHeroTarget(world, me, enemyHeroes, hpPct);
     if (heroTarget) {
       out.push({ type: 'attack', mode: 'smart', targetId: heroTarget.id });
@@ -234,7 +243,9 @@ export class SimpleAI {
   }
 
   private pickHeroTarget(world: World, me: Unit, enemies: Unit[], hpPct: number): Unit | null {
-    const cands = enemies.filter((e) => edgeDist(me, e) < 700);
+    const oppFountain = layoutFor(enemyTeam(me.team)).fountain;
+    const maxRange = me.isMelee ? (hpPct > 0.6 ? 400 : 250) : 700;
+    const cands = enemies.filter((e) => edgeDist(me, e) < maxRange && dist(e.pos, oppFountain) >= 320);
     if (!cands.length) return null;
     const scored = cands
       .map((e) => ({ e, pct: e.hp / e.stats.maxHp }))

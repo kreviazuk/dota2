@@ -188,6 +188,22 @@ describe('MicroAI', () => {
       const cmdHammer = micro.tryCombo(w, sven, target, DIFFICULTY.hard.skill);
       expect(cmdHammer).toEqual({ type: 'cast', slot: 'Q', target: { unitId: target.id } });
     });
+
+    it('executes Phantom Assassin combo sequence (Q stifling dagger -> W blink strike)', () => {
+      const w = makeWorld();
+      const pa = heroAt(w, 'phantom_assassin', { x: 1200, y: 5000 }, { team: Team.Radiant, levels: ALL });
+      const target = heroAt(w, 'lina', { x: 1600, y: 5000 }, { team: Team.Dire, levels: ALL });
+      target.hp = target.stats.maxHp * 0.5;
+
+      // Step 1: Stifling Dagger (slot Q) at range 400
+      const cmdDagger = micro.tryCombo(w, pa, target, DIFFICULTY.hard.skill);
+      expect(cmdDagger).toEqual({ type: 'cast', slot: 'Q', target: { unitId: target.id } });
+
+      // After Q is on cooldown, executes Phantom Strike (slot W)
+      pa.ability('Q')!.cooldown = 6;
+      const cmdBlink = micro.tryCombo(w, pa, target, DIFFICULTY.hard.skill);
+      expect(cmdBlink).toEqual({ type: 'cast', slot: 'W', target: { unitId: target.id } });
+    });
   });
 
   describe('Difficulty Calibration', () => {
