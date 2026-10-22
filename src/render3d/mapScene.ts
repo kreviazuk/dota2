@@ -10,9 +10,9 @@ import { GeoBuilder } from './geo';
 import { makeGlow, makeLambert, PAL } from './materials';
 
 /** 地面纹理覆盖的世界范围（之外按边缘颜色延伸，是远处的树林） */
-const TX0 = -700, TX1 = 3700, TZ0 = -1300, TZ1 = 11300;
+const TX0 = -700, TX1 = 10700, TZ0 = -1300, TZ1 = 11300;
 /** 地面网格的总范围 */
-const GX0 = -2600, GX1 = 5600, GZ0 = -3200, GZ1 = 13200;
+const GX0 = -2600, GX1 = 12600, GZ0 = -3200, GZ1 = 13200;
 
 /** 远离道路时地形缓慢抬升，镜头上方两角看到的是山坡上的树林而不是平地 */
 export function terrainHeight(x: number, y: number): number {

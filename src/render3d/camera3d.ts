@@ -17,8 +17,8 @@ export const CAM3D = {
   span: VIEW_WORLD_HEIGHT,
   /** 镜头中心比英雄往敌方基地方向偏多少（2D 是 20% 屏高 = 280） */
   lookAhead: 230,
-  /** 镜头中心 x 最多偏离道路中线多少 */
-  xRange: 320,
+  /** 镜头中心 x 最多偏离道路中线多少（支持全地图三路移动） */
+  xRange: 7500,
   near: 60,
   far: 9000,
 };
@@ -111,7 +111,7 @@ export class Camera3D implements ViewCamera {
     const k = snap ? 1 : 1 - Math.exp(-dt * rate);
     this.x += (target.x - this.x) * k;
     this.y += (target.y + look - this.y) * k;
-    this.x = clamp(this.x, MAP.laneX - CAM3D.xRange, MAP.laneX + CAM3D.xRange);
+    this.x = clamp(this.x, Math.max(450, MAP.laneX - CAM3D.xRange), Math.min(MAP.width - 450, MAP.laneX + CAM3D.xRange));
     this.y = clamp(this.y, 450, MAP.height - 420);
     if (this.shakeT > 0) {
       this.shakeT -= dt;

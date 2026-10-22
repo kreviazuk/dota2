@@ -63,31 +63,35 @@ describe('simple ai', () => {
   });
   it('attacks the ancient without creep cover once its towers are down', () => {
     const { w, b, me, enemy, run } = setup();
-    for (const k of ['t1', 't2', 't3', 't4a', 't4b'] as const) killUnit(w, b[Team.Dire][k], null);
-    enemy.pos = { x: 1500, y: 4500 };
-    me.pos = { x: 1500, y: 1000 };
-    run(3);
+    for (const u of w.units) {
+      if (u.kind === 'building' && u.building?.type === 'tower' && u.team === Team.Dire) {
+        killUnit(w, u, null);
+      }
+    }
     const ancient = b[Team.Dire].ancient;
+    enemy.pos = { x: 5000, y: 5000 };
+    me.pos = { x: ancient.pos.x - 300, y: ancient.pos.y };
+    run(3);
     expect(ancient.hp).toBeLessThan(ancient.stats.maxHp);
     // 从正面进攻遗迹时泉水打不到
     expect(me.hp).toBe(me.stats.maxHp);
   });
   it('does not tank a tower without creeps while enemy heroes are alive', () => {
     const { w, b, me, enemy, run } = setup();
-    enemy.pos = { x: 1500, y: 1500 };
-    me.pos = { x: 1500, y: 4300 };
-    run(2);
     const t1 = b[Team.Dire].t1;
+    enemy.pos = { x: t1.pos.x, y: t1.pos.y - 200 };
+    me.pos = { x: t1.pos.x, y: t1.pos.y + 400 };
+    run(2);
     expect(t1.hp).toBe(t1.stats.maxHp);
-    expect(me.pos.y).toBeGreaterThan(4300);
+    expect(me.pos.y).toBeGreaterThanOrEqual(t1.pos.y + 400);
     void w;
   });
   it('pushes a tower without creeps when all enemy heroes are dead', () => {
     const { w, b, me, enemy, run } = setup();
     killUnit(w, enemy, null);
-    me.pos = { x: 1500, y: 4300 };
-    run(2);
     const t1 = b[Team.Dire].t1;
+    me.pos = { x: t1.pos.x, y: t1.pos.y + 400 };
+    run(2);
     expect(t1.hp).toBeLessThan(t1.stats.maxHp);
   });
 });

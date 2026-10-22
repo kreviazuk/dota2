@@ -1,14 +1,13 @@
 import type { World } from '../sim/world';
 import type { Unit } from '../sim/entities/unit';
 import { enemyTeam, type AbilitySlot, type Team } from '../sim/core/types';
-import type { Vec2 } from '../sim/core/vec2';
-import { dist } from '../sim/core/vec2';
+import { add, dist, normalize, scale, sub, type Vec2 } from '../sim/core/vec2';
 import type { AbilityInstance, AiSkill } from '../sim/heroes/types';
 import type { Command } from '../sim/commands';
 import { isCommandLocked } from '../sim/commands';
 import { canCast } from '../sim/systems/abilities';
 import { alliesInRadius, canAttack, edgeDist, enemiesInRadius, expectedAttackDamage, nearestOf } from '../sim/query';
-import { forwardY, layoutFor } from '../sim/data/map';
+import { forwardY, type Lane, layoutFor } from '../sim/data/map';
 import { getNextQuickBuyItem, nextSkillToLearn, TALENT_BUILDS } from './builds';
 import { decideItemUsage } from './itemUsage';
 import { enemyTowers, underEnemyTower } from './aiHelpers';
@@ -35,7 +34,12 @@ export class SimpleAI {
   readonly micro = new MicroAI();
 
   /** rules 缺省为全部英雄的规则表（测试可以换成假规则） */
-  constructor(readonly unitId: number, readonly skill: AiSkill, private readonly rules: HeroAiRules = AI_RULES) {}
+  constructor(
+    readonly unitId: number,
+    readonly skill: AiSkill,
+    private readonly rules: HeroAiRules = AI_RULES,
+    public lane: Lane = 'mid',
+  ) {}
 
   update(world: World): void {
     if (world.time < this.nextThink) return;
@@ -134,7 +138,13 @@ export class SimpleAI {
     const push = hpPct > 0.5 && this.hasPushAdvantage(world, me.team);
     const towerOnMe = this.enemyTowerTargeting(world, me);
     if (towerOnMe && (!push || towerOnMe.building?.type === 'fountain')) {
-      out.push({ type: 'moveTo', point: { x: me.pos.x, y: me.pos.y - fy * 500 } });
+      const d = dist(me.pos, towerOnMe.pos);
+      if (d > 1e-4) {
+        const retreatDir = normalize(sub(me.pos, towerOnMe.pos));
+        out.push({ type: 'moveTo', point: add(me.pos, scale(retreatDir, 500)) });
+      } else {
+        out.push({ type: 'moveTo', point: { x: me.pos.x, y: me.pos.y - fy * 500 } });
+      }
       return out;
     }
 
@@ -173,7 +183,11 @@ export class SimpleAI {
     }
 
     const ownCreeps = world.units.filter((u) => u.team === me.team && u.creep && u.alive);
-    const front = ownCreeps.length ? ownCreeps.reduce((a, b) => (b.pos.y * fy > a.pos.y * fy ? b : a)) : null;
+    const laneCreeps = ownCreeps.filter((u) => u.creep?.lane === this.lane);
+    const candidateCreeps = laneCreeps.length ? laneCreeps : ownCreeps;
+    const front = candidateCreeps.length
+      ? candidateCreeps.reduce((a, b) => (dist(b.pos, L.fountain) > dist(a.pos, L.fountain) ? b : a))
+      : null;
 
     const building = push ? this.nearestEnemyBuilding(world, me) : this.pickBuilding(world, me, ownCreeps);
     if (building) {
@@ -189,9 +203,10 @@ export class SimpleAI {
       return out;
     }
 
+    const frontTower = this.laneFrontTower(world, me);
     const anchor: Vec2 = front
       ? { x: front.pos.x, y: front.pos.y - fy * 150 }
-      : { x: L.t1.x, y: this.frontTowerY(world, me) + fy * 250 };
+      : (frontTower ? { x: frontTower.pos.x, y: frontTower.pos.y + fy * 250 } : L.ancient);
     if (dist(me.pos, anchor) > 120) out.push({ type: 'moveTo', point: anchor });
     return out;
   }
@@ -294,10 +309,18 @@ export class SimpleAI {
     return tanking ? t : null;
   }
 
-  private frontTowerY(world: World, me: Unit): number {
-    const fy = forwardY(me.team);
+  private laneFrontTower(world: World, me: Unit): Unit | null {
+    const L = layoutFor(me.team);
     const own = world.units.filter((u) => u.kind === 'building' && u.team === me.team && u.alive && u.building?.type === 'tower');
-    if (!own.length) return layoutFor(me.team).ancient.y;
-    return own.reduce((a, b) => (b.pos.y * fy > a.pos.y * fy ? b : a)).pos.y;
+    if (!own.length) return null;
+    const laneTowers = own.filter((t) => {
+      const k = t.building?.key ?? '';
+      if (this.lane === 'top') return k.startsWith('top') || k === 't3' || k === 't2' || k === 't1';
+      if (this.lane === 'bot') return k.startsWith('bot') || k === 't3' || k === 't2' || k === 't1';
+      return k.startsWith('mid') || k === 't3' || k === 't2' || k === 't1';
+    });
+    const cands = laneTowers.length ? laneTowers : own;
+    cands.sort((a, b) => dist(b.pos, L.fountain) - dist(a.pos, L.fountain));
+    return cands[0];
   }
 }

@@ -13,6 +13,7 @@ import { SKILL_BUILDS, TALENT_BUILDS } from '../../src/ai/builds';
 import { DIFFICULTY } from '../../src/ai/difficulty';
 import { towardHome } from '../../src/ai/aiHelpers';
 import { dist } from '../../src/sim/core/vec2';
+import { MAP } from '../../src/sim/data/map';
 import { Team, type AbilitySlot } from '../../src/sim/core/types';
 import type { World } from '../../src/sim/world';
 import type { Unit } from '../../src/sim/entities/unit';
@@ -223,10 +224,10 @@ describe('Zeus', () => {
     expect(w2.events.drain().some((e) => e.type === 'cast')).toBe(false);
     // 终点限制在可行走区域内
     const w3 = makeWorld();
-    const z3 = heroAt(w3, Z, { x: 1800, y: 5000 }, { levels: { E: 4 } });
+    const z3 = heroAt(w3, Z, { x: MAP.maxX - 100, y: 5000 }, { levels: { E: 4 } });
     w3.issue(z3.id, { type: 'cast', slot: 'E', target: { dir: { x: 1, y: 0 } } });
     runFor(w3, 0.6);
-    expect(z3.pos.x).toBeLessThanOrEqual(2000 - z3.radius + 1e-6);
+    expect(z3.pos.x).toBeLessThanOrEqual(MAP.maxX - z3.radius + 1e-6);
   });
 
   it("Thundergod's Wrath hits every living enemy hero on the map, including hidden ones, not invulnerable ones", () => {

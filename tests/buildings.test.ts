@@ -11,9 +11,9 @@ const asCreep = (u: Unit, type: 'melee' | 'siege' = 'melee') => {
 };
 
 describe('buildings', () => {
-  it('creates 7 buildings per team with an invulnerability chain', () => {
+  it('creates 13 buildings per team with an invulnerability chain', () => {
     const w = makeWorld(); const b = createBuildings(w); w.step();
-    expect(w.units.filter((u) => u.kind === 'building')).toHaveLength(14);
+    expect(w.units.filter((u) => u.kind === 'building')).toHaveLength(26);
     const r = b[Team.Radiant];
     expect(r.t1.hasState('invulnerable')).toBe(false);
     expect(r.t2.hasState('invulnerable')).toBe(true);

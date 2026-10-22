@@ -511,12 +511,61 @@ export class Hud {
     const sx = W / MAP.width, sy = H / MAP.height;
     const k = W / MINIMAP_REF_W;
     g.clearRect(0, 0, W, H);
-    g.fillStyle = '#1b2a1c';
+    // 地图底色（深森林绿）
+    g.fillStyle = '#142015';
     g.fillRect(0, 0, W, H);
-    g.fillStyle = '#6b5a3e';
-    g.fillRect((MAP.laneX - MAP.laneHalfWidth) * sx, 0, MAP.laneHalfWidth * 2 * sx, H);
-    g.fillStyle = '#2a6f86';
-    g.fillRect(0, (MAP.riverY - MAP.riverHalf) * sy, W, MAP.riverHalf * 2 * sy);
+
+    // 天辉基地区域底色（左下角）
+    g.fillStyle = '#1b321e';
+    g.beginPath();
+    g.moveTo(0, H);
+    g.lineTo(0, 7500 * sy);
+    g.lineTo(2500 * sx, H);
+    g.closePath();
+    g.fill();
+
+    // 夜魇基地区域底色（右上角）
+    g.fillStyle = '#321c18';
+    g.beginPath();
+    g.moveTo(W, 0);
+    g.lineTo(W, 2500 * sy);
+    g.lineTo(7500 * sx, 0);
+    g.closePath();
+    g.fill();
+
+    // 河道（中部横贯水系）
+    g.strokeStyle = '#25637a';
+    g.lineWidth = 12 * k;
+    g.beginPath();
+    g.moveTo(0, 5000 * sy);
+    g.lineTo(W, 5000 * sy);
+    g.stroke();
+
+    // 三路兵线道路
+    g.strokeStyle = '#5a4a34';
+    g.lineWidth = 7 * k;
+    g.lineCap = 'round';
+    g.lineJoin = 'round';
+
+    // 上路（沿左侧直上然后右折）
+    g.beginPath();
+    g.moveTo(1500 * sx, 8500 * sy);
+    g.lineTo(1500 * sx, 1500 * sy);
+    g.lineTo(8500 * sx, 1500 * sy);
+    g.stroke();
+
+    // 中路（对角线直通）
+    g.beginPath();
+    g.moveTo(1500 * sx, 8500 * sy);
+    g.lineTo(8500 * sx, 1500 * sy);
+    g.stroke();
+
+    // 下路（沿下方右行然后直上）
+    g.beginPath();
+    g.moveTo(1500 * sx, 8500 * sy);
+    g.lineTo(8500 * sx, 8500 * sy);
+    g.lineTo(8500 * sx, 1500 * sy);
+    g.stroke();
     const w = this.match.world;
     const viewer = w.getUnit(this.match.playerUnitId)?.team ?? Team.Radiant;
     for (const u of w.units) {

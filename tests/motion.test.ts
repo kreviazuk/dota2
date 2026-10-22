@@ -41,10 +41,10 @@ describe('forced motion', () => {
     expect(u.pos.y).toBeCloseTo(5300, 0);
     expect(isDisabled(u)).toBe(false);
 
-    // 撞到车道边缘：停在可行走区域内
-    knockback(w, u, null, { x: -1, y: 0 }, 2000, 0.5);
+    // 撞到地图边缘：停在可行走区域内
+    knockback(w, u, null, { x: -1, y: 0 }, 5000, 0.5);
     runFor(w, 0.6);
-    expect(u.pos.x).toBeCloseTo(MAP.laneX - MAP.laneHalfWidth + u.radius);
+    expect(u.pos.x).toBeCloseTo(MAP.minX + u.radius);
 
     // 引导被打断
     let ended: boolean | null = null;
@@ -105,8 +105,8 @@ describe('forced motion', () => {
     const w = makeWorld();
     const u = spawnDummy(w, { pos: { x: 1500, y: 5000 } });
     w.events.drain();
-    blinkTo(w, u, { x: 2500, y: 4600 });
-    expect(u.pos.x).toBeCloseTo(MAP.laneX + MAP.laneHalfWidth - u.radius);
+    blinkTo(w, u, { x: 12000, y: 4600 });
+    expect(u.pos.x).toBeCloseTo(MAP.maxX - u.radius);
     expect(u.pos.y).toBeCloseTo(4600);
     expect(u.prevPos).toEqual(u.pos);
     const fx = w.events.drain().filter((e) => e.type === 'fx' && e.kind === 'blink');

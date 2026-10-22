@@ -8,13 +8,13 @@ const creepWorld = () => new World({ seed: 3, recordEvents: true, spawnCreeps: t
 const creeps = (w: World, team?: Team) => w.units.filter((u) => u.kind === 'creep' && (team === undefined || u.team === team));
 
 describe('creep waves', () => {
-  it('first wave spawns at 0:10 with 3 melee + 2 ranged per team', () => {
+  it('first wave spawns at 0:10 with 3 melee + 2 ranged per lane across 3 lanes', () => {
     const w = creepWorld();
     runFor(w, 9.9); expect(creeps(w)).toHaveLength(0);
     runFor(w, 0.2);
-    expect(creeps(w, Team.Radiant)).toHaveLength(5);
-    expect(creeps(w, Team.Dire)).toHaveLength(5);
-    expect(creeps(w, Team.Radiant).filter((c) => c.creep!.type === 'ranged')).toHaveLength(2);
+    expect(creeps(w, Team.Radiant)).toHaveLength(15);
+    expect(creeps(w, Team.Dire)).toHaveLength(15);
+    expect(creeps(w, Team.Radiant).filter((c) => c.creep!.type === 'ranged')).toHaveLength(6);
   });
   it('composition grows over time and switches to super creeps', () => {
     const w = creepWorld();

@@ -190,7 +190,7 @@ describe('UtilityAI', () => {
     it('stops and recovers when at fountain', () => {
       const w = makeWorld();
       const me = createHero(w, 'testhero', Team.Radiant, false);
-      place(me, 1500, 9750); // at radiant fountain
+      place(me, 900, 9100); // at radiant fountain
       me.hp = me.stats.maxHp * 0.4;
 
       const evalResult = utility.evaluate(w, me, skill);

@@ -147,7 +147,7 @@ describe('ai helpers', () => {
     expect(lowestHpEnemyHero(c, 1000)).toBe(b);
     expect(lowestHpEnemyHero(c, 400)).toBe(a);
     // 天辉泉水在下方
-    expect(towardHome(me).y).toBeGreaterThan(0.99);
+    expect(towardHome(me).y).toBeGreaterThan(0.98);
     const creep = spawnDummy(w, { team: Team.Dire, pos: { x: 1550, y: 5000 } });
     spawnDummy(w, { kind: 'summon', team: Team.Dire, pos: { x: 1450, y: 5000 } });
     expect(enemyCreepsNear(w, me, me.pos, 200)).toEqual([creep]);

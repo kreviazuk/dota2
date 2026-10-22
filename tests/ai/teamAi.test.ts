@@ -31,7 +31,7 @@ describe('TeamAI strategic evaluation', () => {
 
     expect(plan.mode).toBe('defending');
     // Rally point should be the threatened T1 tower
-    expect(plan.rallyPoint.y).toBe(6100);
+    expect(plan.rallyPoint.y).toBe(5800);
   });
 
   it('switches to pushing when enemy team is down in numbers', () => {

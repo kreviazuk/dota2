@@ -140,8 +140,8 @@ function startGame(difficulty: Difficulty, heroId: string, lineup: { radiant?: s
   uiRoot.innerHTML = '';
   const seed = newSeed();
   const d = draftTeams(new Rng(seed), availableHeroes(), heroId);
-  const radiant = lineup.radiant ? [heroId, ...lineup.radiant, ...d.radiant.slice(1)].slice(0, 3) : d.radiant;
-  const dire = lineup.dire ? [...lineup.dire, ...d.dire].slice(0, 3) : d.dire;
+  const radiant = lineup.radiant ? [heroId, ...lineup.radiant, ...d.radiant.slice(1)].slice(0, 5) : d.radiant;
+  const dire = lineup.dire ? [...lineup.dire, ...d.dire].slice(0, 5) : d.dire;
   const match = new Match({ seed, radiantHeroes: radiant, direHeroes: dire, playerSlot: 0, difficulty, recordEvents: true });
   const me = match.world.getUnit(match.playerUnitId);
   if (me) me.autoAttack = prefs.autoAttack;

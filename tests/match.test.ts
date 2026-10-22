@@ -10,9 +10,9 @@ const snapshot = (m: Match) =>
   JSON.stringify(m.world.units.map((u) => [u.id, Math.round(u.pos.x * 100), Math.round(u.pos.y * 100), Math.round(u.hp * 100)]));
 
 describe('match', () => {
-  it('sets up 14 buildings and 6 heroes', () => {
+  it('sets up 26 buildings and 6 heroes', () => {
     const m = new Match(cfg(1));
-    expect(m.world.units.filter((u) => u.kind === 'building')).toHaveLength(14);
+    expect(m.world.units.filter((u) => u.kind === 'building')).toHaveLength(26);
     expect(m.world.heroes(Team.Radiant)).toHaveLength(3);
     expect(m.world.heroes(Team.Dire)).toHaveLength(3);
     expect(m.ais).toHaveLength(6);

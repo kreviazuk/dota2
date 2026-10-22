@@ -2,10 +2,10 @@ import type { World } from '../world';
 import { Unit, type EliteType, type UnitBase } from './unit';
 import { Team } from '../core/types';
 import type { Vec2 } from '../core/vec2';
-import { normalize, sub } from '../core/vec2';
+import { add, dist, normalize, scale, sub } from '../core/vec2';
 
 export type { EliteType } from './unit';
-import { forwardY, MAP } from '../data/map';
+import { forwardY, LANE_WAYPOINTS, MAP } from '../data/map';
 import { canAttack, edgeDist, enemiesInRadius, nearestOf } from '../query';
 import { addModifier, type ModifierDef } from '../modifiers';
 import { prdRoll } from '../prd';
@@ -419,8 +419,26 @@ export function updateEliteAI(world: World, dt: number): void {
     }
 
     // 沿兵线前推
+    if (e.lane && LANE_WAYPOINTS[u.team]?.[e.lane]) {
+      const waypoints = LANE_WAYPOINTS[u.team][e.lane];
+      e.waypointIndex = e.waypointIndex ?? 0;
+      const targetWp = waypoints[e.waypointIndex];
+      if (targetWp) {
+        if (dist(u.pos, targetWp) < 300 && e.waypointIndex < waypoints.length - 1) {
+          e.waypointIndex++;
+        }
+        const nextWp = waypoints[e.waypointIndex];
+        const d = dist(u.pos, nextWp);
+        if (d > 1e-4) {
+          const dir = normalize(sub(nextWp, u.pos));
+          const perp = { x: -dir.y, y: dir.x };
+          u.order = { kind: 'moveTo', point: add(nextWp, scale(perp, e.laneOffset)) };
+          continue;
+        }
+      }
+    }
     const fy = forwardY(u.team);
     const goalY = Math.max(MAP.minY + 50, Math.min(MAP.maxY - 50, u.pos.y + fy * 400));
-    u.order = { kind: 'moveTo', point: { x: MAP.laneX + e.laneOffset, y: goalY } };
+    u.order = { kind: 'moveTo', point: { x: (u.pos.x || MAP.laneX) + e.laneOffset, y: goalY } };
   }
 }

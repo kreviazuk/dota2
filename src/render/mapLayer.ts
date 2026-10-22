@@ -1,5 +1,6 @@
-import { MAP, walkableHalfWidthAt } from '../sim/data/map';
+import { MAP } from '../sim/data/map';
 import { Rng } from '../sim/core/rng';
+import { groundHeight } from '../render3d/coords';
 
 interface Tree { x: number; y: number; r: number; v: number; dire: boolean }
 interface Deco { x: number; y: number; r: number; kind: number }
@@ -100,9 +101,13 @@ export class LruCache<K, V> {
     return this.map.has(key);
   }
 
-  set(key: K, v: V): void {
-    this.map.delete(key);
-    this.map.set(key, v);
+  set(key: K, val: V): void {
+    if (this.map.has(key)) this.map.delete(key);
+    this.map.set(key, val);
+  }
+
+  delete(key: K): boolean {
+    return this.map.delete(key);
   }
 
   /** 淘汰最久未使用的条目直到不超过 max，返回被淘汰的值 */
@@ -121,22 +126,36 @@ export class LruCache<K, V> {
     this.map.clear();
     return out;
   }
+
+  keys(): IterableIterator<K> {
+    return this.map.keys();
+  }
+
+  /**
+   * 当缓存项超过 maxCount 时，淘汰最久未访问的条目（即 map 的最前项）。
+   * onEvict 回调被淘汰的值（例如放入对象池复用）。
+   */
+  evictOldest(maxCount: number, onEvict?: (val: V, key: K) => void): void {
+    while (this.map.size > maxCount) {
+      const it = this.map.entries().next();
+      if (it.done) break;
+      const [k, v] = it.value;
+      this.map.delete(k);
+      onEvict?.(v, k);
+    }
+  }
 }
 
-const tileKey = (ix: number, iy: number): number => ix * 65536 + iy;
-
-/**
- * 地图层。地面、道路、树林、装饰和河道底色都是静态的：按 MAP_TILE 切成图块，第一次用到时按当前分辨率
- * 预渲染到离屏 Canvas 并缓存（设计文档 §10.4），每帧只需要把可见图块按设备像素对齐贴上去，
- * 再画会动的河面波纹。手机上每帧的绘制调用从几百次（每棵树一次）降到几十次，填充像素量也从约 5 倍屏幕降到 1 倍多。
- */
 export class MapLayer {
-  private trees: Tree[] = [];
-  private decos: Deco[] = [];
-  private sprites: HTMLCanvasElement[][] = [[], []];
   private pat: { forest: CanvasPattern; lane: CanvasPattern; baseR: CanvasPattern; baseD: CanvasPattern } | null = null;
-  private readonly tiles = new LruCache<number, HTMLCanvasElement>();
-  private pool: HTMLCanvasElement[] = [];
+  private readonly trees: Tree[] = [];
+  private readonly decos: Deco[] = [];
+  private readonly sprites: [HTMLCanvasElement[], HTMLCanvasElement[]] = [[], []];
+
+  /** 已渲染图块的缓存：key 为 `${ix},${iy}` */
+  private readonly tiles = new LruCache<string, HTMLCanvasElement>();
+  /** 淘汰后放进空闲池的离屏画布，避免反复 document.createElement */
+  private readonly freeCanvases: HTMLCanvasElement[] = [];
   /** 缓存图块对应的分辨率（设备像素 / 世界单位）；窗口尺寸或 DPR 变化后整体失效 */
   private tileK = 0;
 
@@ -146,26 +165,28 @@ export class MapLayer {
       this.sprites[0].push(treeSprite(100 + i, false));
       this.sprites[1].push(treeSprite(200 + i, true));
     }
-    for (let y = 0; y <= MAP.height; y += 75) {
-      if (Math.abs(y - MAP.riverY) < MAP.riverHalf + 60) continue;
-      const hw = walkableHalfWidthAt(y) + 45;
-      for (const side of [-1, 1]) {
-        const inner = MAP.laneX + side * hw;
-        const outer = side < 0 ? -150 : MAP.width + 150;
-        const n = Math.ceil(Math.abs(outer - inner) / 85);
-        for (let k = 0; k < n; k++) {
+    // 在全地图丛林/高地区域合理生成树木
+    for (let y = 100; y <= MAP.height - 100; y += 180) {
+      for (let x = 100; x <= MAP.width - 100; x += 180) {
+        if (Math.abs(y - MAP.riverY) < MAP.riverHalf + 60) continue;
+        if (groundHeight(x, y) > 4) {
           this.trees.push({
-            x: inner + side * (k * 85 + r.range(0, 40)), y: y + r.range(-30, 30), r: r.range(42, 66), v: r.int(0, 5),
+            x: x + r.range(-40, 40),
+            y: y + r.range(-40, 40),
+            r: r.range(42, 66),
+            v: r.int(0, 5),
             dire: y + r.range(-500, 500) < MAP.height / 2,
           });
         }
       }
     }
     this.trees.sort((a, b) => a.y - b.y);
-    for (let i = 0; i < 500; i++) {
-      const y = r.range(0, MAP.height);
-      const side = r.chance(0.5) ? -1 : 1;
-      this.decos.push({ x: MAP.laneX + side * (walkableHalfWidthAt(y) - r.range(0, 80)), y, r: r.range(6, 20), kind: r.int(0, 2) });
+    for (let i = 0; i < 600; i++) {
+      const x = r.range(MAP.minX, MAP.maxX);
+      const y = r.range(MAP.minY, MAP.maxY);
+      if (groundHeight(x, y) <= 4) {
+        this.decos.push({ x, y, r: r.range(6, 20), kind: r.int(0, 2) });
+      }
     }
   }
 
@@ -182,80 +203,77 @@ export class MapLayer {
   }
 
   draw(ctx: CanvasRenderingContext2D, time: number): void {
-    // 读 camera.apply 设置的变换：k = 设备像素 / 世界单位，(tx, ty) = 世界原点的设备像素坐标（含镜头震动）
-    const m = ctx.getTransform();
-    const k = m.a;
-    const tx = m.e;
-    const ty = m.f;
-    if (k !== this.tileK) {
-      this.release(this.tiles.clear());
+    const transform = ctx.getTransform();
+    const k = transform.a;
+    const tx = transform.e;
+    const ty = transform.f;
+    const canvas = ctx.canvas;
+    const viewW = canvas.width;
+    const viewH = canvas.height;
+
+    if (Math.abs(this.tileK - k) > 1e-4) {
+      this.tiles.clear();
       this.tileK = k;
     }
-    const W = ctx.canvas.width;
-    const H = ctx.canvas.height;
-    const vis = visibleTiles(k, tx, ty, W, H);
+
+    const { ix0, ix1, iy0, iy1 } = visibleTiles(k, tx, ty, viewW, viewH);
     ctx.save();
     ctx.setTransform(1, 0, 0, 1, 0, 0);
-    for (let iy = vis.iy0; iy <= vis.iy1; iy++) {
-      for (let ix = vis.ix0; ix <= vis.ix1; ix++) {
-        const tile = this.tile(ix, iy, k);
+
+    for (let iy = iy0; iy <= iy1; iy++) {
+      for (let ix = ix0; ix <= ix1; ix++) {
+        const tile = this.getTile(ix, iy, k);
         const r = tileRect(ix, iy, k, tx, ty);
-        ctx.drawImage(tile, 0, 0, r.w, r.h, r.x, r.y, r.w, r.h);
+        ctx.drawImage(tile, 0, 0, tile.width, tile.height, r.x, r.y, r.w, r.h);
       }
     }
     ctx.restore();
-    // 预取：可见范围外一圈里还没缓存的图块，每帧最多补一个，避免镜头移动到新的一行时一帧里生成一整行
-    prefetch: for (let iy = vis.iy0 - 1; iy <= vis.iy1 + 1; iy++) {
-      for (let ix = vis.ix0 - 1; ix <= vis.ix1 + 1; ix++) {
-        if (!this.tiles.has(tileKey(ix, iy))) {
-          this.tile(ix, iy, k);
-          break prefetch;
-        }
-      }
-    }
-    // 缓存上限 = 可见范围加外圈一层（预取的范围）再留一点余量
-    this.release(this.tiles.trim((vis.ix1 - vis.ix0 + 3) * (vis.iy1 - vis.iy0 + 3) + 4));
 
-    // 河面波纹（唯一会动的部分）
-    const x0 = -tx / k - 40;
-    const x1 = (W - tx) / k + 40;
-    const y0 = -ty / k;
-    const y1 = (H - ty) / k;
+    this.tiles.evictOldest(64, (c) => {
+      if (this.freeCanvases.length < TILE_POOL) this.freeCanvases.push(c);
+    });
+
+    // 动态河水波纹：只在视野内的河道矩形里画几道高光正弦波
     const ry0 = MAP.riverY - MAP.riverHalf;
-    if (ry0 + MAP.riverHalf * 2 > y0 && ry0 < y1) {
-      ctx.strokeStyle = 'rgba(190,240,255,0.25)';
-      ctx.lineWidth = 4;
-      for (let i = 0; i < 6; i++) {
-        const yy = ry0 + 30 + i * 45;
+    const ry1 = MAP.riverY + MAP.riverHalf;
+    const x0 = -tx / k;
+    const x1 = (viewW - tx) / k;
+    const y0 = -ty / k;
+    const y1 = (viewH - ty) / k;
+    if (ry1 > y0 && ry0 < y1) {
+      ctx.save();
+      ctx.fillStyle = 'rgba(180,225,245,0.14)';
+      for (let i = 0; i < 4; i++) {
+        const cy = MAP.riverY + (i - 1.5) * 80 + Math.sin(time * 1.5 + i) * 16;
+        if (cy < y0 - 30 || cy > y1 + 30) continue;
         ctx.beginPath();
-        for (let x = x0; x <= x1; x += 40) {
-          const yv = yy + Math.sin(x * 0.012 + time * 1.6 + i) * 8;
-          if (x === x0) ctx.moveTo(x, yv);
-          else ctx.lineTo(x, yv);
+        ctx.moveTo(x0 - 50, cy);
+        for (let x = x0 - 50; x <= x1 + 50; x += 80) {
+          ctx.lineTo(x, cy + Math.sin(x * 0.008 + time * 2.2 + i * 1.3) * 12);
         }
-        ctx.stroke();
+        ctx.lineTo(x1 + 50, cy + 22);
+        ctx.lineTo(x0 - 50, cy + 22);
+        ctx.closePath();
+        ctx.fill();
       }
+      ctx.restore();
     }
   }
 
-  private release(canvases: HTMLCanvasElement[]): void {
-    for (const c of canvases) {
-      if (this.pool.length < TILE_POOL && c.width === Math.ceil(MAP_TILE * this.tileK) + 2) this.pool.push(c);
-      else c.width = c.height = 0; // 立即释放显存（Safari 不会及时回收）
-    }
-  }
+  private getTile(ix: number, iy: number, k: number): HTMLCanvasElement {
+    const key = `${ix},${iy}`;
+    const cached = this.tiles.get(key);
+    if (cached) return cached;
 
-  private tile(ix: number, iy: number, k: number): HTMLCanvasElement {
-    const key = tileKey(ix, iy);
-    const hit = this.tiles.get(key);
-    if (hit) return hit;
-    // 多留 2 像素：tileRect 取整后的宽高最多比 MAP_TILE*k 大 1
-    const px = Math.ceil(MAP_TILE * k) + 2;
-    const c = this.pool.pop() ?? document.createElement('canvas');
-    if (c.width !== px) c.width = px;
-    if (c.height !== px) c.height = px;
-    const g = c.getContext('2d', { alpha: false })!;
+    const px = Math.ceil(MAP_TILE * k);
+    const c = this.freeCanvases.pop() ?? document.createElement('canvas');
+    if (c.width !== px || c.height !== px) {
+      c.width = px;
+      c.height = px;
+    }
+    const g = c.getContext('2d')!;
     g.setTransform(k, 0, 0, k, -ix * MAP_TILE * k, -iy * MAP_TILE * k);
+
     const x0 = ix * MAP_TILE;
     const y0 = iy * MAP_TILE;
     this.drawStatic(g, x0, y0, x0 + px / k, y0 + px / k);
@@ -263,32 +281,54 @@ export class MapLayer {
     return c;
   }
 
-  /** 画世界矩形 [x0,x1)×[y0,y1) 内的静态地面（顺序与原先逐帧绘制时相同） */
+  /** 画世界矩形 [x0,x1)×[y0,y1) 内的静态地面 */
   private drawStatic(ctx: CanvasRenderingContext2D, x0: number, y0: number, x1: number, y1: number): void {
     const p = this.patterns(ctx);
     ctx.fillStyle = p.forest;
     ctx.fillRect(x0, y0, x1 - x0, y1 - y0);
 
-    const band = (ya: number, yb: number, hw: number, fill: string | CanvasPattern) => {
-      const a = Math.max(ya, y0);
-      const b = Math.min(yb, y1);
-      if (b <= a) return;
-      ctx.fillStyle = fill;
-      ctx.fillRect(MAP.laneX - hw, a, hw * 2, b - a);
+    const drawRoad = (pts: readonly { x: number; y: number }[], width: number, stroke: string | CanvasPattern) => {
+      ctx.beginPath();
+      ctx.moveTo(pts[0].x, pts[0].y);
+      for (let i = 1; i < pts.length; i++) ctx.lineTo(pts[i].x, pts[i].y);
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = width;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+      ctx.stroke();
     };
-    const top = MAP.baseDepth;
-    const bottom = MAP.height - MAP.baseDepth;
-    // 道路边缘的深色"悬崖"带
-    band(top, bottom, MAP.laneHalfWidth + 36, 'rgba(25,16,8,0.7)');
-    band(0, top, MAP.baseHalfWidth + 36, 'rgba(25,16,8,0.7)');
-    band(bottom, MAP.height, MAP.baseHalfWidth + 36, 'rgba(25,16,8,0.7)');
-    band(top, bottom, MAP.laneHalfWidth, p.lane);
-    band(0, top, MAP.baseHalfWidth, p.baseD);
-    band(bottom, MAP.height, MAP.baseHalfWidth, p.baseR);
-    band(top, bottom, 140, 'rgba(255,235,190,0.06)');
+
+    const topPath = [{ x: 1500, y: 8500 }, { x: 1500, y: 1500 }, { x: 8500, y: 1500 }];
+    const midPath = [{ x: 1500, y: 8500 }, { x: 8500, y: 1500 }];
+    const botPath = [{ x: 1500, y: 8500 }, { x: 8500, y: 8500 }, { x: 8500, y: 1500 }];
+    const allPaths = [topPath, midPath, botPath];
+
+    // 基地底盘
+    ctx.fillStyle = p.baseR;
+    ctx.beginPath();
+    ctx.arc(1500, 8500, MAP.baseHalfWidth, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.fillStyle = p.baseD;
+    ctx.beginPath();
+    ctx.arc(8500, 1500, MAP.baseHalfWidth, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 道路边缘深色悬崖带
+    for (const path of allPaths) {
+      drawRoad(path, MAP.laneHalfWidth * 2 + 40, 'rgba(25,16,8,0.7)');
+    }
+    // 道路路面
+    for (const path of allPaths) {
+      drawRoad(path, MAP.laneHalfWidth * 2, p.lane);
+    }
+    // 道路中心微光带
+    for (const path of allPaths) {
+      drawRoad(path, 140, 'rgba(255,235,190,0.06)');
+    }
 
     // 阵营色调：夜魇半场偏暗红，天辉半场偏绿
-    const tint = ctx.createLinearGradient(0, MAP.height / 2 - 1500, 0, MAP.height / 2 + 1500);
+    const tint = ctx.createLinearGradient(0, MAP.height / 2 - 2000, 0, MAP.height / 2 + 2000);
     tint.addColorStop(0, 'rgba(120,20,10,0.16)');
     tint.addColorStop(0.5, 'rgba(0,0,0,0)');
     tint.addColorStop(1, 'rgba(20,110,40,0.12)');

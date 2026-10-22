@@ -12,8 +12,8 @@ describe('hero draft', () => {
     for (let s = 1; s <= 50; s++) {
       const d = draftTeams(new Rng(s), ALL, 'zeus');
       expect(d.radiant[0]).toBe('zeus');
-      expect(d.radiant).toHaveLength(3);
-      expect(d.dire).toHaveLength(3);
+      expect(d.radiant).toHaveLength(5);
+      expect(d.dire).toHaveLength(5);
     }
   });
 
@@ -41,17 +41,17 @@ describe('hero draft', () => {
       }
     }
     // 池子里没有力量英雄时照常补齐
-    const d = draftTeams(new Rng(7), ['zeus', 'lina', 'drow_ranger', 'juggernaut']);
+    const d = draftTeams(new Rng(7), ['zeus', 'lina', 'drow_ranger', 'juggernaut', 'crystal_maiden']);
     expect(unique(d.radiant) && unique(d.dire)).toBe(true);
     expect(d.radiant.some((id) => HARD_DISABLE_HEROES.includes(id))).toBe(true);
   });
 
-  it('falls back to duplicates when fewer than 3 heroes are available', () => {
-    expect(draftTeams(new Rng(1), ['axe'])).toEqual({ radiant: ['axe', 'axe', 'axe'], dire: ['axe', 'axe', 'axe'] });
-    expect(draftTeams(new Rng(1), ['axe'], 'axe').radiant).toEqual(['axe', 'axe', 'axe']);
+  it('falls back to duplicates when fewer than 5 heroes are available', () => {
+    expect(draftTeams(new Rng(1), ['axe'])).toEqual({ radiant: ['axe', 'axe', 'axe', 'axe', 'axe'], dire: ['axe', 'axe', 'axe', 'axe', 'axe'] });
+    expect(draftTeams(new Rng(1), ['axe'], 'axe').radiant).toEqual(['axe', 'axe', 'axe', 'axe', 'axe']);
     const d = draftTeams(new Rng(3), ['axe', 'zeus']);
     for (const team of [d.radiant, d.dire]) {
-      expect(team).toHaveLength(3);
+      expect(team).toHaveLength(5);
       expect(new Set(team)).toEqual(new Set(['axe', 'zeus']));
     }
   });

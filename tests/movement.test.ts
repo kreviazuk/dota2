@@ -23,11 +23,11 @@ describe('movement', () => {
     runFor(w, 1);
     expect(a.pos.y).toBe(5000); expect(b.pos.y).toBe(5000);
   });
-  it('stays inside the lane', () => {
-    const w = makeWorld(); const u = spawnDummy(w, { pos: { x: 1500, y: 5000 } });
+  it('stays inside the map bounds', () => {
+    const w = makeWorld(); const u = spawnDummy(w, { pos: { x: 500, y: 5000 } });
     w.issue(u.id, { type: 'move', dir: { x: -1, y: 0 } });
     runFor(w, 5);
-    expect(u.pos.x).toBeCloseTo(MAP.laneX - MAP.laneHalfWidth + u.radius);
+    expect(u.pos.x).toBeCloseTo(MAP.minX + u.radius);
   });
   it('slows reduce distance travelled', () => {
     const w = makeWorld(); const u = spawnDummy(w, { pos: { x: 1500, y: 5000 } });

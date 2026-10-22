@@ -9,6 +9,7 @@ import type { AbilityInstance, CastState, ResolvedTarget } from '../heroes/types
 import type { ForcedMotion } from '../systems/motion';
 import type { SummonState } from '../systems/summons';
 import type { ItemInstance } from '../items/types';
+import type { Lane } from '../data/map';
 
 export interface UnitBase {
   maxHp: number;
@@ -95,6 +96,8 @@ export type CreepType = 'melee' | 'ranged' | 'siege' | 'superMelee' | 'superRang
 
 export interface CreepState {
   type: CreepType | 'elite';
+  lane?: Lane;
+  waypointIndex?: number;
   laneOffset: number;
   aggroTargetId: number | null;
   aggroUntil: number;
@@ -123,6 +126,8 @@ export type EliteType =
 
 export interface EliteState {
   type: EliteType;
+  lane?: Lane;
+  waypointIndex?: number;
   laneOffset: number;
   abilityCooldowns: Record<string, number>;
 }

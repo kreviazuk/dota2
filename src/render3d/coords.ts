@@ -1,4 +1,4 @@
-import { MAP, walkableHalfWidthAt } from '../sim/data/map';
+import { MAP } from '../sim/data/map';
 
 /**
  * sim 坐标 ↔ Three.js 坐标（全项目唯一的换算处）。
@@ -42,15 +42,47 @@ const smoothstep = (a: number, b: number, x: number): number => {
   return t * t * (3 - 2 * t);
 };
 
+function distToSegment(px: number, py: number, x1: number, y1: number, x2: number, y2: number): number {
+  const dx = x2 - x1, dy = y2 - y1;
+  const lenSq = dx * dx + dy * dy;
+  if (lenSq === 0) return Math.hypot(px - x1, py - y1);
+  const t = Math.max(0, Math.min(1, ((px - x1) * dx + (py - y1) * dy) / lenSq));
+  return Math.hypot(px - (x1 + t * dx), py - (y1 + t * dy));
+}
+
 /**
  * 地面高度（世界单位）。可走区域（道路、基地）是平的 0；河道是凹下去的河床；道路两侧的树林地面略高。
  * 单位、地面网格、树和装饰都按这个函数放置，所以人物在河里会"站在水里"。
  */
 export function groundHeight(x: number, y: number): number {
-  const hw = walkableHalfWidthAt(y);
-  const off = Math.abs(x - MAP.laneX) - hw;
+  // 基地判定
+  const inBase = y < MAP.baseDepth || y > MAP.height - MAP.baseDepth;
+  const baseDist = Math.min(
+    Math.hypot(x - 1500, y - 8500),
+    Math.hypot(x - 8500, y - 1500),
+    Math.abs(x - MAP.laneX),
+  );
+  if (inBase && baseDist <= MAP.baseHalfWidth) {
+    const off = baseDist - MAP.baseHalfWidth;
+    let h = FOREST_RISE * smoothstep(30, 110, off);
+    const d = Math.abs(y - MAP.riverY);
+    const dip = smoothstep(MAP.riverHalf + 70, MAP.riverHalf - 50, d);
+    return h * (1 - dip) - RIVER_DEPTH * dip;
+  }
+
+  // 计算到三路道路中轴线的最小距离
+  const dTop1 = distToSegment(x, y, 1500, 8500, 1500, 1500);
+  const dTop2 = distToSegment(x, y, 1500, 1500, 8500, 1500);
+  const dMid = distToSegment(x, y, 1500, 8500, 8500, 1500);
+  const dBot1 = distToSegment(x, y, 1500, 8500, 8500, 8500);
+  const dBot2 = distToSegment(x, y, 8500, 8500, 8500, 1500);
+
+  const minDist = Math.min(dTop1, dTop2, dMid, dBot1, dBot2);
+  const off = minDist - MAP.laneHalfWidth;
+
   // 可走区域边缘外 30–110 单位从 0 升到 FOREST_RISE
   let h = FOREST_RISE * smoothstep(30, 110, off);
+
   // 河道：中心最深，河岸在 riverHalf 外 70 单位内过渡
   const d = Math.abs(y - MAP.riverY);
   const dip = smoothstep(MAP.riverHalf + 70, MAP.riverHalf - 50, d);

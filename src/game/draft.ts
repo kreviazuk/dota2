@@ -7,7 +7,7 @@ export const HARD_DISABLE_HEROES: readonly string[] = ['axe', 'sven', 'pudge', '
 
 export interface Draft { radiant: string[]; dire: string[] }
 
-const TEAM_SIZE = 3;
+const TEAM_SIZE = 5;
 
 /** 补齐一方：fixed 是已经确定的英雄（玩家），其余由电脑从 pool 里选 */
 function fillTeam(rng: Rng, pool: readonly string[], fixed: readonly string[]): string[] {

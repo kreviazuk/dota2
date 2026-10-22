@@ -32,10 +32,10 @@ export interface RuneSpot {
   category: 'power' | 'bounty';
 }
 
-/** 河道两个经典神符刷新点（东侧强化神符、西侧赏金神符） */
+/** 河道经典神符刷新点（东侧下路河道、西侧上路河道） */
 export const RUNE_SPOTS: readonly RuneSpot[] = [
-  { id: 'east_power', name: '东侧河道', pos: { x: 1800, y: 5000 }, category: 'power' },
-  { id: 'west_bounty', name: '西侧河道', pos: { x: 1200, y: 5200 }, category: 'bounty' },
+  { id: 'east_power', name: '东侧河道', pos: { x: 6400, y: 5000 }, category: 'power' },
+  { id: 'west_bounty', name: '西侧河道', pos: { x: 3600, y: 5000 }, category: 'bounty' },
 ];
 
 export const RUNE_SPAWN_INTERVAL = 120; // 每 2 分钟 (120s) 刷新一次

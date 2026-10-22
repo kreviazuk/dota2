@@ -1,6 +1,7 @@
 import { World } from '../sim/world';
 import type { Balance } from '../sim/data/balance';
 import { Team, type Difficulty } from '../sim/core/types';
+import type { Lane } from '../sim/data/map';
 import { createBuildings } from '../sim/systems/buildings';
 import { createHero } from '../sim/systems/heroes';
 import type { Command } from '../sim/commands';
@@ -34,17 +35,23 @@ export class Match {
     dire.goldMult = d.econMult;
     dire.xpMult = d.econMult;
     dire.eliteMult = d.eliteMult;
+    const is3v3orLess = cfg.radiantHeroes.length <= 3;
+    const DEFAULT_LANES: readonly Lane[] = is3v3orLess
+      ? ['mid', 'mid', 'mid']
+      : ['mid', 'top', 'top', 'bot', 'bot'];
     let player: number | null = null;
     cfg.radiantHeroes.forEach((id, i) => {
       const isPlayer = i === cfg.playerSlot;
       const u = createHero(w, id, Team.Radiant, isPlayer);
+      const lane = DEFAULT_LANES[i % DEFAULT_LANES.length];
       if (isPlayer) player = u.id;
-      else this.ais.push(new SimpleAI(u.id, DIFFICULTY.normal.skill));
+      else this.ais.push(new SimpleAI(u.id, DIFFICULTY.normal.skill, undefined, lane));
     });
-    for (const id of cfg.direHeroes) {
+    cfg.direHeroes.forEach((id, i) => {
       const u = createHero(w, id, Team.Dire, false);
-      this.ais.push(new SimpleAI(u.id, d.skill));
-    }
+      const lane = DEFAULT_LANES[i % DEFAULT_LANES.length];
+      this.ais.push(new SimpleAI(u.id, d.skill, undefined, lane));
+    });
     this.playerUnitId = player;
   }
 

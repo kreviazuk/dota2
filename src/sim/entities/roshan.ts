@@ -8,7 +8,7 @@ import { applyDamage } from '../systems/damage';
 import { applySlow } from '../status';
 import { grantAegis } from '../items/aegis';
 
-export const ROSHAN_PIT: Vec2 = { x: 1150, y: 5000 };
+export const ROSHAN_PIT: Vec2 = { x: 2600, y: 4800 };
 
 export interface RoshanState {
   spawnTime: number;

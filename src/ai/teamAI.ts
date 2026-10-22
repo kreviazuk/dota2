@@ -64,27 +64,24 @@ export class TeamAI {
     const L = layoutFor(this.team);
     const oppL = layoutFor(oppTeam);
 
-    // 寻找己方最前沿存活防御塔
+    // 寻找己方最前沿存活防御塔（离己方泉水最远的一座塔）
     const myTowers = world.units.filter(
       (u) => u.team === this.team && u.alive && u.kind === 'building' && u.building?.type === 'tower',
     );
-    // 按推进方向由前到后排序（y 坐标离中路最近的在前）
-    myTowers.sort((a, b) => Math.abs(a.pos.y - 5000) - Math.abs(b.pos.y - 5000));
+    myTowers.sort((a, b) => dist(b.pos, L.fountain) - dist(a.pos, L.fountain));
     const frontMyTower = myTowers[0];
 
-    // 寻找敌方最前沿存活防御塔
+    // 寻找敌方最前沿存活防御塔（离敌方泉水最远的一座塔）
     const oppTowers = world.units.filter(
       (u) => u.team === oppTeam && u.alive && u.kind === 'building' && u.building?.type === 'tower',
     );
-    oppTowers.sort((a, b) => Math.abs(a.pos.y - 5000) - Math.abs(b.pos.y - 5000));
+    oppTowers.sort((a, b) => dist(b.pos, oppL.fountain) - dist(a.pos, oppL.fountain));
     const frontOppTower = oppTowers[0];
 
-    // 检查是否有敌方单位在冲击己方前沿防御塔
-    const underThreat = frontMyTower
-      ? world.units.some(
-          (u) => u.team === oppTeam && u.alive && dist(u.pos, frontMyTower.pos) <= 800,
-        )
-      : false;
+    // 检查是否有敌方单位在冲击己方防御塔
+    const threatenedTower = myTowers.find((tow) =>
+      world.units.some((u) => u.team === oppTeam && u.alive && dist(u.pos, tow.pos) <= 800),
+    );
 
     // 检查双方英雄交火接触（是否有 2+ 名英雄在 900 范围内）
     let fightCenter: Vec2 | null = null;
@@ -111,14 +108,22 @@ export class TeamAI {
       mode = 'retreating';
       rallyPoint = frontMyTower ? { ...frontMyTower.pos } : { ...L.fountain };
     }
-    // 2. 塔下防守判断（防御塔受压制且己方存活）
-    else if (underThreat && frontMyTower) {
+    // 2. 正面团战判断（双方英雄在 900 距离内接战且状态允许）
+    else if (fightCenter && inFightEnemies.length > 0 && myHpAvg >= 0.35) {
+      mode = 'teamfight';
+      rallyPoint = fightCenter;
+      // 优先集火血量百分比最低的敌方英雄
+      inFightEnemies.sort((a, b) => a.hp / a.stats.maxHp - b.hp / b.stats.maxHp);
+      priorityTargetId = inFightEnemies[0].id;
+    }
+    // 3. 塔下防守判断（防御塔受压制且己方存活）
+    else if (threatenedTower) {
       mode = 'defending';
-      rallyPoint = { ...frontMyTower.pos };
-      const nearestThreat = oppHeroes.find((op) => dist(op.pos, frontMyTower.pos) <= 800);
+      rallyPoint = { ...threatenedTower.pos };
+      const nearestThreat = oppHeroes.find((op) => dist(op.pos, threatenedTower.pos) <= 800);
       if (nearestThreat) priorityTargetId = nearestThreat.id;
     }
-    // 3. 肉山击杀判断（肉山存活、己方占人数优势且血量充足）
+    // 4. 肉山击杀判断（肉山存活、己方占人数优势且血量充足）
     else if (
       roshan &&
       roshan.alive &&
@@ -130,14 +135,6 @@ export class TeamAI {
       mode = 'roshan';
       rallyPoint = { ...ROSHAN_PIT };
       priorityTargetId = roshan.id;
-    }
-    // 4. 正面团战判断（双方英雄在 900 距离内接战且状态允许）
-    else if (fightCenter && inFightEnemies.length > 0 && myHpAvg >= 0.35) {
-      mode = 'teamfight';
-      rallyPoint = fightCenter;
-      // 优先集火血量百分比最低的敌方英雄
-      inFightEnemies.sort((a, b) => a.hp / a.stats.maxHp - b.hp / b.stats.maxHp);
-      priorityTargetId = inFightEnemies[0].id;
     }
     // 5. 推进推线判断（敌方减员、或对局进入中期且前线安全）
     else if (oppHeroes.length < myHeroes.length || (t >= 180 && myHpAvg > 0.60)) {
@@ -157,14 +154,13 @@ export class TeamAI {
     // 6. 对线期均衡对决
     else {
       mode = 'laning';
-      // 寻找最前沿小兵推线点
+      // 寻找最前沿小兵推线点（离己方泉水最远的一只小兵）
       const myCreeps = world.units.filter((u) => u.team === this.team && u.alive && u.kind === 'creep');
       if (myCreeps.length > 0) {
-        // 天辉向 y 小的方向走，夜魇向 y 大的方向走
-        myCreeps.sort((a, b) => (this.team === Team.Radiant ? a.pos.y - b.pos.y : b.pos.y - a.pos.y));
-        rallyPoint = { x: MAP.laneX, y: myCreeps[0].pos.y };
+        myCreeps.sort((a, b) => dist(b.pos, L.fountain) - dist(a.pos, L.fountain));
+        rallyPoint = { ...myCreeps[0].pos };
       } else {
-        rallyPoint = { x: MAP.laneX, y: 5000 };
+        rallyPoint = { x: 5000, y: 5000 };
       }
       if (oppHeroes.length > 0) {
         const lowestOpp = [...oppHeroes].sort((a, b) => a.hp / a.stats.maxHp - b.hp / b.stats.maxHp)[0];
